@@ -1,50 +1,99 @@
-# Welcome to your Expo app 👋
+# 📱 EcoVerse
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+EcoVerse is a mobile application designed to help users track physical activity and develop healthier, more sustainable lifestyle habits. The app focuses on activity logging, progress tracking, and future integration with Android Health Connect.
 
-## Get started
+This project is developed as part of a **Final Year Project (FYP)** using **React Native** and **Expo**.
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 🎯 Project Objectives
 
-2. Start the app
+- Allow users to log daily activities manually  
+- Display summaries and basic statistics of logged activities  
+- Provide a clean and accessible user interface  
+- Lay the groundwork for future integration with **Android Health Connect**  
+- Apply modern mobile development practices using Expo and Expo Router  
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## 🛠️ Tech Stack
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- React Native  
+- Expo (Managed Workflow)  
+- Expo Router (file-based navigation)  
+- Zustand (state management)  
+- TypeScript  
+- Android (primary target platform)  
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+---
 
-## Get a fresh project
+## 📂 Project Structure
 
-When you're ready, run:
+```txt
+app/
+├── (tabs)/
+│   ├── index.tsx        # Home screen
+│   ├── activity.tsx     # Activity overview
+│   ├── stats.tsx        # Statistics screen
+│   └── profile.tsx      # User profile
+│
+├── activity/
+│   ├── add.tsx          # Add new activity
+│   └── details.tsx      # Activity details
+│
+├── _layout.tsx          # Root layout
+│
+assets/
+├── images/
+│   ├── icon.png
+│   ├── splash.png
+│   └── adaptive-icon.png
+│
+store/
+├── activityStore.ts     # Zustand activity store
 
-```bash
-npm run reset-project
-```
+🧭 Navigation
+Navigation is implemented using Expo Router, which uses file-based routing.
+Each screen corresponds directly to a file inside the app/ directory.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Tab navigation is defined in:
+app/(tabs)/_layout.tsx
 
-## Learn more
+📊 Data Handling
+- Activity data is stored locally using Zustand
+- Users manually enter activity details such as type and duration
+- This allows the app to function independently without external data sources
+- Health Connect integration is planned for a later phase
 
-To learn more about developing your project with Expo, look at the following resources:
+🩺 Health Connect (Planned Feature)
+Health Connect is not yet implemented.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Planned functionality includes:
+- Reading activity data from Health Connect
+- Syncing selected health metrics
+- Falling back to manual entry if permissions are denied
 
-## Join the community
+This phased approach ensures core functionality works before native integration.
 
-Join our community of developers creating universal apps.
+🚀 Running the Project
+Install dependencies
+npm install
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Start the development server
+npx expo start
+
+Assets & Branding
+- App Icon – displayed on the device home screen and when the app launches
+
+All assets are configured in app.json.
+
+🔮 Future Improvements
+- Android Health Connect integration
+- Persistent storage (SQLite or AsyncStorage)
+- Improved statistics and data visualization
+- User authentication
+- Cloud data synchronization
+
+👩🏽‍💻 Author
+Amirah
+Final Year Computer Science Student
