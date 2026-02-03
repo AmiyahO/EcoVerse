@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(127,127,127,0.08)',
+    backgroundColor: 'rgba(46, 45, 45, 0.08)',
     gap: 8,
   },
   sectionTitle: {

@@ -1,3 +1,4 @@
+// activityStore.ts
 import { create } from 'zustand';
 
 export type Activity = {
@@ -5,6 +6,7 @@ export type Activity = {
   type: string;
   steps?: number;
   distance?: number;
+  carbonSaved?: number;
   date?: string;
 };
 

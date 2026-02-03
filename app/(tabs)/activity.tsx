@@ -1,52 +1,93 @@
 // Activity screen (mock data)
-import { View, Text, FlatList, Button, TouchableOpacity } from 'react-native';
+import { View, FlatList, Pressable,  StyleSheet } from 'react-native';
+import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
 import { router } from 'expo-router';
 
 export default function ActivityScreen() {
   const activities = useActivityStore((state) => state.activities);
-  const addActivity = useActivityStore((state) => state.addActivity);
-  const clearActivities = useActivityStore((state) => state.clearActivities);
-
-  // Example: add mock activity
-  const addMock = () => {
-    addActivity({
-      id: Date.now().toString(),
-      type: 'Walking',
-      steps: Math.floor(Math.random() * 5000) + 1000,
-      distance: parseFloat((Math.random() * 5).toFixed(2)),
-      date: new Date().toISOString(),
-    });
-  };
 
   return (
-    <View style={{ flex: 1, padding: 20 }}>
-      <Text style={{ fontSize: 24, marginBottom: 10 }}>Your Activities</Text>
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <ThemedText type="title">Activity</ThemedText>
+        <Pressable
+          style={styles.addButton}
+          onPress={() => router.push('/activity/add')}
+        >
+          <ThemedText type="link">＋ Add</ThemedText>
+        </Pressable>
+      </View>
 
-      {/* Temporary mock buttons */}
-      <Button title="Add Random Activity" onPress={addMock} />
-      <Button title="Clear All Activities" onPress={clearActivities} color="red" />
-
-      {/* Activity list */}
-      <FlatList
-        data={activities}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={{ marginBottom: 10 }}>
-            <TouchableOpacity onPress={() => router.push(`/activity/details?id=${item.id}`)}>
-            <Text>
-              {item.type}: {item.steps ?? item.distance ?? 0} {item.steps ? 'steps' : 'km'}
-            </Text>
-            </TouchableOpacity>
-            {item.date && <Text style={{ fontSize: 12, color: 'gray' }}>{new Date(item.date).toLocaleString()}</Text>}
-          </View>
-        )}
-      />
-      {/* Navigate to AddActivityScreen */}
-      <Button
-        title="+ Add Activity"
-        onPress={() => router.push('/activity/add')}
-      />
+      {/* List */}
+      {activities.length === 0 ? (
+        <ThemedText style={styles.emptyText}>
+          No activities yet. Start moving 🌱
+        </ThemedText>
+      ) : (
+        <FlatList
+          data={activities}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ gap: 12 }}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.card}
+              onPress={() =>
+                router.push(`/activity/details?id=${item.id}`)
+              }
+            >
+              <ThemedText type="defaultSemiBold">
+                {item.type}
+              </ThemedText>
+              <ThemedText>
+                {item.steps
+                  ? `${item.steps} steps`
+                  : `${item.distance} km`}
+              </ThemedText>
+              <ThemedText style={styles.date}>
+                {new Date(item.date!).toLocaleDateString()}
+              </ThemedText>
+            </Pressable>
+          )}
+        />
+      )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4,
+    paddingTop: 30,
+  },
+  addButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  card: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(46,45,45,0.08)',
+    gap: 4,
+  },
+  date: {
+    fontSize: 12,
+    opacity: 0.6,
+  },
+  emptyText: {
+    marginTop: 40,
+    textAlign: 'center',
+    opacity: 0.6,
+  },
+});
+

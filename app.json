@@ -1,3 +1,4 @@
+// app.json
 {
   "expo": {
     "name": "EcoVerse",
@@ -12,9 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#E6F4FE",
       "dark": {
+        "image": "./assets/images/icon.png",
         "backgroundColor": "#000000"
-      },
-      "hideExponentText": true
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,7 +24,10 @@
       },
       "package": "com.anonymous.ecoverse"
     },
-    
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.ecoverse"
+    },
     "web": {
       "favicon": "./assets/images/favicon.png"
     },
