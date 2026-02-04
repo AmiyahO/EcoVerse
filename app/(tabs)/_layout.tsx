@@ -1,8 +1,7 @@
 // layout.tsx for the tab navigator
 import { Tabs } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
 import React from 'react';
-
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -21,7 +20,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Dashboard',
-          tabBarIcon: ({ color, size }) => <Ionicons name="leaf" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <FontAwesome6 name="leaf" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

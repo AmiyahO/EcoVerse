@@ -1,70 +1,138 @@
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
+import { calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 export default function StatsScreen() {
   const activities = useActivityStore((state) => state.activities);
 
-  const totalSteps = activities.reduce((s, a) => s + (a.steps ?? 0), 0);
-  const totalDistance = activities.reduce((s, a) => s + (a.distance ?? 0), 0);
+  // Totals
+  const totalSteps = activities.reduce((sum, a) => sum + (a.steps ?? 0), 0);
+  const totalDistance = activities.reduce((sum, a) => sum + (a.distance ?? 0), 0);
+  const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
 
+  // Averages
+  // Only include activities that have steps for avgSteps
+  const stepActivities = activities.filter(a => a.steps !== undefined);
   const avgSteps =
-    activities.length > 0 ? Math.round(totalSteps / activities.length) : 0;
+    stepActivities.length > 0
+      ? Math.round(stepActivities.reduce((sum, a) => sum + a.steps!, 0) / stepActivities.length)
+      : 0;
+
+  // Only include activities that have distance for avgDistance
+  const distanceActivities = activities.filter(a => a.distance !== undefined);
   const avgDistance =
-    activities.length > 0
-      ? (totalDistance / activities.length).toFixed(2)
+    distanceActivities.length > 0
+      ? (distanceActivities.reduce((sum, a) => sum + a.distance!, 0) / distanceActivities.length).toFixed(2)
       : '0.00';
 
-  const ecoScore = Math.round(totalSteps / 100 + totalDistance * 10);
-  const co2Saved = (totalDistance * 0.21).toFixed(2); // placeholder logic
+  // Trends (optional: most common category)
+  const categoryCounts: Record<string, number> = {};
+  activities.forEach(a => {
+    categoryCounts[a.category] = (categoryCounts[a.category] || 0) + 1;
+  });
+  const mostCommonActivity = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+  const co2ByCategory: Record<string, number> = {
+    walking: 0,
+    running: 0,
+    cycling: 0,
+    electricity: 0,
+    water: 0,
+  };
+
+  activities.forEach(activity => {
+    const co2 = calculateCarbonSaved(activity);
+    co2ByCategory[activity.category] += co2;
+  });
+
+  const totalCO2All = Object.values(co2ByCategory).reduce((a, b) => a + b, 0);
+    
+  const CATEGORY_COLORS = {
+    walking: '#66BB6A',
+    running: '#43A047',
+    cycling: '#2E7D32',
+    electricity: '#FBC02D',
+    water: '#29B6F6',
+  };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+>
       <View style={styles.header}>
         <ThemedText type="title">Your Stats</ThemedText>
-        <ThemedText style={styles.subtle}>
-          Based on logged activities
-        </ThemedText>
+        <ThemedText style={styles.subtle}>Based on all logged activities</ThemedText>
       </View>
 
-      {/* Overview */}
       <View style={styles.card}>
         <ThemedText type="defaultSemiBold">Total Activities</ThemedText>
         <ThemedText style={styles.big}>{activities.length}</ThemedText>
       </View>
 
-      {/* Grid */}
+      {/* Totals */}
       <View style={styles.grid}>
         <StatCard label="Total Steps" value={totalSteps} />
         <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} />
         <StatCard label="Avg Steps" value={avgSteps} />
         <StatCard label="Avg Distance" value={`${avgDistance} km`} />
+        <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} />
+        <StatCard label="Most Common Activity" value={mostCommonActivity} />
       </View>
 
-      {/* Eco Impact */}
       <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">Eco Impact</ThemedText>
+        <ThemedText type="defaultSemiBold">CO₂ Saved by Category</ThemedText>
 
-        <View style={styles.row}>
-          <ThemedText>You saved approx</ThemedText>
-          <ThemedText style={styles.emphasis}>
-            {co2Saved} kg CO₂e
-          </ThemedText>
+        {/* Stacked Bar */}
+        <View style={styles.stackedBar}>
+          {Object.entries(co2ByCategory).map(([category, value]) => {
+            if (value <= 0 || totalCO2All === 0) return null;
+
+            const widthPercent = (value / totalCO2All) * 100;
+
+            return (
+              <View
+                key={category}
+                style={[
+                  styles.stackedSegment,
+                  {
+                    width: `${widthPercent}%`,
+                    backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
 
-        <ThemedText style={styles.subtle}>
-          Eco Score: {ecoScore}
-        </ThemedText>
+        {/* Legend */}
+        <View style={styles.legend}>
+          {Object.entries(co2ByCategory).map(([category, value]) => (
+            value > 0 && (
+              <View key={category} style={styles.legendRow}>
+                <View
+                  style={[
+                    styles.legendDot,
+                    { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] },
+                  ]}
+                />
+                <ThemedText style={styles.legendText}>
+                  {category} · {value.toFixed(2)} kg
+                </ThemedText>
+              </View>
+            )
+          ))}
+        </View>
       </View>
-
-      {/* Future hook */}
+      
       <View style={styles.hintBox}>
         <ThemedText style={styles.subtle}>
-          More insights and visual trends coming soon 🌱
+          More insights, trends and graphs coming soon 🌱
         </ThemedText>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -78,25 +146,25 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    gap: 20,
+  container: { 
+    flex: 1, 
+    padding: 16, 
   },
-  header: {
-    gap: 4,
+  header: { 
+    gap: 4 
   },
-  subtle: {
-    fontSize: 13,
-    opacity: 0.6,
+  subtle: { 
+    fontSize: 13, 
+    opacity: 0.6 
   },
-  big: {
-    fontSize: 36,
-    fontWeight: '600',
+  big: { 
+    fontSize: 36, 
+    fontWeight: '600', 
+    lineHeight: 40 
   },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  grid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
     gap: 12,
   },
   card: {
@@ -112,25 +180,58 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(46,45,45,0.08)',
     gap: 4,
   },
-  statLabel: {
-    fontSize: 13,
-    opacity: 0.6,
+  statLabel: { 
+    fontSize: 13, 
+    opacity: 0.6 
   },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  emphasis: {
-    fontWeight: '600',
+  statValue: { 
+    fontSize: 20, 
+    fontWeight: '600', 
+    lineHeight: 24 
   },
   hintBox: {
     marginTop: 8,
     padding: 12,
     borderRadius: 12,
     backgroundColor: 'rgba(46,45,45,0.05)',
+  },
+  stackedBar: {
+    flexDirection: 'row',
+    height: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginTop: 12,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+
+  stackedSegment: {
+    height: '100%',
+  },
+
+  legend: {
+    marginTop: 12,
+    gap: 6,
+  },
+
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+
+  legendText: {
+    fontSize: 13,
+    opacity: 0.8,
+  },
+
+  scrollContent: {
+    paddingBottom: 32,
+    gap: 16,
   },
 });

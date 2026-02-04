@@ -3,6 +3,44 @@ import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
+import { act } from 'react';
+
+function getActivityMetric(activity: any) {
+  switch (activity.category) {
+    case 'walking':
+      return activity.steps
+        ? `${activity.steps.toLocaleString()} steps`
+        : '—';
+
+    case 'running':
+      if (activity.distance && activity.duration) {
+        return `${activity.distance} km · ${activity.duration} min`;
+      }
+      return activity.distance
+        ? `${activity.distance} km`
+        : activity.duration
+        ? `${activity.duration} min`
+        : '—';
+
+    case 'cycling':
+      return activity.distance
+        ? `${activity.distance} km`
+        : '—';
+
+    case 'electricity':
+      return activity.kwhSaved
+        ? `${activity.kwhSaved} kWh saved`
+        : '—';
+
+    case 'water':
+      return activity.litersSaved
+        ? `${activity.litersSaved} L saved`
+        : '—';
+
+    default:
+      return '—';
+  }
+}
 
 export default function ActivityDetailsScreen() {
   const { id } = useLocalSearchParams();
@@ -40,17 +78,42 @@ export default function ActivityDetailsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <ThemedText type="title">{activity.type}</ThemedText>
+      <ThemedText type="title">
+        {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
+      </ThemedText>
+      
 
       {/* Info Card */}
       <View style={styles.card}>
-        <Detail label="Steps" value={activity.steps} suffix="steps" />
-        <Detail label="Distance" value={activity.distance} suffix="km" />
+        {activity.category === 'walking' && (
+          <Detail label="Steps" value={activity.steps} suffix="steps" />
+        )}
+
+        {activity.category === 'running' && (
+          <>
+            <Detail label="Distance" value={activity.distance} suffix="km" />
+            <Detail label="Duration" value={activity.duration} suffix="min" />
+          </>
+        )}
+
+        {activity.category === 'cycling' && (
+          <Detail label="Distance" value={activity.distance} suffix="km" />
+        )}
+
+        {activity.category === 'electricity' && (
+          <Detail label="Energy saved" value={activity.kwhSaved} suffix="kWh" />
+        )}
+
+        {activity.category === 'water' && (
+          <Detail label="Water saved" value={activity.litersSaved} suffix="L" />
+        )}
+
         <Detail
           label="Date"
-          value={new Date(activity.date!).toLocaleString()}
+          value={new Date(activity.date).toLocaleString()}
         />
       </View>
+
 
       {/* Actions */}
       <View style={styles.actions}>
@@ -84,7 +147,7 @@ function Detail({
   value?: number | string;
   suffix?: string;
 }) {
-  if (!value) return null;
+  if (value === undefined || value === null) return null;
 
   return (
     <View style={styles.row}>

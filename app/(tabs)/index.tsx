@@ -1,19 +1,61 @@
+// index.tsx
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useActivityStore } from '@/src/store/activityStore';
-import { Ionicons } from '@expo/vector-icons';
+import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
+import { calculateTokens, calculateCarbonSaved, getEcoZone } from '@/src/utils/ecoLogic';
 
 export default function HomeScreen() {
   const activities = useActivityStore((state) => state.activities);
-
-  const totalSteps = activities.reduce((sum, a) => sum + (a.steps ?? 0), 0);
-  const totalDistance = activities.reduce((sum, a) => sum + (a.distance ?? 0), 0);
-
-  const ecoScore = Math.round(totalSteps / 100 + totalDistance * 10);
-  const ecoTokens = Math.floor(ecoScore / 5);
   const recentActivity = activities[activities.length - 1];
+
+  const now = new Date();
+  const startOfWeek = new Date();
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const weeklyActivities = activities.filter(a =>
+    new Date(a.date) >= startOfWeek
+  );
+
+  const weeklyActivityCount = weeklyActivities.length;
+
+  const weeklyTokens = weeklyActivities.reduce(
+    (sum, a) => sum + calculateTokens(a),
+    0
+  );
+
+  const weeklyCarbonSaved = weeklyActivities.reduce(
+    (sum, a) => sum + calculateCarbonSaved(a),
+    0
+  );
+
+  const activeDays = new Set(
+    weeklyActivities.map(a =>
+      new Date(a.date).toDateString()
+    )
+  ).size;
+
+  const uniqueCategories = new Set(
+    weeklyActivities.map(a => a.category)
+  ).size;
+
+  const baseScore = Math.min(
+    (weeklyTokens / 500) * 70,
+    70
+  );
+
+  const consistencyBonus = (activeDays / 7) * 20;
+  const varietyBonus = (uniqueCategories / 3) * 10;
+
+  const ecoScore = Math.round(
+    baseScore + consistencyBonus + varietyBonus
+  );
+
+  const zone = getEcoZone(ecoScore);
+
 
   return (
     <ThemedView style={styles.container}>
@@ -24,36 +66,42 @@ export default function HomeScreen() {
       {/* ECO SCORE (CIRCULAR HERO) */}
       <View style={styles.scoreWrapper}>
         <View style={styles.scoreCircle}>
-          <ThemedText style={styles.scoreLabel}>Eco Score</ThemedText>
+          <ThemedText style={styles.scoreLabel}>EcoScore</ThemedText>
           <ThemedText style={styles.scoreNumber}>{ecoScore}</ThemedText>
         </View>
+        <ThemedText style={styles.zoneText}>
+          {zone.message}
+        </ThemedText>
 
         {/* ECO TOKENS (PILL) */}
         <View style={styles.tokenPill}>
-          <Ionicons name="leaf" size={18} color="#2E7D32" />
+          <FontAwesome6 name="leaf" size={18} color="#2E7D32" />
           <ThemedText style={styles.tokenText}>
-            {ecoTokens} Eco Tokens
+            {weeklyTokens} Eco Tokens
           </ThemedText>
         </View>
       </View>
 
       <ThemedText style={styles.CO2}>
-        You saved approx X CO₂e today
+        You've saved approx {weeklyCarbonSaved.toFixed(2)} kg CO₂e this week
       </ThemedText>
 
       {/* OTHER CARDS */}
       <View style={[styles.card, styles.sectionBreak]}>
-        <ThemedText type="defaultSemiBold">Activities logged</ThemedText>
-        <ThemedText style={styles.bigNumber}>{activities.length}</ThemedText>
+        <ThemedText type="defaultSemiBold">Activities logged this week</ThemedText>
+        <ThemedText style={styles.bigNumber}>{weeklyActivityCount}</ThemedText>
       </View>
 
       <View style={styles.card}>
         <ThemedText type="defaultSemiBold">Most Recent Activity</ThemedText>
         {recentActivity ? (
           <ThemedText>
-            {recentActivity.type}:{' '}
-            {recentActivity.steps ?? recentActivity.distance ?? 0}
-            {recentActivity.steps ? ' steps' : ' km'}
+            {recentActivity.category}:{' '}
+            {recentActivity.steps
+              ? `${recentActivity.steps} steps`
+              : recentActivity.distance
+              ? `${recentActivity.distance} km`
+              : ''}
           </ThemedText>
         ) : (
           <ThemedText style={styles.hintText}>No activities yet.</ThemedText>
@@ -92,11 +140,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(46, 125, 50, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
+    alignSelf: 'center',
     gap: 8,
   },
 
   scoreLabel: {
-    fontSize: 20,
+    fontSize: 18,
     opacity: 0.8,
   },
 
@@ -104,6 +153,13 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '700',
     lineHeight: 52,
+  },
+
+  zoneText: {
+    textAlign: 'center',
+    marginTop: 12,
+    fontSize: 15,
+    opacity: 0.7,
   },
 
   /* Eco Tokens */

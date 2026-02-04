@@ -1,13 +1,27 @@
 // activityStore.ts
 import { create } from 'zustand';
 
-export type Activity = {
+export type ActivityCategory =
+  | 'walking'
+  | 'running'
+  | 'cycling'
+  | 'electricity'
+  | 'water';
+
+  export type Activity = {
   id: string;
-  type: string;
+  category: ActivityCategory;
+
+  // movement
   steps?: number;
-  distance?: number;
-  carbonSaved?: number;
-  date?: string;
+  distance?: number; // in kilometers
+  duration?: number; // in minutes
+
+  // utilities
+  kwhSaved?: number;
+  litersSaved?: number;
+
+  date: string;
 };
 
 type ActivityState = {
@@ -46,3 +60,4 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   }
 
 }));
+
