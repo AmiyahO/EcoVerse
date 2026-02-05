@@ -4,6 +4,8 @@ import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
+import { FontAwesome6 } from '@expo/vector-icons';
+import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 function getActivityMetric(activity: any) {
   switch (activity.category) {
@@ -58,6 +60,14 @@ export default function ActivityScreen() {
     return sortedActivities.filter(a => a.category === filter);
   }, [sortedActivities, filter]);
 
+  const CATEGORY_ICON: Record<string, string> = {
+      walking: 'person-walking',
+      running: 'person-running',
+      cycling: 'bicycle',
+      electricity: 'bolt',
+      water: 'droplet',
+    };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -106,9 +116,17 @@ export default function ActivityScreen() {
       </View>
 
       {/* List */}
-      {activities.length === 0 ? (
+      {filteredActivities.length === 0 ? (
         <ThemedText style={styles.emptyText}>
-          No activities yet. Start moving 🌱
+          {filter === 'all'
+            ? 'No activities yet. Start moving 🌱'
+            : `No ${filter} activities yet. Log your first one ${
+                filter === 'water' ? '💧' :
+                filter === 'electricity' ? '⚡' :
+                filter === 'cycling' ? '🚴' :
+                filter === 'running' ? '🏃' :
+                '👟'
+              }`}
         </ThemedText>
       ) : (
         <FlatList
@@ -125,13 +143,35 @@ export default function ActivityScreen() {
                   router.push(`/activity/details?id=${item.id}`)
                 }
               >
-                <View style={styles.cardTop}>
-                  <ThemedText type="defaultSemiBold" style={styles.category}>
-                    {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                {/* Top row */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.iconWrap}>
+                    <FontAwesome6
+                      name={CATEGORY_ICON[item.category]}
+                      size={20}
+                      color="#2E7D32"
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="defaultSemiBold" style={styles.category}>
+                      {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                    </ThemedText>
+
+                    <ThemedText style={styles.metric}>
+                      {label}
+                    </ThemedText>
+                  </View>
+                </View>
+
+                {/* Footer */}
+                <View style={styles.cardFooter}>
+                  <ThemedText style={styles.footerText}>
+                    🌍 {calculateCarbonSaved(item).toFixed(2)} kg CO₂
                   </ThemedText>
 
-                  <ThemedText style={styles.metric}>
-                    {label}
+                  <ThemedText style={styles.footerText}>
+                    🍃 {calculateTokens(item)} tokens
                   </ThemedText>
                 </View>
 
@@ -139,6 +179,7 @@ export default function ActivityScreen() {
                   {new Date(item.date).toLocaleDateString()}
                 </ThemedText>
               </Pressable>
+
             );
           }}
         />
@@ -217,6 +258,32 @@ const styles = StyleSheet.create({
   metric: {
     fontSize: 18,
     fontWeight: '400',
+  },
+
+  cardHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+  },
+
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(46,125,50,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+  },
+
+  footerText: {
+    fontSize: 13,
+    opacity: 0.75,
   },
 });
 

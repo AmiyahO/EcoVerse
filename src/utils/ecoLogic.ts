@@ -65,3 +65,35 @@ export function getEcoZone(score: number) {
   
   return { label: 'Green', message: 'Amazing! You’re making a real impact 🌍' };
 }
+
+// calculate active days for streaks
+export function getActiveDays(activities: { date: string }[]) {
+  return new Set(
+    activities.map(a =>
+      new Date(a.date).toDateString()
+    )
+  );
+}
+
+// calculate current streak of consecutive active days
+export function calculateStreak(activities: { date: string }[]) {
+  if (activities.length === 0) return 0;
+
+  const activeDays = getActiveDays(activities);
+  let streak = 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  while (true) {
+    const dayString = today.toDateString();
+    if (activeDays.has(dayString)) {
+      streak += 1;
+      today.setDate(today.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}

@@ -1,18 +1,24 @@
-// layout.tsx for the tab navigator
+// layout.tsx for the bottom tab navigator
 import { Tabs } from 'expo-router';
 import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
-import React from 'react';
+// import React from 'react';
 import { HapticTab } from '@/components/haptic-tab';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeStore } from '@/src/store/themeStore';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const systemScheme = useColorScheme();
+  const themeMode = useThemeStore((s) => s.mode);
+
+  const resolvedScheme = 
+    themeMode === 'system' ? systemScheme : themeMode;
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: 
+        Colors[resolvedScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
       }}>

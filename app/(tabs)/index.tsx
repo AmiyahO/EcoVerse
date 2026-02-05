@@ -1,6 +1,8 @@
 // index.tsx
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -8,6 +10,9 @@ import { StyleSheet, View } from 'react-native';
 import { calculateTokens, calculateCarbonSaved, getEcoZone } from '@/src/utils/ecoLogic';
 
 export default function HomeScreen() {
+  const scheme = useColorScheme() ?? 'light';
+  const colors = Colors[scheme];
+  
   const activities = useActivityStore((state) => state.activities);
   const recentActivity = activities[activities.length - 1];
 
@@ -56,7 +61,6 @@ export default function HomeScreen() {
 
   const zone = getEcoZone(ecoScore);
 
-
   return (
     <ThemedView style={styles.container}>
       <ThemedText type="title" style={{ fontSize: 24 }}>
@@ -65,7 +69,10 @@ export default function HomeScreen() {
 
       {/* ECO SCORE (CIRCULAR HERO) */}
       <View style={styles.scoreWrapper}>
-        <View style={styles.scoreCircle}>
+        <View style={[
+          styles.scoreCircle,
+          { backgroundColor: colors.surfaceMuted }
+        ]}>
           <ThemedText style={styles.scoreLabel}>EcoScore</ThemedText>
           <ThemedText style={styles.scoreNumber}>{ecoScore}</ThemedText>
         </View>
@@ -74,8 +81,11 @@ export default function HomeScreen() {
         </ThemedText>
 
         {/* ECO TOKENS (PILL) */}
-        <View style={styles.tokenPill}>
-          <FontAwesome6 name="leaf" size={18} color="#2E7D32" />
+        <View style={[
+          styles.tokenPill,
+          { backgroundColor: colors.surfaceMuted }
+        ]}>
+          <FontAwesome6 name="leaf" size={18} color={colors.tint} />
           <ThemedText style={styles.tokenText}>
             {weeklyTokens} Eco Tokens
           </ThemedText>
@@ -87,12 +97,19 @@ export default function HomeScreen() {
       </ThemedText>
 
       {/* OTHER CARDS */}
-      <View style={[styles.card, styles.sectionBreak]}>
+      <View style={[
+        styles.card, 
+        styles.sectionBreak,
+        { backgroundColor: colors.surface }
+      ]}>
         <ThemedText type="defaultSemiBold">Activities logged this week</ThemedText>
         <ThemedText style={styles.bigNumber}>{weeklyActivityCount}</ThemedText>
       </View>
 
-      <View style={styles.card}>
+      <View style={[
+        styles.card,
+        { backgroundColor: colors.surface }
+      ]}>
         <ThemedText type="defaultSemiBold">Most Recent Activity</ThemedText>
         {recentActivity ? (
           <ThemedText>
@@ -137,10 +154,9 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(46, 125, 50, 0.12)',
+    // backgroundColor: 'rgba(46, 125, 50, 0.12)', // check about how app looks in 3 theme modes
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
     gap: 8,
   },
 
@@ -170,7 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(46, 125, 50, 0.15)',
+    // backgroundColor: 'rgba(46, 125, 50, 0.15)', //
   },
 
   tokenText: {
@@ -182,7 +198,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(46, 45, 45, 0.08)',
+    // backgroundColor: 'rgba(46, 45, 45, 0.08)', //
     gap: 8,
   },
 
@@ -193,7 +209,7 @@ const styles = StyleSheet.create({
 
   hintText: {
     fontSize: 14,
-    color: 'gray',
+    // color: 'gray',
     marginTop: 4,
   },
 

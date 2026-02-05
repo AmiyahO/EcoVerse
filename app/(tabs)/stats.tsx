@@ -61,7 +61,9 @@ export default function StatsScreen() {
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
->
+      >
+      
+      {/* Header */}
       <View style={styles.header}>
         <ThemedText type="title">Your Stats</ThemedText>
         <ThemedText style={styles.subtle}>Based on all logged activities</ThemedText>
@@ -148,7 +150,8 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 const styles = StyleSheet.create({
   container: { 
     flex: 1, 
-    padding: 16, 
+    padding: 16,
+    paddingTop: 50,
   },
   header: { 
     gap: 4 
