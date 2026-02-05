@@ -1,10 +1,11 @@
 // add.tsx
-import { View, StyleSheet, Pressable, TextInput } from 'react-native';
-import { useState } from 'react';
-import { router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
-import { useActivityStore, ActivityCategory } from '@/src/store/activityStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking', label: 'Walking', icon: 'person-walking' },
@@ -15,6 +16,8 @@ const ACTIVITY_CATEGORIES = [
 ] as const;
 
 export default function AddActivityScreen() {
+  const { colors } = useAppTheme();
+  
   const addActivity = useActivityStore((state) => state.addActivity);
 
   const [category, setCategory] = useState<ActivityCategory | null>(null);
@@ -58,14 +61,12 @@ export default function AddActivityScreen() {
     (category === 'water' && !litersSaved);
 
   return (
-    <View style={styles.container}>
-      {/* <ThemedText type="title">Add Activity</ThemedText> */}
-
+    <View style={[styles.container]}>
       {/* Category Selection */}
       <View style={styles.section}>
-        <ThemedText type="defaultSemiBold">Category</ThemedText>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Category</ThemedText>
 
-        <View style={styles.grid}>
+        <View style={[styles.grid]}>
           {ACTIVITY_CATEGORIES.map(item => {
             const selected = category === item.key;
 
@@ -79,17 +80,19 @@ export default function AddActivityScreen() {
                 style={[
                   styles.categoryCard,
                   selected && styles.categoryCardActive,
+                  { backgroundColor: selected ? '#2e7d3230' : colors.surface }
                 ]}
               >
                 <FontAwesome6
                   name={item.icon as any}
                   size={26}
-                  color={selected ? '#2E7D32' : '#777'}
+                  color={selected ? '#2E7D32' : colors.icon}
                 />
                 <ThemedText
                   style={[
                     styles.categoryLabel,
                     selected && styles.categoryLabelActive,
+                    { color: colors.icon }
                   ]}
                 >
                   {item.label}
@@ -107,6 +110,8 @@ export default function AddActivityScreen() {
           value={steps}
           setValue={setSteps}
           placeholder="e.g. 4500"
+          placeholderTextColor={colors.text + '99'}
+          style={{ color: colors.text }}
         />
       )}
 
@@ -117,12 +122,16 @@ export default function AddActivityScreen() {
             value={distance}
             setValue={setDistance}
             placeholder="e.g. 3.2"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
           />
           <Input
             label="Duration (minutes)"
             value={duration}
             setValue={setDuration}
             placeholder="e.g. 25"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
           />
         </>
       )}
@@ -133,6 +142,8 @@ export default function AddActivityScreen() {
           value={distance}
           setValue={setDistance}
           placeholder="e.g. 5"
+          placeholderTextColor={colors.text + '99'}
+          style={{ color: colors.text }}
         />
       )}
 
@@ -142,6 +153,8 @@ export default function AddActivityScreen() {
           value={kwhSaved}
           setValue={setKwhSaved}
           placeholder="e.g. 2.5"
+          placeholderTextColor={colors.text + '99'}
+          style={{ color: colors.text }}
         />
       )}
 
@@ -151,16 +164,18 @@ export default function AddActivityScreen() {
           value={litersSaved}
           setValue={setLitersSaved}
           placeholder="e.g. 10"
+          placeholderTextColor={colors.text + '99'}
+          style={{ color: colors.text }}
         />
       )}
 
       {/* Save */}
       <Pressable
-        style={[styles.saveButton, isSaveDisabled && { opacity: 0.5 }]}
+        style={[styles.saveButton, isSaveDisabled && { opacity: 0.5 }, { backgroundColor: colors.surfaceMuted }]}
         onPress={handleSave}
         disabled={isSaveDisabled}
       >
-      <ThemedText type="defaultSemiBold">Save Activity</ThemedText>
+      <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Save Activity</ThemedText>
       </Pressable>
     </View>
   );
@@ -172,21 +187,28 @@ function Input({
   value,
   setValue,
   placeholder,
+  placeholderTextColor,
+  style,
 }: {
   label: string;
   value: string;
   setValue: (v: string) => void;
   placeholder: string;
+  placeholderTextColor?: string;
+  style?: any;
 }) {
+  const { colors } = useAppTheme();
+  const finalPlaceholderTextColor = placeholderTextColor ?? (colors.text + '99');
   return (
     <View style={styles.field}>
-      <ThemedText type="defaultSemiBold">{label}</ThemedText>
+      <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>{label}</ThemedText>
       <TextInput
         value={value}
         onChangeText={setValue}
         keyboardType="numeric"
         placeholder={placeholder}
-        style={styles.input}
+        placeholderTextColor={finalPlaceholderTextColor}
+        style={[styles.input, style, { backgroundColor: colors.surface, color: colors.text }]}
       />
     </View>
   );
@@ -204,14 +226,14 @@ const styles = StyleSheet.create({
   input: {
     padding: 12,
     borderRadius: 10,
-    backgroundColor: 'rgba(46,45,45,0.08)',
+    //backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
   },
   saveButton: {
     marginTop: 24,
     padding: 16,
     borderRadius: 14,
     alignItems: 'center',
-    backgroundColor: 'rgba(46,45,45,0.15)',
+    //backgroundColor: 'rgba(46,45,45,0.15)', // #2e2d2d26
   },
   section: {
     gap: 10,
@@ -227,16 +249,15 @@ const styles = StyleSheet.create({
     width: '48%',
     paddingVertical: 18,
     borderRadius: 14,
-    backgroundColor: 'rgba(46,45,45,0.08)',
+    // backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
 
   categoryCardActive: {
-    backgroundColor: 'rgba(46,125,50,0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(46,125,50,0.4)',
+    borderColor: 'rgba(46,125,50,0.4)', // #2e7d3240
   },
 
   categoryLabel: {

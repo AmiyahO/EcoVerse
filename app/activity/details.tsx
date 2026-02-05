@@ -2,8 +2,9 @@
 import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
+import { useThemeStore } from '@/src/store/themeStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { act } from 'react';
 
 function getActivityMetric(activity: any) {
   switch (activity.category) {
@@ -43,6 +44,8 @@ function getActivityMetric(activity: any) {
 }
 
 export default function ActivityDetailsScreen() {
+  const { colors } = useAppTheme();
+  
   const { id } = useLocalSearchParams();
   const activity = useActivityStore((state) =>
     state.getActivityById(id as string)
@@ -52,7 +55,7 @@ export default function ActivityDetailsScreen() {
   if (!activity) {
     return (
       <View style={styles.container}>
-        <ThemedText>Activity not found.</ThemedText>
+        <ThemedText>style = { colors.text } Activity not found.</ThemedText>
       </View>
     );
   }
@@ -78,13 +81,13 @@ export default function ActivityDetailsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <ThemedText type="title">
+      <ThemedText type="title" style={{ lineHeight: 50, color: colors.text }}>
         {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
       </ThemedText>
       
 
       {/* Info Card */}
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
         {activity.category === 'walking' && (
           <Detail label="Steps" value={activity.steps} suffix="steps" />
         )}
@@ -114,24 +117,23 @@ export default function ActivityDetailsScreen() {
         />
       </View>
 
-
       {/* Actions */}
       <View style={styles.actions}>
         <Pressable
-          style={[styles.button, styles.edit]}
+          style={[styles.button, styles.edit, { backgroundColor: colors.surface }]}
           onPress={() => {
             // placeholder for future edit screen
             Alert.alert('Edit coming soon');
           }}
         >
-          <ThemedText>Edit</ThemedText>
+          <ThemedText style={{ color: colors.text }}>Edit</ThemedText>
         </Pressable>
 
         <Pressable
           style={[styles.button, styles.delete]}
           onPress={confirmDelete}
         >
-          <ThemedText>Delete</ThemedText>
+          <ThemedText style={{ color: colors.text }}>Delete</ThemedText>
         </Pressable>
       </View>
     </View>
@@ -148,11 +150,12 @@ function Detail({
   suffix?: string;
 }) {
   if (value === undefined || value === null) return null;
+  const { colors } = useAppTheme();
 
   return (
     <View style={styles.row}>
-      <ThemedText style={styles.label}>{label}</ThemedText>
-      <ThemedText>
+      <ThemedText style={[styles.label, { color: colors.text }]}>{label}</ThemedText>
+      <ThemedText style={{ color: colors.text }}>
         {value} {suffix ?? ''}
       </ThemedText>
     </View>
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.08)',
+    //backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
     gap: 12,
   },
   row: {
@@ -191,10 +194,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   edit: {
-    backgroundColor: 'rgba(46,45,45,0.12)',
+    backgroundColor: 'rgba(46,45,45,0.12)', // #2e2d2d1f
   },
   delete: {
-    backgroundColor: 'rgba(200,60,60,0.15)',
+    backgroundColor: 'rgba(200,60,60,0.15)', // #c83c3c26
   },
 });
 

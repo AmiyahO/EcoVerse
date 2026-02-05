@@ -1,9 +1,12 @@
-import { View, StyleSheet, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 export default function StatsScreen() {
+  const { colors } = useAppTheme();
+  
   const activities = useActivityStore((state) => state.activities);
 
   // Totals
@@ -65,30 +68,32 @@ export default function StatsScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <ThemedText type="title">Your Stats</ThemedText>
+        <ThemedText type="title" style={{ color: colors.text }}>Your Stats</ThemedText>
         <ThemedText style={styles.subtle}>Based on all logged activities</ThemedText>
       </View>
 
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">Total Activities</ThemedText>
-        <ThemedText style={styles.big}>{activities.length}</ThemedText>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Total Activities</ThemedText>
+        <ThemedText style={[styles.big, { color: colors.text }]}>{activities.length}</ThemedText>
       </View>
 
       {/* Totals */}
-      <View style={styles.grid}>
-        <StatCard label="Total Steps" value={totalSteps} />
-        <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} />
-        <StatCard label="Avg Steps" value={avgSteps} />
-        <StatCard label="Avg Distance" value={`${avgDistance} km`} />
-        <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} />
-        <StatCard label="Most Common Activity" value={mostCommonActivity} />
+      <View style={[styles.grid]}>
+        <StatCard label="Total Steps" value={totalSteps} background={colors.surface} colors={colors} />
+        <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} background={colors.surface} colors={colors} />
+        <StatCard label="Avg Steps" value={avgSteps} background={colors.surface} colors={colors} />
+        <StatCard label="Avg Distance" value={`${avgDistance} km`} background={colors.surface} colors={colors} />
+        <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} background={colors.surface} colors={colors} />
+        <StatCard label="Most Common Activity" value={mostCommonActivity.charAt(0).toUpperCase() + mostCommonActivity.slice(1)} background={colors.surface} colors={colors} />
       </View>
 
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">CO₂ Saved by Category</ThemedText>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+          CO₂ Saved by Category
+        </ThemedText>
 
         {/* Stacked Bar */}
-        <View style={styles.stackedBar}>
+        <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
           {Object.entries(co2ByCategory).map(([category, value]) => {
             if (value <= 0 || totalCO2All === 0) return null;
 
@@ -98,7 +103,7 @@ export default function StatsScreen() {
               <View
                 key={category}
                 style={[
-                  styles.stackedSegment,
+                  styles.stackedSegment, 
                   {
                     width: `${widthPercent}%`,
                     backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
@@ -120,8 +125,8 @@ export default function StatsScreen() {
                     { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] },
                   ]}
                 />
-                <ThemedText style={styles.legendText}>
-                  {category} · {value.toFixed(2)} kg
+                <ThemedText style={[styles.legendText, { color: colors.text }]}>
+                  {category.charAt(0).toUpperCase() + category.slice(1)} · {value.toFixed(2)} kg
                 </ThemedText>
               </View>
             )
@@ -129,8 +134,8 @@ export default function StatsScreen() {
         </View>
       </View>
       
-      <View style={styles.hintBox}>
-        <ThemedText style={styles.subtle}>
+      <View style={[styles.hintBox, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface }]}>
+        <ThemedText style={[styles.subtle, { color: colors.text + '99' }]}>
           More insights, trends and graphs coming soon 🌱
         </ThemedText>
       </View>
@@ -138,11 +143,11 @@ export default function StatsScreen() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, value, background, colors }: { label: string; value: string | number; background?: string; colors: any }) {
   return (
-    <View style={styles.statCard}>
-      <ThemedText style={styles.statLabel}>{label}</ThemedText>
-      <ThemedText style={styles.statValue}>{value}</ThemedText>
+    <View style={[styles.statCard, background ? { backgroundColor: background } : { backgroundColor: colors.surface }]}>
+      <ThemedText style={[styles.statLabel, { color: colors.text }]}>{label}</ThemedText>
+      <ThemedText style={[styles.statValue, { color: colors.text }]}>{value}</ThemedText>
     </View>
   );
 }
@@ -173,14 +178,12 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.08)',
     gap: 8,
   },
   statCard: {
     width: '48%',
     padding: 14,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.08)',
     gap: 4,
   },
   statLabel: { 
@@ -196,7 +199,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.05)',
   },
   stackedBar: {
     flexDirection: 'row',
@@ -204,7 +206,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     overflow: 'hidden',
     marginTop: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
   },
 
   stackedSegment: {
@@ -234,7 +235,7 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 70,
     gap: 16,
   },
 });

@@ -1,6 +1,7 @@
 // Activity screen
 import { View, FlatList, Pressable,  StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -45,6 +46,8 @@ function getActivityMetric(activity: any) {
 }
 
 export default function ActivityScreen() {
+  const { colors } = useAppTheme();
+  
   const activities = useActivityStore((state) => state.activities);
   const CATEGORIES = ['all', 'walking', 'running', 'cycling', 'electricity', 'water'];
   const [filter, setFilter] = useState('all');
@@ -72,7 +75,7 @@ export default function ActivityScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <ThemedText type="title">Activity</ThemedText>
+        <ThemedText type="title" style={{ color: colors.text }}>Activity</ThemedText>
         <Pressable
           style={styles.addButton}
           onPress={() => router.push('/activity/add')}
@@ -82,7 +85,7 @@ export default function ActivityScreen() {
       </View>
 
       {/* Filters */}
-      <View style={styles.filterRow}>
+      <View style={[styles.filterRow]}>
         <FlatList
           data={CATEGORIES}
           horizontal
@@ -103,6 +106,7 @@ export default function ActivityScreen() {
                   style={[
                     styles.filterText,
                     active && styles.filterTextActive,
+                    { color: colors.text },
                   ]}
                 >
                   {item === 'all'
@@ -117,7 +121,7 @@ export default function ActivityScreen() {
 
       {/* List */}
       {filteredActivities.length === 0 ? (
-        <ThemedText style={styles.emptyText}>
+        <ThemedText style={[styles.emptyText, { color: colors.text }]}>
           {filter === 'all'
             ? 'No activities yet. Start moving 🌱'
             : `No ${filter} activities yet. Log your first one ${
@@ -131,6 +135,7 @@ export default function ActivityScreen() {
       ) : (
         <FlatList
           data={filteredActivities}
+          showsVerticalScrollIndicator={false}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ gap: 12 }}
           renderItem={({ item }) => {
@@ -138,7 +143,10 @@ export default function ActivityScreen() {
 
             return (
               <Pressable
-                style={styles.card}
+                style={[
+                  styles.card,
+                  { backgroundColor: colors.surface }
+                ]}
                 onPress={() =>
                   router.push(`/activity/details?id=${item.id}`)
                 }
@@ -154,11 +162,11 @@ export default function ActivityScreen() {
                   </View>
 
                   <View style={{ flex: 1 }}>
-                    <ThemedText type="defaultSemiBold" style={styles.category}>
+                    <ThemedText type="defaultSemiBold" style={[styles.category, { color: colors.text }]}>
                       {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
                     </ThemedText>
 
-                    <ThemedText style={styles.metric}>
+                    <ThemedText style={[styles.metric, { color: colors.text }]}>
                       {label}
                     </ThemedText>
                   </View>
@@ -166,16 +174,16 @@ export default function ActivityScreen() {
 
                 {/* Footer */}
                 <View style={styles.cardFooter}>
-                  <ThemedText style={styles.footerText}>
+                  <ThemedText style={[styles.footerText, { color: colors.text }]}>
                     🌍 {calculateCarbonSaved(item).toFixed(2)} kg CO₂
                   </ThemedText>
 
-                  <ThemedText style={styles.footerText}>
+                  <ThemedText style={[styles.footerText, { color: colors.text }]}>
                     🍃 {calculateTokens(item)} tokens
                   </ThemedText>
                 </View>
 
-                <ThemedText style={styles.date}>
+                <ThemedText style={[styles.date, { color: colors.text }]}>
                   {new Date(item.date).toLocaleDateString()}
                 </ThemedText>
               </Pressable>
@@ -209,7 +217,6 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.08)',
     gap: 4,
   },
   date: {
@@ -230,11 +237,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: 'rgba(46,45,45,0.08)',
   },
 
   filterChipActive: {
-    backgroundColor: 'rgba(46,125,50,0.18)',
+    backgroundColor: 'rgba(46,125,50,0.18)', // #2e7d3233
   },
 
   filterText: {
@@ -270,7 +276,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(46,125,50,0.15)',
+    backgroundColor: 'rgba(46,125,50,0.15)', // #2e7d3215
     alignItems: 'center',
     justifyContent: 'center',
   },

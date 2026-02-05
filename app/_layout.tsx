@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 // import 'react-native-reanimated';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
 
 // export const unstable_settings = {
@@ -11,14 +11,11 @@ import { useThemeStore } from '@/src/store/themeStore';
 // };
 
 export default function RootLayout() {
-  const systemScheme = useColorScheme();
+const { scheme } = useAppTheme();
   const themeMode = useThemeStore((s) => s.mode);
 
-  const resolvedScheme =
-    themeMode === 'system' ? systemScheme : themeMode;
-
   return (
-    <ThemeProvider value={resolvedScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="activity/add" options={{ title: 'Add Activity' }} />
@@ -28,7 +25,7 @@ export default function RootLayout() {
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
 
-      <StatusBar style={resolvedScheme === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }

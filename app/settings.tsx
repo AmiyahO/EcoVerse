@@ -1,12 +1,8 @@
 // Settings screen
-import { View, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
-import { router } from 'expo-router';
-import { FontAwesome6 } from '@expo/vector-icons';
-import { useThemeStore, ThemeMode } from '@/src/store/themeStore';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { useThemeStore } from '@/src/store/themeStore';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 function SettingItem({
   label,
@@ -17,31 +13,23 @@ function SettingItem({
   value?: string;
   onPress?: () => void;
 }) {
+  const { colors } = useAppTheme();
   return (
     <Pressable
       disabled={!onPress}
       onPress={onPress}
       style={styles.item}
     >
-      <ThemedText>{label}</ThemedText>
-      {value && <ThemedText style={styles.value}>{value}</ThemedText>}
+      <ThemedText style = {{color: colors.text}}> {label}</ThemedText>
+      {value && <ThemedText style={[styles.value, {color: colors.text}]}>{value}</ThemedText>}
     </Pressable>
   );
 }
 
-export default function SettingsScreen() {
-  const themeMode = useThemeStore((s) => s.mode);
-  const setThemeMode = useThemeStore((s) => s.setMode);
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
-
-
-  const cycleTheme = () => {
-    const order: ThemeMode[] = ['system', 'light', 'dark'];
-    const next =
-      order[(order.indexOf(themeMode) + 1) % order.length];
-    setThemeMode(next);
-  };
+export default function SettingsScreen() { 
+  const { colors } = useAppTheme();
+  const mode = useThemeStore((s) => s.mode);
+  const setMode = useThemeStore((s) => s.setMode);
 
   return (
     <ScrollView 
@@ -55,7 +43,7 @@ export default function SettingsScreen() {
         styles.section,
         { backgroundColor: colors.surface }
       ]}>
-        <ThemedText type="defaultSemiBold">Account</ThemedText>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Account</ThemedText>
         <SettingItem label="Email" value="Signed in with Google" />
         <SettingItem label="Sign out" onPress={() => {}} />
       </View>
@@ -65,18 +53,18 @@ export default function SettingsScreen() {
         styles.section,
         { backgroundColor: colors.surface }
       ]}>
-        <ThemedText type="defaultSemiBold">Preferences</ThemedText>
+        <ThemedText type="defaultSemiBold" style = {{color: colors.text}}>Preferences</ThemedText>
 
         <SettingItem
           label="Theme"
-          value={
-            themeMode === 'system'
-              ? 'System'
-              : themeMode === 'light'
-              ? 'Light'
-              : 'Dark'
-          }
-          onPress={cycleTheme}
+          value={mode === 'system' ? 'System' : mode === 'dark' ? 'Dark' : 'Light'}
+          onPress={() => {
+            const next =
+              mode === 'system' ? 'light' :
+              mode === 'light' ? 'dark' :
+              'system';
+            setMode(next);
+          }}
         />
 
         <SettingItem label="Notifications" value="On" />
@@ -87,7 +75,7 @@ export default function SettingsScreen() {
         styles.section,
         { backgroundColor: colors.surface }
       ]}>
-        <ThemedText type="defaultSemiBold">Data</ThemedText>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Data</ThemedText>
         <SettingItem label="Sync status" value="Up to date" />
         <SettingItem label="Reset local data" />
       </View>
@@ -97,7 +85,7 @@ export default function SettingsScreen() {
         styles.section,
         { backgroundColor: colors.surface }
       ]}>
-        <ThemedText type="defaultSemiBold">About</ThemedText>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>About</ThemedText>
         {/* Placeholder versions */}
         <SettingItem label="Version" value="1.0.0" /> 
         <SettingItem label="Terms of Service" onPress={() => {}} />
@@ -120,7 +108,6 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderRadius: 12,
-    // backgroundColor: 'rgba(46,45,45,0.08)', // check about how app looks in 3 theme modes
     gap: 12,
   },
   item: {

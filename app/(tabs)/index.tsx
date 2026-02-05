@@ -1,8 +1,8 @@
 // index.tsx
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useThemeStore } from '@/src/store/themeStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -10,8 +10,7 @@ import { StyleSheet, View } from 'react-native';
 import { calculateTokens, calculateCarbonSaved, getEcoZone } from '@/src/utils/ecoLogic';
 
 export default function HomeScreen() {
-  const scheme = useColorScheme() ?? 'light';
-  const colors = Colors[scheme];
+  const { colors } = useAppTheme();
   
   const activities = useActivityStore((state) => state.activities);
   const recentActivity = activities[activities.length - 1];
@@ -62,8 +61,12 @@ export default function HomeScreen() {
   const zone = getEcoZone(ecoScore);
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText type="title" style={{ fontSize: 24 }}>
+    <ThemedView style={[
+      styles.container, 
+      { backgroundColor: colors.background },
+      ]}
+    >
+      <ThemedText type="title" style={{ fontSize: 24, color: colors.text }}>
         Your sustainability dashboard
       </ThemedText>
 
@@ -71,28 +74,28 @@ export default function HomeScreen() {
       <View style={styles.scoreWrapper}>
         <View style={[
           styles.scoreCircle,
-          { backgroundColor: colors.surfaceMuted }
+          { backgroundColor: colors.tint + '22' }  // adding transparency
         ]}>
-          <ThemedText style={styles.scoreLabel}>EcoScore</ThemedText>
-          <ThemedText style={styles.scoreNumber}>{ecoScore}</ThemedText>
+          <ThemedText style={[styles.scoreLabel, { color: colors.text }]}>EcoScore</ThemedText>
+          <ThemedText style={[styles.scoreNumber, { color: colors.text }]}>{ecoScore}</ThemedText>
         </View>
-        <ThemedText style={styles.zoneText}>
+        <ThemedText style={[styles.zoneText, { color: colors.text }]}>
           {zone.message}
         </ThemedText>
 
         {/* ECO TOKENS (PILL) */}
         <View style={[
           styles.tokenPill,
-          { backgroundColor: colors.surfaceMuted }
+          { backgroundColor: colors.tint + '22'}
         ]}>
           <FontAwesome6 name="leaf" size={18} color={colors.tint} />
-          <ThemedText style={styles.tokenText}>
+          <ThemedText style={[styles.tokenText, { color: colors.text }]}>
             {weeklyTokens} Eco Tokens
           </ThemedText>
         </View>
       </View>
 
-      <ThemedText style={styles.CO2}>
+      <ThemedText style={[styles.CO2, { color: colors.text }]}>
         You've saved approx {weeklyCarbonSaved.toFixed(2)} kg CO₂e this week
       </ThemedText>
 
@@ -100,32 +103,39 @@ export default function HomeScreen() {
       <View style={[
         styles.card, 
         styles.sectionBreak,
-        { backgroundColor: colors.surface }
-      ]}>
-        <ThemedText type="defaultSemiBold">Activities logged this week</ThemedText>
-        <ThemedText style={styles.bigNumber}>{weeklyActivityCount}</ThemedText>
+        { backgroundColor: colors.surface}
+      ]} >
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Activities logged this week</ThemedText>
+        <ThemedText style={[styles.bigNumber, { color: colors.text }]}>{weeklyActivityCount}</ThemedText>
       </View>
 
       <View style={[
         styles.card,
         { backgroundColor: colors.surface }
       ]}>
-        <ThemedText type="defaultSemiBold">Most Recent Activity</ThemedText>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Most Recent Activity</ThemedText>
         {recentActivity ? (
-          <ThemedText>
-            {recentActivity.category}:{' '}
+          <ThemedText style={{ color: colors.text }}>
+            {recentActivity.category.charAt(0).toUpperCase() + recentActivity.category.slice(1)}:{' '}
             {recentActivity.steps
               ? `${recentActivity.steps} steps`
               : recentActivity.distance
-              ? `${recentActivity.distance} km`
+              ? `${recentActivity.distance} km${recentActivity.duration ? ` for ${recentActivity.duration} min` : ''}`
+              : recentActivity.kwhSaved
+              ? `${recentActivity.kwhSaved} kWh saved`
+              : recentActivity.litersSaved
+              ? `${recentActivity.litersSaved} L saved`
               : ''}
           </ThemedText>
         ) : (
-          <ThemedText style={styles.hintText}>No activities yet.</ThemedText>
+          <ThemedText style={[styles.hintText, { color: colors.text + '99' }]}>No activities yet.</ThemedText>
         )}
       </View>
 
-      <View style={styles.card}>
+      <View style={[
+        styles.card,
+        { backgroundColor: colors.surface }
+      ]}>
         <ThemedText type="link" onPress={() => router.push('/activity/add')}>
           + Add new activity
         </ThemedText>
@@ -154,7 +164,6 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    // backgroundColor: 'rgba(46, 125, 50, 0.12)', // check about how app looks in 3 theme modes
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
@@ -162,6 +171,7 @@ const styles = StyleSheet.create({
 
   scoreLabel: {
     fontSize: 18,
+    fontWeight: '400',
     opacity: 0.8,
   },
 
@@ -173,8 +183,8 @@ const styles = StyleSheet.create({
 
   zoneText: {
     textAlign: 'center',
-    marginTop: 12,
-    fontSize: 15,
+    marginTop: 8,
+    fontSize: 14,
     opacity: 0.7,
   },
 
@@ -186,19 +196,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-    // backgroundColor: 'rgba(46, 125, 50, 0.15)', //
+    marginTop: 15,
   },
 
   tokenText: {
-    fontSize: 20,
-    fontWeight: '500',
+    fontSize: 17,
+    fontWeight: '600',
   },
 
   /* Cards */
   card: {
     padding: 16,
     borderRadius: 12,
-    // backgroundColor: 'rgba(46, 45, 45, 0.08)', //
     gap: 8,
   },
 
@@ -209,12 +218,11 @@ const styles = StyleSheet.create({
 
   hintText: {
     fontSize: 14,
-    // color: 'gray',
     marginTop: 4,
   },
 
   CO2: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
     opacity: 0.8,
@@ -222,7 +230,7 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   sectionBreak: {
-  marginBottom: 12,
+  marginBottom: 5,
   },
 
 });

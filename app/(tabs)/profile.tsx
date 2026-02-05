@@ -1,6 +1,8 @@
 // Profile screen
 import { View, Pressable, StyleSheet } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
+import { useThemeStore } from '@/src/store/themeStore';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { calculateStreak , calculateTokens } from '@/src/utils/ecoLogic';
 import { router } from 'expo-router';
@@ -21,6 +23,8 @@ function isThisWeek(date: string) {
 }
 
 export default function ProfileScreen() {
+  const { colors } = useAppTheme();
+  
   const activities = useActivityStore((state) => state.activities);
   const streak = calculateStreak(activities);
 
@@ -38,21 +42,21 @@ export default function ProfileScreen() {
       {/* Header */}
       <View>
         <View style={styles.headerRow}>
-          <ThemedText type="title">Profile</ThemedText>
+          <ThemedText type="title" style={{ color: colors.text }}>Profile</ThemedText>
           <Pressable onPress={() => router.push('/settings')}>
             <FontAwesome6 name="gear" size={20} color="#6b6b6b" />
           </Pressable>
         </View>
 
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           Your sustainability journey
         </ThemedText>
       </View>
 
       {/* User Card */}
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">User Name</ThemedText>
-        <ThemedText style={styles.subtle}>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>User Name</ThemedText>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           {streak > 0
             ? `🌱 ${streak}-day streak active`
             : 'Log an activity to start your streak'}
@@ -60,23 +64,23 @@ export default function ProfileScreen() {
       </View>
 
       {/* Streak */}
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">Consistency</ThemedText>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Consistency</ThemedText>
 
-        <ThemedText style={styles.big}>
+        <ThemedText style={[styles.big, { color: colors.text }]}>
           {streak} day{streak === 1 ? '' : 's'}
         </ThemedText>
 
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           Days in a row with eco-friendly actions
         </ThemedText>
       </View>
 
       {/* Weekly Goal */}
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">Weekly Goal</ThemedText>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Weekly Goal</ThemedText>
 
-        <View style={styles.progressBarBg}>
+        <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
           <View
             style={[
               styles.progressBarFill,
@@ -85,22 +89,22 @@ export default function ProfileScreen() {
           />
         </View>
 
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           {weeklyTokens} / {WEEKLY_TARGET} EcoTokens
         </ThemedText>
       </View>
 
       {/* Preferences (placeholder) */}
-      <View style={styles.card}>
-        <ThemedText type="defaultSemiBold">Preferences</ThemedText>
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Preferences</ThemedText>
 
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           • Preferred activities: Walking, Cycling
         </ThemedText>
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           • Units: km, steps
         </ThemedText>
-        <ThemedText style={styles.subtle}>
+        <ThemedText style={[styles.subtle, { color: colors.text }]}>
           • Reminders: coming soon
         </ThemedText>
       </View>
@@ -131,7 +135,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 16,
     borderRadius: 12,
-    backgroundColor: 'rgba(46,45,45,0.08)',
+    backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
     gap: 8,
   },
 
@@ -144,7 +148,7 @@ const styles = StyleSheet.create({
   progressBarBg: {
     height: 10,
     borderRadius: 5,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: 'rgba(0,0,0,0.1)', // #0000001a
     overflow: 'hidden',
     marginTop: 8,
   },

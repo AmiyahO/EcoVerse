@@ -13,7 +13,7 @@ export function calculateTokens(activity: Activity): number {
       return Math.floor((activity.distance ?? 0) * 20);
 
     case 'cycling':
-      return Math.floor((activity.distance ?? 0) / 20);
+      return Math.floor((activity.distance ?? 0) * 10);
 
     case 'electricity':
       return Math.floor((activity.kwhSaved ?? 0) / 0.5);
@@ -37,11 +37,12 @@ export function calculateCarbonSaved(activity: Activity): number {
       return distanceKm * 0.192;
     }
 
-    // kg CO₂ avoided vs car
-    case 'running':
+    case 'running': {
+      return (activity.distance ?? 0) * 0.192;
+    }
+
     case 'cycling': {
-      const km = activity.distance ?? 0;
-      return km * 0.192; // kg CO₂ per km
+      return (activity.distance ?? 0) * 0.21;
     }
 
     case 'electricity':
@@ -94,6 +95,5 @@ export function calculateStreak(activities: { date: string }[]) {
       break;
     }
   }
-
   return streak;
 }
