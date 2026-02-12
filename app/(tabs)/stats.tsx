@@ -1,13 +1,15 @@
+// Stats/progress screen
 import { ThemedText } from '@/components/themed-text';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { calculateCarbonSaved, getWeekCarbonComparison } from '@/src/utils/ecoLogic';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 export default function StatsScreen() {
   const { colors } = useAppTheme();
-  
   const activities = useActivityStore((state) => state.activities);
+  const comparison = getWeekCarbonComparison(activities);
 
   // Totals
   const totalSteps = activities.reduce((sum, a) => sum + (a.steps ?? 0), 0);
@@ -50,7 +52,20 @@ export default function StatsScreen() {
   });
 
   const totalCO2All = Object.values(co2ByCategory).reduce((a, b) => a + b, 0);
-    
+
+  let dominantCategory = 'N/A';
+  let dominantValue = 0;
+  let dominantPercentage = 0;
+
+  if (totalCO2All > 0) {
+    const sortedCO2 = Object.entries(co2ByCategory)
+      .sort((a, b) => b[1] - a[1]);
+
+    dominantCategory = sortedCO2[0][0];
+    dominantValue = sortedCO2[0][1];
+    dominantPercentage = (dominantValue / totalCO2All) * 100;
+  }
+
   const CATEGORY_COLORS = {
     walking: '#66BB6A',
     running: '#43A047',
@@ -60,86 +75,127 @@ export default function StatsScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-      >
-      
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View style={styles.header}>
-        <ThemedText type="title" style={{ color: colors.text }}>Your Stats</ThemedText>
-        <ThemedText style={styles.subtle}>Based on all logged activities</ThemedText>
+      <View style={[styles.header, { backgroundColor: colors.background}]}>
+        <ThemedText type="title" style={{ color: colors.text, paddingHorizontal: 18 }}>Your Stats</ThemedText>
+        <ThemedText style={[styles.subtle, { color: colors.text, paddingHorizontal: 18}]}>Based on all logged activities</ThemedText>
       </View>
+      
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        >
 
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Total Activities</ThemedText>
-        <ThemedText style={[styles.big, { color: colors.text }]}>{activities.length}</ThemedText>
-      </View>
-
-      {/* Totals */}
-      <View style={[styles.grid]}>
-        <StatCard label="Total Steps" value={totalSteps} background={colors.surface} colors={colors} />
-        <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} background={colors.surface} colors={colors} />
-        <StatCard label="Avg Steps" value={avgSteps} background={colors.surface} colors={colors} />
-        <StatCard label="Avg Distance" value={`${avgDistance} km`} background={colors.surface} colors={colors} />
-        <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} background={colors.surface} colors={colors} />
-        <StatCard label="Most Common Activity" value={mostCommonActivity.charAt(0).toUpperCase() + mostCommonActivity.slice(1)} background={colors.surface} colors={colors} />
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
-          CO₂ Saved by Category
-        </ThemedText>
-
-        {/* Stacked Bar */}
-        <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
-          {Object.entries(co2ByCategory).map(([category, value]) => {
-            if (value <= 0 || totalCO2All === 0) return null;
-
-            const widthPercent = (value / totalCO2All) * 100;
-
-            return (
-              <View
-                key={category}
-                style={[
-                  styles.stackedSegment, 
-                  {
-                    width: `${widthPercent}%`,
-                    backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
-                  },
-                ]}
-              />
-            );
-          })}
+        {/* Total Activities */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Total Activities</ThemedText>
+          <ThemedText style={[styles.big, { color: colors.text }]}>{activities.length}</ThemedText>
         </View>
 
-        {/* Legend */}
-        <View style={styles.legend}>
-          {Object.entries(co2ByCategory).map(([category, value]) => (
-            value > 0 && (
-              <View key={category} style={styles.legendRow}>
+        {/* Totals */}
+        <View style={[styles.grid]}>
+          <StatCard label="Total Steps" value={totalSteps} background={colors.surface} colors={colors} />
+          <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} background={colors.surface} colors={colors} />
+          <StatCard label="Avg Steps" value={avgSteps} background={colors.surface} colors={colors} />
+          <StatCard label="Avg Distance" value={`${avgDistance} km`} background={colors.surface} colors={colors} />
+          <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} background={colors.surface} colors={colors} />
+          <StatCard label="Most Common Activity" value={mostCommonActivity.charAt(0).toUpperCase() + mostCommonActivity.slice(1)} background={colors.surface} colors={colors} />
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+            CO₂ Saved by Category
+          </ThemedText>
+
+          {/* Stacked Bar */}
+          <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
+            {Object.entries(co2ByCategory).map(([category, value]) => {
+              if (value <= 0 || totalCO2All === 0) return null;
+
+              const widthPercent = (value / totalCO2All) * 100;
+
+              return (
                 <View
+                  key={category}
                   style={[
-                    styles.legendDot,
-                    { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] },
+                    styles.stackedSegment, 
+                    {
+                      width: `${widthPercent}%`,
+                      backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
+                    },
                   ]}
                 />
-                <ThemedText style={[styles.legendText, { color: colors.text }]}>
-                  {category.charAt(0).toUpperCase() + category.slice(1)} · {value.toFixed(2)} kg
-                </ThemedText>
-              </View>
-            )
-          ))}
+              );
+            })}
+          </View>
+
+          {/* Legend */}
+          <View style={styles.legend}>
+            {Object.entries(co2ByCategory).map(([category, value]) => (
+              value > 0 && (
+                <View key={category} style={styles.legendRow}>
+                  <View
+                    style={[
+                      styles.legendDot,
+                      { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] },
+                    ]}
+                  />
+                  <ThemedText style={[styles.legendText, { color: colors.text }]}>
+                    {category.charAt(0).toUpperCase() + category.slice(1)} · {value.toFixed(2)} kg
+                  </ThemedText>
+                </View>
+              )
+            ))}
+          </View>
+
+          {totalCO2All > 0 && (
+            <View style={{ marginTop: 12 }}>
+              <ThemedText style={{ color: colors.text, fontSize: 13, opacity: 0.8 }}>
+                {dominantCategory.charAt(0).toUpperCase() + dominantCategory.slice(1)} contributes the most to your total impact
+                ({dominantPercentage.toFixed(2)}%).
+              </ThemedText>
+            </View>
+          )}
         </View>
-      </View>
-      
-      <View style={[styles.hintBox, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface }]}>
-        <ThemedText style={[styles.subtle, { color: colors.text + '99' }]}>
-          More insights, trends and graphs coming soon 🌱
-        </ThemedText>
-      </View>
-    </ScrollView>
+
+        {/* Week-over-Week CO₂ Comparison Card */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+            CO₂ Comparison (Week-over-Week)
+          </ThemedText>
+
+          {/* Visual bar */}
+          <View style={styles.comparisonBarContainer}>
+            <View
+              style={[
+                styles.comparisonBar,
+                {
+                  width: `${Math.min(Number(comparison.percentage), 100)}%`,
+                  backgroundColor: comparison.direction === 'up' ? '#6fff52' : '#fc0000',
+                },
+              ]}
+            />
+          </View>
+
+          {/* Label */}
+          <ThemedText style={{ color: colors.text, marginTop: 6 }}>
+            {comparison.direction === 'up'
+              ? `↑ ${comparison.percentage}% more impact than last week`
+              : comparison.direction === 'down'
+              ? `↓ ${comparison.percentage}% less impact than last week`
+              : 'No change compared to last week'}
+          </ThemedText>
+        </View>
+
+        <View style={[styles.hintBox, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface }]}>
+          <ThemedText style={[styles.subtle, { color: colors.text + '99' }]}>
+            More insights, trends and graphs coming soon 🌱
+          </ThemedText>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -156,10 +212,11 @@ const styles = StyleSheet.create({
   container: { 
     flex: 1, 
     padding: 16,
-    paddingTop: 50,
+    //paddingTop: 50,
   },
   header: { 
-    gap: 4 
+    gap: 4,
+    paddingTop: 20,
   },
   subtle: { 
     fontSize: 13, 
@@ -237,5 +294,18 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 70,
     gap: 16,
+  },
+
+  comparisonBarContainer: {
+    width: '100%',
+    height: 12,
+    borderRadius: 6,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+
+  comparisonBar: {
+    height: '100%',
+    borderRadius: 6,
   },
 });

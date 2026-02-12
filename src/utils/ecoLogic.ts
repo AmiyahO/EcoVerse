@@ -97,3 +97,57 @@ export function calculateStreak(activities: { date: string }[]) {
   }
   return streak;
 }
+
+//
+export function getWeekRange(offset: number = 0) {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(now.getDate() - now.getDay() - (7 * offset));
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+
+  return { start, end };
+}
+
+//
+export function getWeekCarbonComparison(
+  activities: Activity[]
+): {
+  percentage: string;
+  direction: "up" | "down" | "neutral";
+} {
+  const current = getWeekRange(0);
+  const previous = getWeekRange(1);
+
+  const currentTotal = activities
+    .filter(a => {
+      const date = new Date(a.date);
+      return date >= current.start && date <= current.end;
+    })
+    .reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
+
+  const previousTotal = activities
+    .filter(a => {
+      const date = new Date(a.date);
+      return date >= previous.start && date <= previous.end;
+    })
+    .reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
+
+  if (previousTotal === 0 && currentTotal === 0) {
+    return { percentage: "0", direction: "neutral" };
+  }
+
+  if (previousTotal === 0 && currentTotal > 0) {
+    return { percentage: "100", direction: "up" };
+  }
+
+  const diff = ((currentTotal - previousTotal) / previousTotal) * 100;
+
+  return {
+    percentage: Math.abs(diff).toFixed(1),
+    direction: diff > 0 ? "up" : diff < 0 ? "down" : "neutral"
+  };
+}

@@ -3,25 +3,45 @@ import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 function SettingItem({
   label,
   value,
   onPress,
+  iconName,
+  iconColor,
 }: {
   label: string;
   value?: string;
   onPress?: () => void;
+  iconName?: string;
+  iconColor?: string;
 }) {
   const { colors } = useAppTheme();
+
   return (
     <Pressable
       disabled={!onPress}
       onPress={onPress}
       style={styles.item}
     >
-      <ThemedText style = {{color: colors.text}}> {label}</ThemedText>
-      {value && <ThemedText style={[styles.value, {color: colors.text}]}>{value}</ThemedText>}
+      {/* Left: Label */}
+      <ThemedText style={{ color: colors.text }}>{label}</ThemedText>
+
+      {/* Right: Value + Icon */}
+      {value && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {iconName && (
+            <Ionicons 
+              name={iconName as any} 
+              size={18} 
+              color={iconColor} 
+            />
+          )}
+          <ThemedText style={[styles.value, { color: colors.text }]}>{value}</ThemedText>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -65,6 +85,8 @@ export default function SettingsScreen() {
               'system';
             setMode(next);
           }}
+          iconName={mode === 'dark' ? 'moon' : mode === 'light' ? 'sunny' : 'phone-portrait'}
+          iconColor={mode === 'dark' ? '#0e0e46' : mode === 'light' ? '#FDB813' : '#4A90E2'} 
         />
 
         <SettingItem label="Notifications" value="On" />

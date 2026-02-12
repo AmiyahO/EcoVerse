@@ -7,7 +7,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { calculateTokens, calculateCarbonSaved, getEcoZone } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, getEcoZone, getWeekCarbonComparison } from '@/src/utils/ecoLogic';
 
 export default function HomeScreen() {
   const { colors } = useAppTheme();
@@ -60,14 +60,16 @@ export default function HomeScreen() {
 
   const zone = getEcoZone(ecoScore);
 
+  const comparison = getWeekCarbonComparison(activities);
+
   return (
     <ThemedView style={[
       styles.container, 
       { backgroundColor: colors.background },
       ]}
     >
-      <ThemedText type="title" style={{ fontSize: 24, color: colors.text }}>
-        Your sustainability dashboard
+      <ThemedText type="title" style={{ fontSize: 24, color: colors.text, textAlign: 'center' }}>
+        Your Sustainability Dashboard
       </ThemedText>
 
       {/* ECO SCORE (CIRCULAR HERO) */}
@@ -97,6 +99,14 @@ export default function HomeScreen() {
 
       <ThemedText style={[styles.CO2, { color: colors.text }]}>
         You've saved approx {weeklyCarbonSaved.toFixed(2)} kg CO₂e this week
+      </ThemedText>
+
+      <ThemedText style={[styles.Comparison, { color: colors.text }]}>
+        {comparison.direction === "up"
+          ? `↑ ${comparison.percentage}% more impact than last week`
+          : comparison.direction === "down"
+          ? `↓ ${comparison.percentage}% less impact than last week`
+          : "No change compared to last week"}
       </ThemedText>
 
       {/* OTHER CARDS */}
@@ -206,9 +216,9 @@ const styles = StyleSheet.create({
 
   /* Cards */
   card: {
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
-    gap: 8,
+    gap: 4,
   },
 
   bigNumber: {
@@ -227,8 +237,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     opacity: 0.8,
     marginTop: 4,
-    marginBottom: 30,
   },
+
+  Comparison: {
+    textAlign: 'center',
+    opacity: 0.8,
+    marginBottom: 20,
+  },
+  
   sectionBreak: {
   marginBottom: 5,
   },

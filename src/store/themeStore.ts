@@ -1,3 +1,4 @@
+// themeStore.ts
 import { create } from 'zustand';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
