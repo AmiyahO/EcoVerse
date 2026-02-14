@@ -1,4 +1,4 @@
-// useAppTheme.ts
+// hooks/useAppTheme.ts
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeStore } from '@/src/store/themeStore';

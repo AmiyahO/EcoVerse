@@ -1,4 +1,3 @@
-// app.json
 {
   "expo": {
     "name": "EcoVerse",
@@ -21,17 +20,19 @@
         "foregroundImage": "./assets/images/splash-light.png",
         "backgroundColor": "#E6F4FE"
       },
-      "package": "com.anonymous.ecoverse"
+      "package": "com.amirah.ecoverse",
+      "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.ecoverse"
+      "bundleIdentifier": "com.amirah.ecoverse"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true
