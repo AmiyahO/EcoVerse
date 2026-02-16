@@ -1,78 +1,147 @@
 // layout for the root navigator
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/src/firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore'; // Added missing imports
+import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore'; // Added missing imports
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useActivityStore } from '@/src/store/activityStore';
+import * as SystemUI from 'expo-system-ui';
 
 export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
   const [user, setUser] = useState<any>(null);
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);  
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const { setActivities, clearActivities } = useActivityStore(); // Get actions from store
 
   // Listen for Firebase auth state
-  // useEffect(() => {
-  //   const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-  //     try {
-  //       if (currentUser) {
-  //           // 1. Get the user document from Firestore
-  //           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-            
-  //           if (userDoc.exists() && userDoc.data().hasFinishedOnboarding) {
-  //             setHasFinishedOnboarding(true);
-  //           } else {
-  //             setHasFinishedOnboarding(false);
-  //           }
-  //           setUser(currentUser);
-  //         } else {
-  //             setUser(null);
-  //             setHasFinishedOnboarding(null);
-  //           }
-  //     } catch (error) {
-  //       console.error("Auth state change error:", error);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  // });
-  // return () => unsubscribe();
-  // }, []);
+  useEffect(() => {
+    let unsubscribeDoc: (() => void) | undefined;
+    let unsubscribeActivities: (() => void) | undefined; // Added for activities
 
-  // if (loading) {
-  //   return (
-  //     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-  //       <ActivityIndicator size="large" color={colors.tint} />
-  //     </View>
-  //   );
-  // }
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+      // Clean up any existing doc listener when auth state changes and previous user data
+      // 1. KILL the listener IMMEDIATELY on any auth change
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = undefined; 
+      }
+
+      if (unsubscribeActivities) unsubscribeActivities();
+      clearActivities(); // Clear the store so the new user doesn't see old data
+      
+      if (currentUser) {
+        setUser(currentUser);
+        
+        // LISTEN to the document in real-time
+        const userDocRef = doc(db, "users", currentUser.uid);
+
+        // 2. Fixed syntax: combined the success and error callbacks correctly
+        unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
+          }
+          setLoading(false);
+          }, () => setLoading(false));
+
+          // 2. LISTEN TO USER'S ACTIVITIES
+          // REAL-TIME ACTIVITY SYNC
+          // This ensures the dashboard updates automatically when you add/delete
+          const activitiesRef = collection(db, "users", currentUser.uid, "activities");
+          const q = query(activitiesRef, orderBy("date", "desc"));
+
+          unsubscribeActivities = onSnapshot(q, (snapshot) => {
+            const firebaseData = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            })) as any[];
+
+            setActivities(firebaseData); // Update the store with REAL Firebase data
+        });
+      } else {
+        // Clear everything immediately
+        setUser(null);
+        setHasFinishedOnboarding(null);
+        setLoading(false);
+      }
+    });
+
+    // CLEANUP FUNCTION for first useEffect
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+      if (unsubscribeActivities) unsubscribeActivities();
+    };
+  }, []);
+
+  // 4. Navigation Logic Effect
+  useEffect(() => {
+    if (colors.background) {
+      SystemUI.setBackgroundColorAsync(colors.background);
+    }
+    
+    // Wait until loading is finished and user state is known
+    if (!loading) {
+      if (!user) {
+        router.replace('/login');
+      } else if (hasFinishedOnboarding === false) {
+        router.replace('/onboarding');
+      } else if (hasFinishedOnboarding === true) {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [user, hasFinishedOnboarding, loading]);
+
+  // Prevent "flashing" Step 1: If we are still loading, OR if we have a user 
+  // but are still waiting for their Firestore onboarding status to arrive.
+  if (loading || (user && hasFinishedOnboarding === null)) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.tint} />
+      </View>
+    );
+  }
+
+  // REMEMBER TO REMOVE
+  console.log("Current State:", { user: !!user, hasFinishedOnboarding })
 
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {/* {!user ? ( */}
-        {/* BYPASS: Change this to true to skip login and onboarding */}
-        {false ? (
-          // Not signed in → Login screen
-          <Stack.Screen name="login" />
-        // ) : hasFinishedOnboarding === false ? (
-        //   // New user → Onboarding
-        //   <Stack.Screen name="onboarding/index" options={{ headerShown: false }} />  
-        ) : (
-          // Existing user → Tabs & other stack screens
-          <>
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="activity/add" options={{ title: 'Add Activity' }} />
-            <Stack.Screen name="activity/details" options={{ title: 'Details' }} />
-            <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-          </>
-        )}
-      </Stack>
+      {/* Wrap in a View with theme color to prevent transition flashing */}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Stack screenOptions={{ 
+          headerShown: false ,
+          animation: 'slide_from_right',
+          contentStyle: { backgroundColor: colors.background }
+        }}>
+          {!user ? (
+            // Not signed in → Login screen
+            <Stack.Screen name="login" />
+          ) : hasFinishedOnboarding === false ? (
+            // New user → Onboarding
+            <Stack.Screen name="onboarding" />  
+          ) : (
+            // Existing user → Tabs & other stack screens
+            <Stack.Screen name="(tabs)" />
+          )}
 
+          {/* Screens that can be accessed regardless of finish status or inside tabs */}
+          <Stack.Screen name="settings" />
+          <Stack.Screen 
+            name="edit-profile" 
+            options={{ 
+              presentation: 'modal', // Makes it slide up from the bottom like a sheet
+              animation: 'fade_from_bottom' 
+            }} 
+          />
+        </Stack>
+      </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );

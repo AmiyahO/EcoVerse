@@ -4,8 +4,11 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useState, useEffect } from 'react';
+import { Pressable, StyleSheet, TextInput, View, Alert } from 'react-native';
+import { db, auth } from '@/src/firebase/config';
+import { collection, addDoc, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking', label: 'Walking', icon: 'person-walking' },
@@ -27,6 +30,23 @@ export default function AddActivityScreen() {
   const [kwhSaved, setKwhSaved] = useState('');
   const [litersSaved, setLitersSaved] = useState('');
 
+  // Get the user's profile data (which contains the region)
+  // If you have a userStore or similar, use that. 
+  // Otherwise, fetch it once or pass it in.
+  const [userRegion, setUserRegion] = useState('GLOBAL_AVG');
+
+  useEffect(() => {
+    const fetchRegion = async () => {
+      if (auth.currentUser) {
+        const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
+        if (snap.exists()) {
+          setUserRegion(snap.data().region || 'GLOBAL_AVG');
+        }
+      }
+    };
+    fetchRegion();
+  }, []);
+
   const resetInputs = () => {
     setSteps('');
     setDistance('');
@@ -35,11 +55,17 @@ export default function AddActivityScreen() {
     setLitersSaved('');
   };
 
-  const handleSave = () => {
-    if (!category) return;
+  const handleSave = async () => {
+    // Check if user is logged in
+    if (!auth.currentUser) {
+      Alert.alert("Error", "You must be logged in to save activities.");
+      return;
+    }
     
-    addActivity({
-      id: Date.now().toString(),
+    if (!category || !auth.currentUser) return;
+    
+    // 1. Create a raw object with potential undefined values
+    const rawData = ({
       category,
       steps: steps ? Number(steps) : undefined,
       distance: distance ? Number(distance) : undefined,
@@ -49,7 +75,35 @@ export default function AddActivityScreen() {
       date: new Date().toISOString(),
     });
 
+    // 2. STRIP UNDEFINED: Create the actual document by filtering out undefined keys
+    const newActivityData = Object.fromEntries(
+      Object.entries(rawData).filter(([_, value]) => value !== undefined)
+    );
+
+    // 3. Calculate impact for this specific entry
+    // We use rawData here so the logic functions get 0 or undefined as expected
+    const tokensEarned = calculateTokens(rawData as any);
+    const carbonSaved = calculateCarbonSaved(rawData as any, userRegion);
+
+    try {
+      // 4. Add to Firestore sub-collection (now safe because no undefined values exist)
+      await addDoc(collection(db, 'users', auth.currentUser.uid, 'activities'), newActivityData);
+
+      // 5. Update User's Running Totals
+      const userRef = doc(db, 'users', auth.currentUser.uid);
+      await updateDoc(userRef, {
+        tokens: increment(tokensEarned),
+        totalCarbonSaved: increment(carbonSaved)
+      });
+
+    // 6. Update Local Store REMOVED
+    // addActivity({ id: Date.now().toString(), ...newActivityData } as any);
+
     router.back();
+    } catch (error) {
+    console.error("Error saving activity:", error);
+    Alert.alert("Error", "Could not save activity to the cloud.");
+  }
   };
 
   const isSaveDisabled =

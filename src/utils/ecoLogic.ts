@@ -3,6 +3,16 @@ import { Activity } from '@/src/store/activityStore';
 
 export const WEEKLY_TOKEN_TARGET = 500;
 
+// Typical CO2 intensity (kg/kWh) by region
+export const REGIONAL_INTENSITY: Record<string, number> = {
+  'US': 0.385,
+  'UK': 0.193,
+  'EU': 0.230,
+  'INDIA': 0.710,
+  'CHINA': 0.550,
+  'GLOBAL_AVG': 0.475, // Fallback
+};
+
 // calculate tokens based on activity type and metrics (Gamified)
 export function calculateTokens(activity: Activity): number {
   switch (activity.category) {
@@ -27,13 +37,13 @@ export function calculateTokens(activity: Activity): number {
 }
 
 // CO₂ logic based on activity type and metrics
-export function calculateCarbonSaved(activity: Activity): number {
+export function calculateCarbonSaved(
+  activity: Activity, 
+  userRegion: string = 'GLOBAL_AVG'
+): number {
   switch (activity.category) {
     case 'walking': {
-      const distanceKm =
-        activity.distance ??
-        ((activity.steps ?? 0) * 0.78) / 1000;
-
+      const distanceKm = activity.distance ?? ((activity.steps ?? 0) * 0.78) / 1000;
       return distanceKm * 0.192;
     }
 
@@ -46,7 +56,9 @@ export function calculateCarbonSaved(activity: Activity): number {
     }
 
     case 'electricity':
-      return (activity.kwhSaved ?? 0) * 0.233;
+      // Use the region-specific intensity or fallback to global average
+      const intensity = REGIONAL_INTENSITY[userRegion.toUpperCase()] || REGIONAL_INTENSITY['GLOBAL_AVG'];
+      return (activity.kwhSaved ?? 0) * intensity;
 
     case 'water':
       return (activity.litersSaved ?? 0) * 0.000344;
@@ -114,7 +126,8 @@ export function getWeekRange(offset: number = 0) {
 
 //
 export function getWeekCarbonComparison(
-  activities: Activity[]
+  activities: Activity[],
+  userRegion: string = 'GLOBAL_AVG'
 ): {
   percentage: string;
   direction: "up" | "down" | "neutral";
@@ -127,14 +140,14 @@ export function getWeekCarbonComparison(
       const date = new Date(a.date);
       return date >= current.start && date <= current.end;
     })
-    .reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
+    .reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
 
   const previousTotal = activities
     .filter(a => {
       const date = new Date(a.date);
       return date >= previous.start && date <= previous.end;
     })
-    .reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
+    .reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
 
   if (previousTotal === 0 && currentTotal === 0) {
     return { percentage: "0", direction: "neutral" };

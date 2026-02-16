@@ -6,7 +6,7 @@ export const Colors = {
     text: '#11181C',
     background: '#F9FAFB', // app canvas
     surface: '#2e2d2d14', // cards
-    surfaceMuted: '#d0cdcd', // pills, inputs, chips
+    surfaceMuted: '#d0cdcd', // pills, inputs, chips #e7e1e1
     border: '#E5E7EB', // outlines
     tint: '#2E7D32', // actions
     icon: '#687076', // secondary text, icons

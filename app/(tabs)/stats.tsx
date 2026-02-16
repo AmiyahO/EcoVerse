@@ -167,7 +167,7 @@ export default function StatsScreen() {
           </ThemedText>
 
           {/* Visual bar */}
-          <View style={styles.comparisonBarContainer}>
+          <View style={[styles.comparisonBarContainer, { backgroundColor: colors.surfaceMuted }]}>
             <View
               style={[
                 styles.comparisonBar,
@@ -298,8 +298,8 @@ const styles = StyleSheet.create({
 
   comparisonBarContainer: {
     width: '100%',
-    height: 12,
-    borderRadius: 6,
+    height: 16,
+    borderRadius: 8,
     overflow: 'hidden',
     marginTop: 8,
   },

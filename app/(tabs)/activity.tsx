@@ -75,7 +75,7 @@ export default function ActivityScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <ThemedText type="title" style={{ color: colors.text }}>Activity</ThemedText>
+        <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>Activity</ThemedText>
         <Pressable
           style={styles.addButton}
           onPress={() => router.push('/activity/add')}

@@ -26,6 +26,7 @@ export type ActivityCategory =
 
 type ActivityState = {
   activities: Activity[];
+  setActivities: (activities: Activity[]) => void; // Add this
   addActivity: (activity: Activity) => void;
   removeActivity: (id: string) => void;
   clearActivities: () => void;
@@ -35,6 +36,8 @@ type ActivityState = {
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
   activities: [],
+
+  setActivities: (activities) => set({ activities }),
 
   addActivity: (activity) =>
     set((state) => ({

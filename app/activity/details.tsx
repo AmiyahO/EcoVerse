@@ -5,6 +5,10 @@ import { ThemedText } from '@/components/themed-text';
 import { useThemeStore } from '@/src/store/themeStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
+import { auth, db } from '@/src/firebase/config';
+import { useEffect, useState } from 'react';
+import { doc, deleteDoc, updateDoc, increment, getDoc, onSnapshot } from 'firebase/firestore';
+import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 function getActivityMetric(activity: any) {
   switch (activity.category) {
@@ -53,12 +57,10 @@ export default function ActivityDetailsScreen() {
   const removeActivity = useActivityStore((state) => state.removeActivity);
 
   if (!activity) {
-    return (
-      <View style={styles.container}>
-        <ThemedText>style = { colors.text } Activity not found.</ThemedText>
-      </View>
-    );
+    return null; // Don't render anything if activity is gone
   }
+
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const confirmDelete = () => {
     Alert.alert(
@@ -69,9 +71,49 @@ export default function ActivityDetailsScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            removeActivity(activity.id);
-            router.back();
+          onPress: async () => {
+            if (!auth.currentUser || !activity|| isDeleting) return;
+
+            try {
+              setIsDeleting(true); // Prevent multiple taps
+
+              const userRef = doc(db, 'users', auth.currentUser.uid);
+              const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
+              
+              // Fetch region for accurate carbon calculation
+              const userSnap = await getDoc(userRef);
+              const region = userSnap.data()?.region || 'GLOBAL_AVG';
+
+              const tokensToRemove = calculateTokens(activity);
+              const carbonToRemove = calculateCarbonSaved(activity, region);
+
+              // NAVIGATE BACK FIRST
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/activity'); // Fallback to activity list
+              }
+              
+              // Update the Cloud (Wait a tiny bit so navigation starts)
+              setTimeout(async () => {
+                // Delete the activity
+                await deleteDoc(activityRef);
+
+                // Subtract from totals
+                await updateDoc(userRef, {
+                  tokens: increment(-tokensToRemove),
+                  totalCarbonSaved: increment(-carbonToRemove)
+                });
+                
+                // NOTE: We do NOT call removeActivity(activity.id) here.
+                // Your RootLayout's onSnapshot listener will detect the deletion
+                // and update the store automatically!
+              }, 100);
+            } catch (error) {
+              console.error("Error deleting activity:", error);
+            } finally {
+                setIsDeleting(false);
+            }
           },
         },
       ]
@@ -121,10 +163,10 @@ export default function ActivityDetailsScreen() {
       <View style={styles.actions}>
         <Pressable
           style={[styles.button, styles.edit, { backgroundColor: colors.surface }]}
-          onPress={() => {
-            // placeholder for future edit screen
-            Alert.alert('Edit coming soon');
-          }}
+          onPress={() => router.push({
+            pathname: '/activity/edit',
+            params: { id: activity.id }
+          })}
         >
           <ThemedText style={{ color: colors.text }}>Edit</ThemedText>
         </Pressable>
