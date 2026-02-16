@@ -125,7 +125,7 @@ export default function RootLayout() {
             <Stack.Screen name="login" />
           ) : hasFinishedOnboarding === false ? (
             // New user → Onboarding
-            <Stack.Screen name="onboarding" />  
+            <Stack.Screen name="onboarding/index" />  
           ) : (
             // Existing user → Tabs & other stack screens
             <Stack.Screen name="(tabs)" />

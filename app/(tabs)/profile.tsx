@@ -31,19 +31,34 @@ const WEEK_DAYS = ['Sun', 'Mon','Tue','Wed','Thu','Fri','Sat'];
 //
 function getWeeklyActivityDots(activities: any[]) {
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-  startOfWeek.setHours(0,0,0,0);
+  // Set to start of today (local time)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // Calculate Sunday of this week
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay());
+
+  // startOfWeek.setHours(0,0,0,0);
 
   // Array for 7 days starting from Sunday
   const dots = Array(7).fill(false);
 
   activities.forEach(a => {
+    if (!a.date) return;
+    
     const d = new Date(a.date);
 
+    // Normalize activity date to midnight local time for accurate day-to-day comparison
+    const activityDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
     // Use local date strings to avoid timezone shifts
-    if(d >= startOfWeek) {
-      const dayIndex = d.getDay(); // 0=Sun, 1=Mon, ...
+    // if(d >= startOfWeek) {
+    //   const dayIndex = d.getDay(); // 0=Sun, 1=Mon, ...
+    //   dots[dayIndex] = true;
+    // }
+    // Check if the activity falls within the current week's range
+    if(activityDate >= startOfWeek && activityDate <= today) {
+      const dayIndex = activityDate.getDay(); 
       dots[dayIndex] = true;
     }
   });
@@ -63,6 +78,11 @@ export default function ProfileScreen() {
   const hasCelebrated = useRef(false);
 
   const dynamicTarget = profile?.weeklyTarget || 500;
+  // Only attempt replacement if it's a googleusercontent URL
+  const isGoogleImage = profile?.photoURL?.includes('googleusercontent.com');
+  const highResPhoto = isGoogleImage 
+  ? profile?.photoURL?.replace('=s96-c', '=s400-c') 
+  : profile?.photoURL;
 
   // 1. Calculate tokens BEFORE the effects so 'progress' is available
   const weeklyTokens = activities
@@ -77,12 +97,8 @@ export default function ProfileScreen() {
     let snapUnsubscribe: (() => void) | undefined;
   
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
-      if (snapUnsubscribe) {
-        snapUnsubscribe();
-        snapUnsubscribe = undefined;
-      }
-      
       if (user) {
+        // Direct listener to the user document
         const docRef = doc(db, "users", user.uid);
         snapUnsubscribe = onSnapshot(docRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -150,7 +166,15 @@ export default function ProfileScreen() {
           <View style={styles.profileInfoRow}>
             {/* Avatar - Shows Google Photo or First Initial */}
             {profile?.photoURL ? (
-              <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
+              <View style={styles.avatarWrapper}>
+                <Image 
+                  source={{ uri: highResPhoto || profile.photoURL }} 
+                  style={styles.avatar} 
+                  // Add a small fade-in effect
+                  onLoadEnd={() => { /* you could trigger an animation here */ }}
+                />
+                <View style={[styles.onlineBadge, { backgroundColor: colors.tint }]} />
+              </View>
             ) : (
               <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
                 <ThemedText style={{ fontSize: 24, color: colors.text }}>
@@ -320,16 +344,36 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 8,
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
 
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: '#fff',
+  },
+
+  avatarWrapper: {
+    position: 'relative',
+  },
+
+  onlineBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 3,
+    borderColor: '#2E7D32', // Matches your card gradient
   },
 
   profileInfoRow: {

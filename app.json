@@ -1,8 +1,8 @@
-// app.json
 {
   "expo": {
     "name": "EcoVerse",
     "slug": "ecoverse",
+    "owner": "amirahy",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "ecoverse",
@@ -37,6 +37,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c0b98d74-44ad-4521-a482-2f2eaf83c89f"
+      }
     }
   }
 }

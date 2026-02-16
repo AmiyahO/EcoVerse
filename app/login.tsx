@@ -15,7 +15,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 
-// WebBrowser.maybeCompleteAuthSession(); // required for Expo Auth Session
+WebBrowser.maybeCompleteAuthSession(); // required for Expo Auth Session
 
 export default function LoginScreen() {
   const { scheme, colors } = useAppTheme();
@@ -30,18 +30,27 @@ export default function LoginScreen() {
 
   // 1. Force the Proxy Redirect URI
   const proxyRedirectUri = 'https://auth.expo.io/@amirahy/ecoverse';
+//   const redirectUri = makeRedirectUri({
+//   native: 'https://auth.expo.io/@amirahy/ecoverse', // Match your Google Console exactly
+// });
 
   const [request, response, promptAsync] = 
     Google.useIdTokenAuthRequest({
       clientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
+      // pass string directly
       redirectUri: proxyRedirectUri,
+      // This helps with certain Android issues
+      // responseType: 'id_token',
   });
+
+  console.log("Redirect URI is:", proxyRedirectUri);
 
   // handle google login response
   useEffect(() => {
     if (response?.type === 'success') {
       const handleGoogleSignIn = async () => {
         setLoading(true);
+
         try {
           const { id_token } = response.params;
           const credential = GoogleAuthProvider.credential(id_token);
@@ -51,12 +60,17 @@ export default function LoginScreen() {
           if (user) {
             const userDocRef = doc(db, 'users', user.uid);
             const userDoc = await getDoc(userDocRef);
+
+            // Extract the high-res photo URL if available
+            // Google usually provides a thumbnail, but we want the best quality
+            const googlePhotoURL = user.photoURL || null;
             
             if (!userDoc.exists()) {
+              // NEW USER: Create full profile
               await setDoc(userDocRef, {
                 email: user.email,
                 displayName: user.displayName,
-                photoURL: user.photoURL,
+                photoURL: googlePhotoURL,
                 createdAt: serverTimestamp(),
                 lastLogin: serverTimestamp(), // Log initial login
                 tokens: 0,
@@ -64,14 +78,24 @@ export default function LoginScreen() {
                 hasFinishedOnboarding: false,
               });
             } else {
-              // Update lastLogin for returning Google users
+              // Update lastLogin for returning Google users and refresh photoURL
               await setDoc(userDocRef, {
                 lastLogin: serverTimestamp(),
+                photoURL: googlePhotoURL, // <--- Keep their profile pic fresh
               }, { merge: true });
+
+              // Direct to home if they already finished onboarding
+              const userData = userDoc.data();
+              if (userData.hasFinishedOnboarding) {
+                router.replace('/(tabs)');
+              } else {
+                router.replace('/onboarding');
+              }
             }
           }
         } catch (err) {
           console.error('Google sign-in error:', err);
+          Alert.alert('Sign-In Error', 'Could not link Google account.');
         } finally {
           setLoading(false);
         }

@@ -56,9 +56,9 @@ export default function Onboarding() {
 
   // Pass the state down to Step 2
   const steps = [
-    <Step1 />,
-    <Step2 region={region} setRegion={setRegion} />, 
-    <Step3 />
+    <Step1 key="1" />,
+    <Step2 key="2" region={region} setRegion={setRegion} />, 
+    <Step3 key="3" />
   ];
 
   return <OnboardingWrapper steps={steps} onFinish={handleFinish} />;
