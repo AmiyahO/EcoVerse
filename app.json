@@ -19,8 +19,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/splash-light.png",
-        "backgroundColor": "#E6F4FE"
+        "foregroundImage": "./assets/images/icon.png"
       },
       "package": "com.amirah.ecoverse",
       "googleServicesFile": "./google-services.json"
@@ -33,7 +32,8 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-google-signin/google-signin"
     ],
     "experiments": {
       "typedRoutes": true

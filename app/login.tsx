@@ -1,6 +1,5 @@
-import { View, Text, Pressable, StyleSheet, Platform, TextInput, Alert, ScrollView, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import { View, Text, Pressable, StyleSheet, Platform, TextInput, Alert, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { auth, db } from '@/src/firebase/config';
@@ -11,11 +10,13 @@ import {
   signInWithCredential } from 'firebase/auth';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { LinearGradient } from 'expo-linear-gradient';
-import { makeRedirectUri } from 'expo-auth-session';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 
-WebBrowser.maybeCompleteAuthSession(); // required for Expo Auth Session
+//  Configure Google Sign-In
+GoogleSignin.configure({
+  webClientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
+});
 
 export default function LoginScreen() {
   const { scheme, colors } = useAppTheme();
@@ -28,82 +29,135 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // 1. Force the Proxy Redirect URI
-  const proxyRedirectUri = 'https://auth.expo.io/@amirahy/ecoverse';
-//   const redirectUri = makeRedirectUri({
-//   native: 'https://auth.expo.io/@amirahy/ecoverse', // Match your Google Console exactly
-// });
+  // // const proxyRedirectUri = 'https://auth.expo.io/@amirahy/ecoverse';
+  // const redirectUri = makeRedirectUri({
+  //   native: 'https://auth.expo.io/@amirahy/ecoverse', // Match your Google Console exactly
+  //   scheme: 'ecoverse',
+  // });
 
-  const [request, response, promptAsync] = 
-    Google.useIdTokenAuthRequest({
-      clientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
-      // pass string directly
-      redirectUri: proxyRedirectUri,
-      // This helps with certain Android issues
-      // responseType: 'id_token',
-  });
+  // const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+  //   clientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
+  //   // web client id  
+  //   // android client id
+  //   androidClientId: '29515161391-kem0mgknf9eok4hgt70dnj8qf67jvvu3.apps.googleusercontent.com',
+  //   redirectUri,
+  // });
 
-  console.log("Redirect URI is:", proxyRedirectUri);
+  // console.log("Redirect URI is:", redirectUri);
 
-  // handle google login response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const handleGoogleSignIn = async () => {
-        setLoading(true);
+  // // handle google login response
+  // useEffect(() => {
+  //   if (response?.type === 'success') {
+  //     const handleGoogleSignIn = async () => {
+  //       setLoading(true);
 
-        try {
-          const { id_token } = response.params;
-          const credential = GoogleAuthProvider.credential(id_token);
-          const userCredential = await signInWithCredential(auth, credential);
-          const user = userCredential.user;
+  //       try {
+  //         const { id_token } = response.params;
+  //         const credential = GoogleAuthProvider.credential(id_token);
+  //         const userCredential = await signInWithCredential(auth, credential);
+  //         const user = userCredential.user;
 
-          if (user) {
-            const userDocRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userDocRef);
+  //         if (user) {
+  //           const userDocRef = doc(db, 'users', user.uid);
+  //           const userDoc = await getDoc(userDocRef);
 
-            // Extract the high-res photo URL if available
-            // Google usually provides a thumbnail, but we want the best quality
-            const googlePhotoURL = user.photoURL || null;
+  //           // Extract the high-res photo URL if available
+  //           // Google usually provides a thumbnail, but we want the best quality
+  //           const googlePhotoURL = user.photoURL || null;
             
-            if (!userDoc.exists()) {
-              // NEW USER: Create full profile
-              await setDoc(userDocRef, {
-                email: user.email,
-                displayName: user.displayName,
-                photoURL: googlePhotoURL,
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp(), // Log initial login
-                tokens: 0,
-                totalCarbonSaved: 0,
-                hasFinishedOnboarding: false,
-              });
-            } else {
-              // Update lastLogin for returning Google users and refresh photoURL
-              await setDoc(userDocRef, {
-                lastLogin: serverTimestamp(),
-                photoURL: googlePhotoURL, // <--- Keep their profile pic fresh
-              }, { merge: true });
+  //           if (!userDoc.exists()) {
+  //             // NEW USER: Create full profile
+  //             await setDoc(userDocRef, {
+  //               email: user.email,
+  //               displayName: user.displayName,
+  //               photoURL: googlePhotoURL,
+  //               createdAt: serverTimestamp(),
+  //               lastLogin: serverTimestamp(), // Log initial login
+  //               tokens: 0,
+  //               totalCarbonSaved: 0,
+  //               hasFinishedOnboarding: false,
+  //             });
+  //           } else {
+  //             // Update lastLogin for returning Google users and refresh photoURL
+  //             await setDoc(userDocRef, {
+  //               lastLogin: serverTimestamp(),
+  //               photoURL: googlePhotoURL, // <--- Keep their profile pic fresh
+  //             }, { merge: true });
 
-              // Direct to home if they already finished onboarding
-              const userData = userDoc.data();
-              if (userData.hasFinishedOnboarding) {
-                router.replace('/(tabs)');
-              } else {
-                router.replace('/onboarding');
-              }
-            }
-          }
-        } catch (err) {
-          console.error('Google sign-in error:', err);
-          Alert.alert('Sign-In Error', 'Could not link Google account.');
-        } finally {
-          setLoading(false);
-        }
-      };
+  //             // Direct to home if they already finished onboarding
+  //             const userData = userDoc.data();
+  //             if (userData.hasFinishedOnboarding) {
+  //               router.replace('/(tabs)');
+  //             } else {
+  //               router.replace('/onboarding');
+  //             }
+  //           }
+  //         }
+  //       } catch (err) {
+  //         console.error('Google sign-in error:', err);
+  //         Alert.alert('Sign-In Error', 'Could not link Google account.');
+  //       } finally {
+  //         setLoading(false);
+  //       }
+  //     };
 
-      handleGoogleSignIn();
+  //     handleGoogleSignIn();
+  //   }
+  // }, [response]);
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.data?.idToken;
+
+      if (!idToken) throw new Error('No ID token returned');
+
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const user = userCredential.user;
+
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const googlePhotoURL = user.photoURL || null;
+
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: googlePhotoURL,
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+          tokens: 0,
+          totalCarbonSaved: 0,
+          hasFinishedOnboarding: false,
+        });
+        router.replace('/onboarding');
+      } else {
+        await setDoc(userDocRef, {
+          lastLogin: serverTimestamp(),
+          photoURL: googlePhotoURL,
+        }, { merge: true });
+
+        const userData = userDoc.data();
+        router.replace(userData.hasFinishedOnboarding ? '/(tabs)' : '/onboarding');
+      }
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // user cancelled, do nothing
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        Alert.alert('Sign-in already in progress');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        Alert.alert('Error', 'Google Play Services not available');
+      } else {
+        console.error('Google Sign-In error:', error);
+        Alert.alert('Sign-In Error', error.message);
+      }
+    } finally {
+      setLoading(false);
     }
-  }, [response]);
+  };
 
   // Email/Password Logic
   const handleEmailAuth = async () => {
@@ -159,13 +213,11 @@ export default function LoginScreen() {
         {/* LOGO and MOTTO */}
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
           <Image 
-            source={require('@/assets/images/icon.png')} 
+            source={require('@/assets/images/logo.png')} 
             style={styles.loginLogo}
             resizeMode="contain"
           />
-          <Text style={styles.loginMotto}>
-            TRACK YOUR IMPACT
-          </Text>
+          <Text style={styles.loginMotto}>TRACK YOUR IMPACT</Text>
         </View>
         
         {/* Login Card */}
@@ -236,8 +288,8 @@ export default function LoginScreen() {
 
           <Pressable
             style={[styles.googleButton, { backgroundColor: scheme === 'dark' ? colors.tint : '#4285F4' }]}
-            disabled={!request || loading}
-            onPress={() => promptAsync()}
+            disabled={loading}
+            onPress={handleGoogleSignIn}
           >
             <Text style={[styles.buttonText, { color: '#fff' }]}>
                 {loading ? 'Signing in...' : 'Sign in with Google'}

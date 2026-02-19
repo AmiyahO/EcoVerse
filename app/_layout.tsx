@@ -10,6 +10,10 @@ import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore'
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the native splash screen visible while we fetch Firebase data
+// SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
@@ -48,7 +52,10 @@ export default function RootLayout() {
             setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
           }
           setLoading(false);
-          }, () => setLoading(false));
+          }, (error) => {
+            console.error(error);
+            setLoading(false)
+          });
 
           // 2. LISTEN TO USER'S ACTIVITIES
           // REAL-TIME ACTIVITY SYNC
@@ -100,6 +107,16 @@ export default function RootLayout() {
 
   // Prevent "flashing" Step 1: If we are still loading, OR if we have a user 
   // but are still waiting for their Firestore onboarding status to arrive.
+  useEffect(() => {
+    async function checkSplash() {
+      if (!loading && (user === null || hasFinishedOnboarding !== null)) {
+        // Only hide when we are 100% sure where the user is going
+        // await SplashScreen.hideAsync();
+      }
+    }
+    checkSplash();
+  }, [loading, hasFinishedOnboarding, user]);
+
   if (loading || (user && hasFinishedOnboarding === null)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
