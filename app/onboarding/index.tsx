@@ -29,14 +29,10 @@ export default function Onboarding() {
           lastLogin: serverTimestamp(), // new Date().toISOString()
         }, { merge: true });
 
-        // Now that the DB is updated, navigate to the main app
-        // The RootLayout will pick up this change and show (tabs)
-        router.replace('/(tabs)'); 
+        // Just navigate directly, don't rely solely on RootLayout
+      router.replace('/(tabs)');
       } catch (error) {
         console.error("Failed to save onboarding status:", error);
-        // Optional: Alert the user or let them proceed anyway
-        // router.replace('/(tabs)');
-        // If it fails, we let them try again by turning off loading
         setIsFinishing(false);
       }
     } else {
@@ -45,7 +41,7 @@ export default function Onboarding() {
     }
   };
 
-  // If saving, show a full-screen loader so they don't interact with steps
+  // If saving OR while waiting for RootLayout to transition, show a full-screen loader so they don't interact with steps
   if (isFinishing) {
     return (
       <View style={styles.loaderContainer}>

@@ -1,5 +1,5 @@
 // layout for the root navigator
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,17 +10,16 @@ import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore'
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
-import * as SplashScreen from 'expo-splash-screen';
 
 // Keep the native splash screen visible while we fetch Firebase data
 // SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
+  const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);  
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   const { setActivities, clearActivities } = useActivityStore(); // Get actions from store
 
   // Listen for Firebase auth state
@@ -49,6 +48,7 @@ export default function RootLayout() {
         unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
+            console.log("Snapshot received:", data.hasFinishedOnboarding); // ✅ Add this
             setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
           }
           setLoading(false);
@@ -87,40 +87,36 @@ export default function RootLayout() {
     };
   }, []);
 
-  // 4. Navigation Logic Effect
   useEffect(() => {
     if (colors.background) {
       SystemUI.setBackgroundColorAsync(colors.background);
     }
-    
-    // Wait until loading is finished and user state is known
-    if (!loading) {
-      if (!user) {
-        router.replace('/login');
-      } else if (hasFinishedOnboarding === false) {
-        router.replace('/onboarding');
-      } else if (hasFinishedOnboarding === true) {
-        router.replace('/(tabs)');
-      }
-    }
-  }, [user, hasFinishedOnboarding, loading]);
+  }, [colors.background]);
 
-  // Prevent "flashing" Step 1: If we are still loading, OR if we have a user 
-  // but are still waiting for their Firestore onboarding status to arrive.
+  // navigation useEffect
   useEffect(() => {
-    async function checkSplash() {
-      if (!loading && (user === null || hasFinishedOnboarding !== null)) {
-        // Only hide when we are 100% sure where the user is going
-        // await SplashScreen.hideAsync();
-      }
+  if (!loading) {
+    if (!user) {
+      router.replace('/login');
+    } else if (hasFinishedOnboarding === false) {
+      router.replace('/onboarding');
+    } else if (hasFinishedOnboarding === true) {
+      router.replace('/(tabs)');
     }
-    checkSplash();
-  }, [loading, hasFinishedOnboarding, user]);
+  }
+}, [user, hasFinishedOnboarding, loading]);
 
-  if (loading || (user && hasFinishedOnboarding === null)) {
+  if (loading ) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.tint} />
+      <View style={{ 
+          flex: 1, 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          backgroundColor: scheme === 'dark' ? '#000000' : '#F9FAFB' 
+        }}>
+        <ActivityIndicator 
+          size="large" 
+          color={scheme === 'dark' ? '#34C9C9' : '#2E7D32'} />
       </View>
     );
   }
@@ -132,7 +128,8 @@ export default function RootLayout() {
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       {/* Wrap in a View with theme color to prevent transition flashing */}
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <Stack screenOptions={{ 
+        <Stack 
+        screenOptions={{ 
           headerShown: false ,
           animation: 'slide_from_right',
           contentStyle: { backgroundColor: colors.background }
@@ -163,8 +160,3 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  splashContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  splashImage: { width: '100%', height: '100%' },
-});

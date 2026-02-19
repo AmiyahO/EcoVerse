@@ -97,22 +97,29 @@ export default function ProfileScreen() {
     let snapUnsubscribe: (() => void) | undefined;
   
     const authUnsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        // Direct listener to the user document
-        const docRef = doc(db, "users", user.uid);
-        snapUnsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile(docSnap.data());
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Firestore Error:", error);
-          setLoading(false);
-        });
-      } else {
+      // Kill existing snapshot listener on any auth change
+      if (snapUnsubscribe) {
+        snapUnsubscribe();
+        snapUnsubscribe = undefined;
+      }
+
+      if (!user) {
         setProfile(null);
         setLoading(false);
+        return; // Stop here, don't touch Firestore
       }
+      
+      // Direct listener to the user document
+      const docRef = doc(db, "users", user.uid);
+      snapUnsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data());
+        }
+        setLoading(false);
+      }, (error) => {
+        console.error("Firestore Error:", error);
+        setLoading(false);
+      });
     });
 
     return () => {

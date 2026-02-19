@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet, Platform, TextInput, Alert, KeyboardAvoidingView, ActivityIndicator, Image } from 'react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { auth, db } from '@/src/firebase/config';
 import { 
@@ -28,82 +28,6 @@ export default function LoginScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // // const proxyRedirectUri = 'https://auth.expo.io/@amirahy/ecoverse';
-  // const redirectUri = makeRedirectUri({
-  //   native: 'https://auth.expo.io/@amirahy/ecoverse', // Match your Google Console exactly
-  //   scheme: 'ecoverse',
-  // });
-
-  // const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-  //   clientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
-  //   // web client id  
-  //   // android client id
-  //   androidClientId: '29515161391-kem0mgknf9eok4hgt70dnj8qf67jvvu3.apps.googleusercontent.com',
-  //   redirectUri,
-  // });
-
-  // console.log("Redirect URI is:", redirectUri);
-
-  // // handle google login response
-  // useEffect(() => {
-  //   if (response?.type === 'success') {
-  //     const handleGoogleSignIn = async () => {
-  //       setLoading(true);
-
-  //       try {
-  //         const { id_token } = response.params;
-  //         const credential = GoogleAuthProvider.credential(id_token);
-  //         const userCredential = await signInWithCredential(auth, credential);
-  //         const user = userCredential.user;
-
-  //         if (user) {
-  //           const userDocRef = doc(db, 'users', user.uid);
-  //           const userDoc = await getDoc(userDocRef);
-
-  //           // Extract the high-res photo URL if available
-  //           // Google usually provides a thumbnail, but we want the best quality
-  //           const googlePhotoURL = user.photoURL || null;
-            
-  //           if (!userDoc.exists()) {
-  //             // NEW USER: Create full profile
-  //             await setDoc(userDocRef, {
-  //               email: user.email,
-  //               displayName: user.displayName,
-  //               photoURL: googlePhotoURL,
-  //               createdAt: serverTimestamp(),
-  //               lastLogin: serverTimestamp(), // Log initial login
-  //               tokens: 0,
-  //               totalCarbonSaved: 0,
-  //               hasFinishedOnboarding: false,
-  //             });
-  //           } else {
-  //             // Update lastLogin for returning Google users and refresh photoURL
-  //             await setDoc(userDocRef, {
-  //               lastLogin: serverTimestamp(),
-  //               photoURL: googlePhotoURL, // <--- Keep their profile pic fresh
-  //             }, { merge: true });
-
-  //             // Direct to home if they already finished onboarding
-  //             const userData = userDoc.data();
-  //             if (userData.hasFinishedOnboarding) {
-  //               router.replace('/(tabs)');
-  //             } else {
-  //               router.replace('/onboarding');
-  //             }
-  //           }
-  //         }
-  //       } catch (err) {
-  //         console.error('Google sign-in error:', err);
-  //         Alert.alert('Sign-In Error', 'Could not link Google account.');
-  //       } finally {
-  //         setLoading(false);
-  //       }
-  //     };
-
-  //     handleGoogleSignIn();
-  //   }
-  // }, [response]);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -133,15 +57,11 @@ export default function LoginScreen() {
           totalCarbonSaved: 0,
           hasFinishedOnboarding: false,
         });
-        router.replace('/onboarding');
       } else {
         await setDoc(userDocRef, {
           lastLogin: serverTimestamp(),
           photoURL: googlePhotoURL,
         }, { merge: true });
-
-        const userData = userDoc.data();
-        router.replace(userData.hasFinishedOnboarding ? '/(tabs)' : '/onboarding');
       }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -185,7 +105,6 @@ export default function LoginScreen() {
         console.log('User profile created in Firestore!');
         setEmail('');
         setPassword('');
-        router.replace('/onboarding');
       } else {
         // 3. Login existing user
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -325,7 +244,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loginLogo: { width: 120, height: 120, marginBottom: 5 },
+  loginLogo: { width: 120, height: 120, marginBottom: -10 },
   loginMotto: { opacity: 0.6, letterSpacing: 2, fontSize: 12, fontWeight: '800', textAlign: 'center', color: '#8BE94F' },
   inner: { flex: 1, justifyContent: 'center', padding: 20 },
   card: { padding: 25, borderRadius: 20, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },

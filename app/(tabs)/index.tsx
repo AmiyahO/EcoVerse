@@ -1,4 +1,4 @@
-// index.tsx
+// index.tsx (dashboard)
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeStore } from '@/src/store/themeStore';

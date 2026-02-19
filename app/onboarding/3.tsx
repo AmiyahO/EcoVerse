@@ -43,7 +43,7 @@ export default function OnboardingStep3() {
       }}>
         
         <Image 
-          source={require('@/assets/images/icon.png')} 
+          source={require('@/assets/images/logo.png')} 
           style={styles.logo}
           resizeMode="contain"
         />
@@ -68,6 +68,7 @@ const styles = StyleSheet.create({
   logo: {
     width: 250,     // Adjust size as needed
     height: 250,
+    marginBottom: -30, // pull the motto up closer
   },
   motto: { 
     fontSize: 14, 

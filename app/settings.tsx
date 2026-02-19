@@ -2,13 +2,14 @@
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
-import { Pressable, ScrollView, StyleSheet, View, Alert, ActivityIndicator, Modal, FlatList } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
-import { signOut, deleteUser } from 'firebase/auth';
+import { GoogleAuthProvider, reauthenticateWithCredential, signOut, deleteUser } from 'firebase/auth';
 import { auth, db } from '@/src/firebase/config';
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 function SettingItem({
   label,
@@ -60,26 +61,22 @@ export default function SettingsScreen() {
   const [isRegionModalVisible, setRegionModalVisible] = useState(false); // New state
 
   useEffect(() => {
-    async function fetchUserData() {
-      // 1. Guard clause: Stop if the user is null (logged out)
-      if (!auth.currentUser) return;
-      
-      try {
-        const docRef = doc(db, 'users', auth.currentUser.uid);
-        const snap = await getDoc(docRef);
-
-        if (snap.exists()) {
-          setRegion(snap.data().region || 'GLOBAL_AVG');
-        }
-      } catch (error) {
-        console.error("Firestore fetch error:", error);
-      } finally {
-        setLoading(false);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setRegion(snap.data().region || 'GLOBAL_AVG');
       }
+    } catch (error) {
+      console.error("Firestore fetch error:", error);
+    } finally {
+      setLoading(false);
     }
-
-    fetchUserData();
-  }, [auth.currentUser]);
+  });
+  return () => unsubscribe();
+  }, []);
 
   const selectRegion = async (r: string) => {
     if (auth.currentUser) {
@@ -132,13 +129,27 @@ export default function SettingsScreen() {
             const user = auth.currentUser;
             if (user) {
               try {
+                // Re-authenticate Google users before deleting
+              const isGoogleUser = user.providerData.some(
+                p => p.providerId === 'google.com'
+              );
+
+              if (isGoogleUser) {
+                await GoogleSignin.hasPlayServices();
+                const userInfo = await GoogleSignin.signIn();
+                const idToken = userInfo.data?.idToken;
+                if (!idToken) throw new Error('No ID token');
+                const credential = GoogleAuthProvider.credential(idToken);
+                await reauthenticateWithCredential(user, credential);
+              }
+
                 // 1. Delete Firestore Data
                 await deleteDoc(doc(db, "users", user.uid));
                 // 2. Delete Auth User
                 await deleteUser(user);
                 router.replace('/login');
-              } catch (e) {
-                Alert.alert("Error", "Please log out and log back in before deleting your account for security reasons.");
+              } catch (e: any) {
+                Alert.alert("Error", e.message || "Please try again.");
               }
             }
           } 
