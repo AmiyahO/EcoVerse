@@ -1,5 +1,5 @@
 // onboarding/2.tsx
-import { Animated, Text, Pressable, StyleSheet, TextInput, View, ScrollView } from 'react-native';
+import { Animated, Text, Pressable, StyleSheet, View } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -37,8 +37,8 @@ export default function OnboardingStep2({ region, setRegion }: any) {
         end={{ x: 1, y: 1 }}
         style={styles.container}
         >
-      <Animated.Text style={styles.title}>Your Region</Animated.Text>
-      <Animated.Text style={styles.subtitle}>
+      <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>Your Region</Animated.Text>
+      <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>
         Select your region for more accurate CO₂ calculations
       </Animated.Text>
 
@@ -71,7 +71,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   title: { fontSize: 28, fontWeight: '700', marginBottom: 20, color: '#fff' },
   subtitle: { fontSize: 16, textAlign: 'center', marginBottom: 30, color: '#fff' },
-  input: { width: '80%', backgroundColor: '#fff', borderRadius: 8, padding: 12, color: '#000' },
   listContainer: {
     width: '100%',
     paddingHorizontal: 20,

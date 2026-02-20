@@ -20,7 +20,8 @@ export default function RootLayout() {
   const [user, setUser] = useState<any>(null);
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);  
   const [loading, setLoading] = useState(true);
-  const { setActivities, clearActivities } = useActivityStore(); // Get actions from store
+  const { setActivities, clearActivities, setUserRegion } = useActivityStore(); // Get actions from store
+  const checkAndResetCelebration = useActivityStore((s) => s.checkAndResetCelebration);
 
   // Listen for Firebase auth state
   useEffect(() => {
@@ -48,8 +49,12 @@ export default function RootLayout() {
         unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             const data = docSnap.data();
-            console.log("Snapshot received:", data.hasFinishedOnboarding); // ✅ Add this
+
+            // ❌ REMEMBER TO REMOVE
+            console.log("Snapshot received:", data.hasFinishedOnboarding);
+
             setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
+            setUserRegion(data.region || 'GLOBAL_AVG');
           }
           setLoading(false);
           }, (error) => {
@@ -93,6 +98,10 @@ export default function RootLayout() {
     }
   }, [colors.background]);
 
+  useEffect(() => {
+  checkAndResetCelebration();
+}, []); // runs once on app load
+
   // navigation useEffect
   useEffect(() => {
   if (!loading) {
@@ -121,7 +130,7 @@ export default function RootLayout() {
     );
   }
 
-  // REMEMBER TO REMOVE
+  // ❌ REMEMBER TO REMOVE
   console.log("Current State:", { user: !!user, hasFinishedOnboarding })
 
   return (

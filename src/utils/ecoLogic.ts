@@ -13,6 +13,12 @@ export const REGIONAL_INTENSITY: Record<string, number> = {
   'GLOBAL_AVG': 0.475, // Fallback
 };
 
+// Average household baselines (per week)
+export const BASELINES = {
+  electricity: { kwhPerWeek: 80, label: 'avg household uses ~80 kWh/week' },
+  water: { litresPerWeek: 1400, label: 'avg person uses ~1,400 L/week' },
+};
+
 // calculate tokens based on activity type and metrics (Gamified)
 export function calculateTokens(activity: Activity): number {
   switch (activity.category) {
@@ -26,10 +32,10 @@ export function calculateTokens(activity: Activity): number {
       return Math.floor((activity.distance ?? 0) * 10);
 
     case 'electricity':
-      return Math.floor((activity.kwhSaved ?? 0) / 0.5);
+      return Math.floor((activity.kwhSaved ?? 0) * 5);
 
     case 'water':
-      return Math.floor((activity.litersSaved ?? 0) / 2);
+      return Math.floor((activity.litersSaved ?? 0) / 10);
 
     default:
       return 0;
@@ -61,7 +67,8 @@ export function calculateCarbonSaved(
       return (activity.kwhSaved ?? 0) * intensity;
 
     case 'water':
-      return (activity.litersSaved ?? 0) * 0.000344;
+      // 0.000298 kg CO₂ per litre (pumping + heating baseline)
+      return (activity.litersSaved ?? 0) * 0.003;
 
     default:
       return 0;
@@ -163,4 +170,24 @@ export function getWeekCarbonComparison(
     percentage: Math.abs(diff).toFixed(1),
     direction: diff > 0 ? "up" : diff < 0 ? "down" : "neutral"
   };
+}
+
+export function getWeeklyCO2Data(
+  activities: Activity[],
+  userRegion: string = 'GLOBAL_AVG',
+  weeksBack: number = 8
+): { week: string; co2: number; weekStart: Date }[] {
+  return Array.from({ length: weeksBack }, (_, i) => {
+    const range = getWeekRange(weeksBack - 1 - i);
+    const co2 = activities
+      .filter(a => {
+        const d = new Date(a.date);
+        return d >= range.start && d <= range.end;
+      })
+      .reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+
+    // Short label e.g. "Feb 9"
+    const label = range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return { week: label, co2: parseFloat(co2.toFixed(3)), weekStart: range.start };
+  });
 }

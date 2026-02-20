@@ -3,33 +3,82 @@ import { ThemedText } from '@/components/themed-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateCarbonSaved, getWeekCarbonComparison } from '@/src/utils/ecoLogic';
+import { calculateCarbonSaved, calculateTokens, getWeekCarbonComparison, getWeekRange, getWeeklyCO2Data } from '@/src/utils/ecoLogic';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { FontAwesome6 } from '@expo/vector-icons';
+import { CartesianChart, Bar } from 'victory-native';
+
+const CATEGORY_COLORS = {
+  walking: '#66BB6A',
+  running: '#43A047',
+  cycling: '#2E7D32',
+  electricity: '#FBC02D',
+  water: '#29B6F6',
+};
+
+const CATEGORY_ICONS: Record<string, string> = {
+  walking: 'person-walking',
+  running: 'person-running',
+  cycling: 'bicycle',
+  electricity: 'bolt',
+  water: 'droplet',
+};
 
 export default function StatsScreen() {
   const { colors } = useAppTheme();
+  const userRegion = useActivityStore(s => s.userRegion);
   const activities = useActivityStore((state) => state.activities);
-  const comparison = getWeekCarbonComparison(activities);
+  const comparison = getWeekCarbonComparison(activities, userRegion);
 
-  // Totals
+  const weeklyCO2Data = getWeeklyCO2Data(activities, userRegion, 8);
+  const currentWeekLabel = weeklyCO2Data[weeklyCO2Data.length - 1]?.week;
+  
+  // Week ranges
+  const currentWeek = getWeekRange(0);
+  const previousWeek = getWeekRange(1);
+
+  const currentWeekActivities = activities.filter(a => {
+    const d = new Date(a.date);
+    return d >= currentWeek.start && d <= currentWeek.end;
+  });
+
+  const previousWeekActivities = activities.filter(a => {
+    const d = new Date(a.date);
+    return d >= previousWeek.start && d <= previousWeek.end;
+  });
+
+  // Week-over-week detailed breakdown
+  const currentWeekCO2 = currentWeekActivities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+  const previousWeekCO2 = previousWeekActivities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+  const currentWeekTokens = currentWeekActivities.reduce((sum, a) => sum + calculateTokens(a), 0);
+  const previousWeekTokens = previousWeekActivities.reduce((sum, a) => sum + calculateTokens(a), 0);
+  const currentWeekCount = currentWeekActivities.length;
+  const previousWeekCount = previousWeekActivities.length;
+
+  const tokenDiff = currentWeekTokens - previousWeekTokens;
+  const countDiff = currentWeekCount - previousWeekCount;
+
+  // CO₂ by category this week vs last week
+  const co2ByCategoryThisWeek: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+  const co2ByCategoryLastWeek: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+
+  currentWeekActivities.forEach(a => { co2ByCategoryThisWeek[a.category] += calculateCarbonSaved(a, userRegion); });
+  previousWeekActivities.forEach(a => { co2ByCategoryLastWeek[a.category] += calculateCarbonSaved(a, userRegion); });
+  
+  // All-time Totals
   const totalSteps = activities.reduce((sum, a) => sum + (a.steps ?? 0), 0);
   const totalDistance = activities.reduce((sum, a) => sum + (a.distance ?? 0), 0);
-  const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a), 0);
+  const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
 
-  // Averages
-  // Only include activities that have steps for avgSteps
   const stepActivities = activities.filter(a => a.steps !== undefined);
-  const avgSteps =
-    stepActivities.length > 0
-      ? Math.round(stepActivities.reduce((sum, a) => sum + a.steps!, 0) / stepActivities.length)
-      : 0;
+  const avgSteps = stepActivities.length > 0
+    ? Math.round(stepActivities.reduce((sum, a) => sum + a.steps!, 0) / stepActivities.length)
+    : 0;
 
-  // Only include activities that have distance for avgDistance
   const distanceActivities = activities.filter(a => a.distance !== undefined);
-  const avgDistance =
-    distanceActivities.length > 0
-      ? (distanceActivities.reduce((sum, a) => sum + a.distance!, 0) / distanceActivities.length).toFixed(2)
-      : '0.00';
+  const avgDistance = distanceActivities.length > 0
+    ? (distanceActivities.reduce((sum, a) => sum + a.distance!, 0) / distanceActivities.length).toFixed(2)
+    : '0.00';
 
   // Trends (optional: most common category)
   const categoryCounts: Record<string, number> = {};
@@ -47,103 +96,222 @@ export default function StatsScreen() {
   };
 
   activities.forEach(activity => {
-    const co2 = calculateCarbonSaved(activity);
+    const co2 = calculateCarbonSaved(activity, userRegion);
     co2ByCategory[activity.category] += co2;
   });
 
   const totalCO2All = Object.values(co2ByCategory).reduce((a, b) => a + b, 0);
 
   let dominantCategory = 'N/A';
-  let dominantValue = 0;
   let dominantPercentage = 0;
 
   if (totalCO2All > 0) {
-    const sortedCO2 = Object.entries(co2ByCategory)
-      .sort((a, b) => b[1] - a[1]);
+    const sortedCO2 = Object.entries(co2ByCategory).sort((a, b) => b[1] - a[1]);
 
     dominantCategory = sortedCO2[0][0];
-    dominantValue = sortedCO2[0][1];
-    dominantPercentage = (dominantValue / totalCO2All) * 100;
+    dominantPercentage = (sortedCO2[0][1] / totalCO2All) * 100;
   }
-
-  const CATEGORY_COLORS = {
-    walking: '#66BB6A',
-    running: '#43A047',
-    cycling: '#2E7D32',
-    electricity: '#FBC02D',
-    water: '#29B6F6',
-  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.background}]}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
         <ThemedText type="title" style={{ color: colors.text, paddingHorizontal: 18 }}>Your Stats</ThemedText>
-        <ThemedText style={[styles.subtle, { color: colors.text, paddingHorizontal: 18}]}>Based on all logged activities</ThemedText>
+        <ThemedText style={[styles.subtle, { color: colors.text, paddingHorizontal: 18 }]}>
+          Based on all logged activities
+        </ThemedText>
       </View>
-      
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        >
 
-        {/* Total Activities */}
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
+        {/* ── Week-over-Week Comparison ── */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Total Activities</ThemedText>
-          <ThemedText style={[styles.big, { color: colors.text }]}>{activities.length}</ThemedText>
-        </View>
-
-        {/* Totals */}
-        <View style={[styles.grid]}>
-          <StatCard label="Total Steps" value={totalSteps} background={colors.surface} colors={colors} />
-          <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} background={colors.surface} colors={colors} />
-          <StatCard label="Avg Steps" value={avgSteps} background={colors.surface} colors={colors} />
-          <StatCard label="Avg Distance" value={`${avgDistance} km`} background={colors.surface} colors={colors} />
-          <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} background={colors.surface} colors={colors} />
-          <StatCard label="Most Common Activity" value={mostCommonActivity.charAt(0).toUpperCase() + mostCommonActivity.slice(1)} background={colors.surface} colors={colors} />
-        </View>
-
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
-            CO₂ Saved by Category
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text, marginBottom: 4 }}>
+            This Week vs Last Week
           </ThemedText>
 
-          {/* Stacked Bar */}
+          {/* Three comparison pills */}
+          <View style={styles.comparisonRow}>
+            <ComparisonPill
+              label="CO₂ Saved"
+              current={`${currentWeekCO2.toFixed(2)} kg`}
+              previous={`${previousWeekCO2.toFixed(2)} kg`}
+              diff={currentWeekCO2 - previousWeekCO2}
+              diffLabel={`${Math.abs(currentWeekCO2 - previousWeekCO2).toFixed(2)} kg`}
+              colors={colors}
+            />
+            <ComparisonPill
+              label="Tokens"
+              current={`${currentWeekTokens}`}
+              previous={`${previousWeekTokens}`}
+              diff={tokenDiff}
+              diffLabel={`${Math.abs(tokenDiff)}`}
+              colors={colors}
+            />
+            <ComparisonPill
+              label="Activities"
+              current={`${currentWeekCount}`}
+              previous={`${previousWeekCount}`}
+              diff={countDiff}
+              diffLabel={`${Math.abs(countDiff)}`}
+              colors={colors}
+            />
+          </View>
+
+          {/* Per-category breakdown this week vs last */}
+          <ThemedText style={[styles.subtle, { color: colors.text, marginTop: 16, marginBottom: 8 }]}>
+            CO₂ by category
+          </ThemedText>
+          {Object.entries(co2ByCategoryThisWeek).map(([cat, thisVal]) => {
+            const lastVal = co2ByCategoryLastWeek[cat];
+            if (thisVal === 0 && lastVal === 0) return null;
+            const diff = thisVal - lastVal;
+            const maxVal = Math.max(thisVal, lastVal, 0.01);
+            return (
+              <View key={cat} style={styles.categoryCompRow}>
+                <View style={styles.categoryCompLabel}>
+                  <FontAwesome6
+                    name={CATEGORY_ICONS[cat]}
+                    size={13}
+                    color={CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS]}
+                  />
+                  <ThemedText style={[styles.categoryCompText, { color: colors.text }]}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </ThemedText>
+                </View>
+
+                {/* Dual bar: last week (muted) + this week (solid) */}
+                <View style={styles.dualBarContainer}>
+                  <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+                    <View style={[styles.dualBarFill, {
+                      width: `${(lastVal / maxVal) * 100}%`,
+                      backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS] + '50',
+                    }]} />
+                  </View>
+                  <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+                    <View style={[styles.dualBarFill, {
+                      width: `${(thisVal / maxVal) * 100}%`,
+                      backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS],
+                    }]} />
+                  </View>
+                </View>
+
+                <ThemedText style={[styles.categoryCompDiff, {
+                  color: diff > 0 ? '#4CAF50' : diff < 0 ? '#EF5350' : colors.text,
+                }]}>
+                  {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+                </ThemedText>
+              </View>
+            );
+          })}
+
+          {/* Legend */}
+          <View style={[styles.dualBarLegend]}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.text + '30' }]} />
+              <ThemedText style={[styles.subtle, { color: colors.text }]}>Last week</ThemedText>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendSwatch, { backgroundColor: colors.tint }]} />
+              <ThemedText style={[styles.subtle, { color: colors.text }]}>This week</ThemedText>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Weekly CO₂ Bar Chart ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface, height: 320 }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+            CO₂ Saved — Last 8 Weeks
+          </ThemedText>
+          <ThemedText style={[styles.subtle, { color: colors.text }]}>
+            kg CO₂ saved per week
+          </ThemedText>
+
+          {weeklyCO2Data.every(d => d.co2 === 0) ? (
+            <View style={{ paddingVertical: 30, alignItems: 'center' }}>
+              <ThemedText style={[styles.subtle, { color: colors.text }]}>
+                No data yet — start logging activities!
+              </ThemedText>
+            </View>
+          ) : (
+            <CartesianChart
+              data={weeklyCO2Data}
+              xKey="week"
+              yKeys={["co2"]}
+              domainPadding={{ left: 40, right: 40, top: 20 }}
+              axisOptions={{
+                tickCount: 8,
+                labelColor: colors.text + '99',
+                lineColor: colors.surfaceMuted,
+                labelOffset: { x: 0, y: 4 },
+                formatXLabel: (val) => {
+                  // Shorten label to just day number to avoid overlap
+                  const parts = String(val).split(' ');
+                  return parts[1] ?? String(val);
+                },
+              }}
+            >
+              {({ points, chartBounds }) =>
+                points.co2.map((point, i) => (
+                  <Bar
+                    key={i}
+                    points={[point]}
+                    chartBounds={chartBounds}
+                    color={weeklyCO2Data[i]?.week === currentWeekLabel ? colors.tint : colors.tint + '55'}
+                    roundedCorners={{ topLeft: 4, topRight: 4 }}
+                    barWidth={24}
+                  />
+                ))
+              }
+            </CartesianChart>
+          )}
+        </View>
+
+        {/* ── All-Time Totals ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>All-Time Totals</ThemedText>
+          <ThemedText style={[styles.big, { color: colors.text }]}>{activities.length}
+            <ThemedText style={[styles.subtle, { color: colors.text }]}> activities</ThemedText>
+          </ThemedText>
+        </View>
+
+        <View style={styles.grid}>
+          <StatCard label="Total Steps" value={totalSteps.toLocaleString()} background={colors.surface} colors={colors} />
+          <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} background={colors.surface} colors={colors} />
+          <StatCard label="Avg Steps" value={avgSteps.toLocaleString()} background={colors.surface} colors={colors} />
+          <StatCard label="Avg Distance" value={`${avgDistance} km`} background={colors.surface} colors={colors} />
+          <StatCard label="Total CO₂ Saved" value={`${totalCO2.toFixed(2)} kg`} background={colors.surface} colors={colors} />
+          <StatCard label="Top Activity" value={mostCommonActivity.charAt(0).toUpperCase() + mostCommonActivity.slice(1)} background={colors.surface} colors={colors} />
+        </View>
+
+        {/* ── CO₂ by Category (All Time) ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>CO₂ Impact Breakdown</ThemedText>
+
           <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
             {Object.entries(co2ByCategory).map(([category, value]) => {
               if (value <= 0 || totalCO2All === 0) return null;
-
-              const widthPercent = (value / totalCO2All) * 100;
-
               return (
                 <View
                   key={category}
-                  style={[
-                    styles.stackedSegment, 
-                    {
-                      width: `${widthPercent}%`,
-                      backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
-                    },
-                  ]}
+                  style={[styles.stackedSegment, {
+                    width: `${(value / totalCO2All) * 100}%`,
+                    backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS],
+                  }]}
                 />
               );
             })}
           </View>
 
-          {/* Legend */}
           <View style={styles.legend}>
             {Object.entries(co2ByCategory).map(([category, value]) => (
               value > 0 && (
                 <View key={category} style={styles.legendRow}>
-                  <View
-                    style={[
-                      styles.legendDot,
-                      { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] },
-                    ]}
-                  />
+                  <View style={[styles.legendDot, { backgroundColor: CATEGORY_COLORS[category as keyof typeof CATEGORY_COLORS] }]} />
                   <ThemedText style={[styles.legendText, { color: colors.text }]}>
-                    {category.charAt(0).toUpperCase() + category.slice(1)} · {value.toFixed(2)} kg
+                    {category.charAt(0).toUpperCase() + category.slice(1)}
+                  </ThemedText>
+                  <ThemedText style={[styles.legendText, { color: colors.text, marginLeft: 'auto' }]}>
+                    {value.toFixed(2)} kg · {((value / totalCO2All) * 100).toFixed(1)}%
                   </ThemedText>
                 </View>
               )
@@ -151,57 +319,61 @@ export default function StatsScreen() {
           </View>
 
           {totalCO2All > 0 && (
-            <View style={{ marginTop: 12 }}>
-              <ThemedText style={{ color: colors.text, fontSize: 13, opacity: 0.8 }}>
-                {dominantCategory.charAt(0).toUpperCase() + dominantCategory.slice(1)} contributes the most to your total impact
-                ({dominantPercentage.toFixed(2)}%).
+            <View style={[styles.insightBox, { backgroundColor: colors.tint + '15' }]}>
+              <FontAwesome6 name="lightbulb" size={13} color={colors.tint} />
+              <ThemedText style={{ color: colors.text, fontSize: 13, flex: 1 }}>
+                {dominantCategory.charAt(0).toUpperCase() + dominantCategory.slice(1)} drives {dominantPercentage.toFixed(1)}% of your total CO₂ impact.
               </ThemedText>
             </View>
           )}
         </View>
 
-        {/* Week-over-Week CO₂ Comparison Card */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
-            CO₂ Comparison (Week-over-Week)
-          </ThemedText>
-
-          {/* Visual bar */}
-          <View style={[styles.comparisonBarContainer, { backgroundColor: colors.surfaceMuted }]}>
-            <View
-              style={[
-                styles.comparisonBar,
-                {
-                  width: `${Math.min(Number(comparison.percentage), 100)}%`,
-                  backgroundColor: comparison.direction === 'up' ? '#6fff52' : '#fc0000',
-                },
-              ]}
-            />
-          </View>
-
-          {/* Label */}
-          <ThemedText style={{ color: colors.text, marginTop: 6 }}>
-            {comparison.direction === 'up'
-              ? `↑ ${comparison.percentage}% more impact than last week`
-              : comparison.direction === 'down'
-              ? `↓ ${comparison.percentage}% less impact than last week`
-              : 'No change compared to last week'}
+        <View style={[styles.hintBox, { backgroundColor: colors.surface }]}>
+          <ThemedText style={[styles.subtle, { color: colors.text + '99', textAlign: 'center' }]}>
+            Charts and trends coming soon 🌱
           </ThemedText>
         </View>
 
-        <View style={[styles.hintBox, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface }]}>
-          <ThemedText style={[styles.subtle, { color: colors.text + '99' }]}>
-            More insights, trends and graphs coming soon 🌱
-          </ThemedText>
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function StatCard({ label, value, background, colors }: { label: string; value: string | number; background?: string; colors: any }) {
+// ── Sub-components ──
+
+function ComparisonPill({ label, current, previous, diff, diffLabel, colors }: {
+  label: string;
+  current: string;
+  previous: string;
+  diff: number;
+  diffLabel: string;
+  colors: any;
+}) {
+  const isUp = diff > 0;
+  const isNeutral = diff === 0;
+  const diffColor = isNeutral ? colors.text : isUp ? '#4CAF50' : '#EF5350';
+  const arrow = isNeutral ? '—' : isUp ? '↑' : '↓';
+
   return (
-    <View style={[styles.statCard, background ? { backgroundColor: background } : { backgroundColor: colors.surface }]}>
+    <View style={[styles.pill, { backgroundColor: colors.background }]}>
+      <ThemedText style={[styles.pillLabel, { color: colors.text }]}>{label}</ThemedText>
+      <ThemedText style={[styles.pillCurrent, { color: colors.text }]}>{current}</ThemedText>
+      <ThemedText style={[styles.pillPrevious, { color: colors.text }]}>was {previous}</ThemedText>
+      <ThemedText style={[styles.pillDiff, { color: diffColor }]}>
+        {arrow} {diffLabel}
+      </ThemedText>
+    </View>
+  );
+}
+
+function StatCard({ label, value, background, colors }: {
+  label: string;
+  value: string | number;
+  background?: string;
+  colors: any;
+}) {
+  return (
+    <View style={[styles.statCard, { backgroundColor: background ?? colors.surface }]}>
       <ThemedText style={[styles.statLabel, { color: colors.text }]}>{label}</ThemedText>
       <ThemedText style={[styles.statValue, { color: colors.text }]}>{value}</ThemedText>
     </View>
@@ -209,103 +381,62 @@ function StatCard({ label, value, background, colors }: { label: string; value: 
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    padding: 16,
-    //paddingTop: 50,
-  },
-  header: { 
-    gap: 4,
-    paddingTop: 20,
-  },
-  subtle: { 
-    fontSize: 13, 
-    opacity: 0.6 
-  },
-  big: { 
-    fontSize: 36, 
-    fontWeight: '600', 
-    lineHeight: 40 
-  },
-  grid: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 12,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  statCard: {
-    width: '48%',
-    padding: 14,
-    borderRadius: 12,
-    gap: 4,
-  },
-  statLabel: { 
-    fontSize: 13, 
-    opacity: 0.6 
-  },
-  statValue: { 
-    fontSize: 20, 
-    fontWeight: '600', 
-    lineHeight: 24 
-  },
-  hintBox: {
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 12,
-  },
-  stackedBar: {
+  container: { flex: 1, padding: 16 },
+  header: { gap: 4, paddingTop: 20 },
+  subtle: { fontSize: 13, opacity: 0.6 },
+  big: { fontSize: 36, fontWeight: '600', lineHeight: 40 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  card: { padding: 16, borderRadius: 12, gap: 8 },
+  statCard: { width: '48%', padding: 14, borderRadius: 12, gap: 4 },
+  statLabel: { fontSize: 13, opacity: 0.6 },
+  statValue: { fontSize: 20, fontWeight: '600', lineHeight: 24 },
+  hintBox: { marginTop: 8, padding: 12, borderRadius: 12, alignItems: 'center' },
+  scrollContent: { paddingBottom: 70, gap: 16 },
+
+  // Stacked bar
+  stackedBar: { flexDirection: 'row', height: 16, borderRadius: 8, overflow: 'hidden', marginTop: 4 },
+  stackedSegment: { height: '100%' },
+
+  // Legend
+  legend: { marginTop: 12, gap: 8 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendText: { fontSize: 13, opacity: 0.8 },
+
+  // Insight box
+  insightBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, marginTop: 4 },
+
+  // Comparison pills
+  comparisonRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  pill: { flex: 1, padding: 12, borderRadius: 12, gap: 2 },
+  pillLabel: { fontSize: 11, opacity: 0.5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  pillCurrent: { fontSize: 17, fontWeight: '700', marginTop: 2 },
+  pillPrevious: { fontSize: 11, opacity: 0.5 },
+  pillDiff: { fontSize: 13, fontWeight: '600', marginTop: 2 },
+
+  // Category comparison bars
+  categoryCompRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  categoryCompLabel: { flexDirection: 'row', alignItems: 'center', gap: 6, width: 80 },
+  categoryCompText: { fontSize: 12, opacity: 0.8 },
+  dualBarContainer: { flex: 1, gap: 3 },
+  dualBarTrack: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  dualBarFill: { height: '100%', borderRadius: 3 },
+  categoryCompDiff: { fontSize: 12, fontWeight: '600', width: 42, textAlign: 'right' },
+
+  // Legend for dual bars
+  dualBarLegend: { flexDirection: 'row', gap: 16, marginTop: 8, justifyContent: 'flex-end' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendSwatch: { width: 12, height: 6, borderRadius: 3 },
+  chartSummaryRow: {
     flexDirection: 'row',
-    height: 16,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginTop: 12,
+    justifyContent: 'space-around',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128,128,128,0.15)',
+    marginTop: 4,
   },
-
-  stackedSegment: {
-    height: '100%',
-  },
-
-  legend: {
-    marginTop: 12,
-    gap: 6,
-  },
-
-  legendRow: {
-    flexDirection: 'row',
+  chartSummaryItem: {
     alignItems: 'center',
-    gap: 8,
-  },
-
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-
-  legendText: {
-    fontSize: 13,
-    opacity: 0.8,
-  },
-
-  scrollContent: {
-    paddingBottom: 70,
-    gap: 16,
-  },
-
-  comparisonBarContainer: {
-    width: '100%',
-    height: 16,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-
-  comparisonBar: {
-    height: '100%',
-    borderRadius: 6,
+    gap: 2,
   },
 });

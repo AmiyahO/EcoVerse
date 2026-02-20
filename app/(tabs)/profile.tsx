@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateStreak , calculateTokens } from '@/src/utils/ecoLogic';
+import { calculateStreak , calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 import { router } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -38,8 +38,6 @@ function getWeeklyActivityDots(activities: any[]) {
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay());
 
-  // startOfWeek.setHours(0,0,0,0);
-
   // Array for 7 days starting from Sunday
   const dots = Array(7).fill(false);
 
@@ -51,11 +49,6 @@ function getWeeklyActivityDots(activities: any[]) {
     // Normalize activity date to midnight local time for accurate day-to-day comparison
     const activityDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-    // Use local date strings to avoid timezone shifts
-    // if(d >= startOfWeek) {
-    //   const dayIndex = d.getDay(); // 0=Sun, 1=Mon, ...
-    //   dots[dayIndex] = true;
-    // }
     // Check if the activity falls within the current week's range
     if(activityDate >= startOfWeek && activityDate <= today) {
       const dayIndex = activityDate.getDay(); 
@@ -68,16 +61,22 @@ function getWeeklyActivityDots(activities: any[]) {
 
 export default function ProfileScreen() {
   const { colors, scheme } = useAppTheme();
+  const userRegion = useActivityStore(s => s.userRegion);
   const activities = useActivityStore((state) => state.activities);
   const streak = calculateStreak(activities);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showSecondCannon, setShowSecondCannon] = useState(false);
   
   // Real-time Firestore State
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const hasCelebrated = useRef(false);
+
+  const celebrated = useActivityStore((state) => state.celebrated);
+  const setCelebrated = useActivityStore((state) => state.setCelebrated);
 
   const dynamicTarget = profile?.weeklyTarget || 500;
+  const prevTarget = useRef<number | null>(null);
+
   // Only attempt replacement if it's a googleusercontent URL
   const isGoogleImage = profile?.photoURL?.includes('googleusercontent.com');
   const highResPhoto = isGoogleImage 
@@ -128,18 +127,39 @@ export default function ProfileScreen() {
     };
   }, []);
 
-  // 3. Celebration Effect (MUST be above the 'if (loading)' return)
+  // 3. Celebration Effect
   useEffect(() => {
-    if (progress >= 1 && !loading && !hasCelebrated.current) {
-      setShowCelebration(true);
-      hasCelebrated.current = true;
-    }
-  }, [progress, loading]); // Added dependencies
+  if (progress >= 1 && !loading && !celebrated) {
+    setShowCelebration(true);
+    setTimeout(() => setShowSecondCannon(true), 300);
+    setCelebrated(true);
+  }
+  }, [progress, loading]);
 
-  // 4. Loading return comes AFTER all hooks are declared
+  // 4. Target change reset
+  useEffect(() => {
+    // Skip the initial mount — only react to actual changes
+    if (prevTarget.current === null) {
+      prevTarget.current = dynamicTarget;
+      return;
+    }
+    
+    if (prevTarget.current !== dynamicTarget) {
+      const oldTarget = prevTarget.current; // save BEFORE updating
+      prevTarget.current = dynamicTarget;
+
+      // Only reset if new target is strictly higher AND progress no longer meets it
+      if (dynamicTarget > oldTarget && progress < 1) {
+        // Use a timeout to avoid state collision with Firestore snapshot
+        setTimeout(() => setCelebrated(false), 300);
+      }
+    }
+  }, [dynamicTarget]);
+
+  // 5. Loading return comes AFTER all hooks are declared
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator color={colors.tint} />
       </View>
     );
@@ -177,10 +197,7 @@ export default function ProfileScreen() {
                 <Image 
                   source={{ uri: highResPhoto || profile.photoURL }} 
                   style={styles.avatar} 
-                  // Add a small fade-in effect
-                  onLoadEnd={() => { /* you could trigger an animation here */ }}
                 />
-                <View style={[styles.onlineBadge, { backgroundColor: colors.tint }]} />
               </View>
             ) : (
               <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
@@ -210,13 +227,15 @@ export default function ProfileScreen() {
 
           <View style={styles.statsSummary}>
              <View style={styles.miniStat}>
-                <ThemedText style={styles.miniStatVal}>{profile?.tokens || 0}</ThemedText>
+                <ThemedText style={styles.miniStatVal}>{activities.reduce((sum, a) => sum + calculateTokens(a), 0)}</ThemedText>
                 <ThemedText style={styles.miniStatLabel}>Tokens</ThemedText>
              </View>
              <View style={styles.divider} />
              <View style={styles.miniStat}>
-                <ThemedText style={styles.miniStatVal}>{profile?.totalCarbonSaved?.toFixed(2) || 0}</ThemedText>
-                <ThemedText style={styles.miniStatLabel}>kg CO₂</ThemedText>
+                <ThemedText style={styles.miniStatVal}>
+                  {activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0).toFixed(2)}
+                </ThemedText>
+                <ThemedText style={styles.miniStatLabel}>kg CO₂ total</ThemedText>
              </View>
           </View>
         </LinearGradient>
@@ -261,28 +280,90 @@ export default function ProfileScreen() {
         animationType="fade"
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.celebrationCard, { backgroundColor: colors.surface }]}>
-            <ThemedText style={{ fontSize: 50 }}>🎉</ThemedText>
-            <ThemedText type="title" style={{ textAlign: 'center' }}>Weekly Goal Met!</ThemedText>
-            <ThemedText style={{ textAlign: 'center', opacity: 0.7, marginVertical: 10 }}>
-              You've hit your target of {dynamicTarget} EcoTokens. Your planet thanks you!
+          <LinearGradient
+            colors={scheme === 'dark' ? ['#1a1a2e', '#16213e'] : ['#ffffff', '#f0fdf4']}
+            style={styles.celebrationCard}
+          >
+            {/* Top accent bar */}
+            <LinearGradient
+              colors={['#2E7D32', '#34C9C9']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.celebrationAccent}
+            />
+
+            <View style={[styles.celebrationIconWrapper, { backgroundColor: colors.tint + '20' }]}>
+              <FontAwesome6 name="earth-americas" size={52} color={colors.tint} />
+            </View>
+
+            <ThemedText type="title" style={[styles.celebrationTitle, { color: colors.text }]}>
+              Weekly Goal Crushed!
             </ThemedText>
-            
-            <Pressable 
-              style={[styles.closeBtn, { backgroundColor: colors.tint }]} 
-              onPress={() => setShowCelebration(false)}
+
+            <ThemedText style={[styles.celebrationSubtitle, { color: colors.text }]}>
+              You earned{' '}
+              <ThemedText style={[styles.celebrationHighlight, { color: colors.tint }]}>
+                {weeklyTokens} EcoTokens
+              </ThemedText>
+              {' '}this week — goal of {dynamicTarget} crushed! 🌱
+            </ThemedText>
+
+            {/* Stats row */}
+            <View style={[styles.celebrationStats, { backgroundColor: colors.tint + '18' }]}>
+              <View style={styles.celebrationStat}>
+                <ThemedText style={[styles.celebrationStatVal, { color: colors.tint }]}>
+                  {weeklyTokens}
+                </ThemedText>
+                <ThemedText style={[styles.celebrationStatLabel, { color: colors.text }]}>
+                  Tokens
+                </ThemedText>
+              </View>
+              <View style={[styles.celebrationStatDivider, { backgroundColor: colors.tint + '40' }]} />
+              <View style={styles.celebrationStat}>
+                <ThemedText style={[styles.celebrationStatVal, { color: colors.tint }]}>
+                  {activities.filter(a => a.date && isThisWeek(a.date)).length}
+                </ThemedText>
+                <ThemedText style={[styles.celebrationStatLabel, { color: colors.text }]}>
+                  Activities
+                </ThemedText>
+              </View>
+            </View>
+
+            <Pressable
+              style={styles.celebrationBtn}
+              onPress={() => {
+                setShowCelebration(false);
+                setShowSecondCannon(false);
+              }}
             >
-              <ThemedText style={{ color: '#fff', fontWeight: 'bold' }}>Awesome!</ThemedText>
+              <LinearGradient
+                colors={['#2E7D32', '#34C9C9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.celebrationBtnGradient}
+              >
+                <ThemedText style={styles.celebrationBtnText}>Awesome! 🎉</ThemedText>
+              </LinearGradient>
             </Pressable>
-          </View>
-          
-          {/* The Confetti Cannon */}
-          <ConfettiCannon 
-            count={200} 
-            origin={{x: -10, y: 0}} 
+          </LinearGradient>
+
+          <ConfettiCannon
+            count={200}
+            origin={{ x: -10, y: 0 }}
             fadeOut={true}
-            explosionSpeed={350}
+            explosionSpeed={400}
+            fallSpeed={3000}
           />
+          {/* Second cannon from the right */}
+          {showSecondCannon && (
+            <ConfettiCannon
+              count={200}
+              origin={{ x: 400, y: 0 }}
+              fadeOut={true}
+              explosionSpeed={400}
+              fallSpeed={3000}
+            />
+          )}
         </View>
       </Modal>
     </SafeAreaView>
@@ -315,12 +396,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     //backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
     gap: 5
-  },
-
-  big: {
-    fontSize: 32,
-    fontWeight: '600',
-    lineHeight: 36,
   },
 
   progressBarBg: {
@@ -372,17 +447,6 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  onlineBadge: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 3,
-    borderColor: '#2E7D32', // Matches your card gradient
-  },
-
   profileInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -402,12 +466,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.2)',
     width: '100%',
-    justifyContent: 'space-around',
+    justifyContent: 'space-evenly',
+    alignContent: 'center',
   },
 
-  miniStat: { alignItems: 'center' },
+  miniStat: { 
+    alignItems: 'center',
+    flex: 1,        // each stat takes equal space
+    paddingHorizontal: 4,
+  },
   miniStatVal: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  miniStatLabel: { color: '#ffffffcc', fontSize: 12 },
+  miniStatLabel: { color: '#ffffffcc', fontSize: 12, textAlign: 'center', },
   divider: { width: 1, height: '80%', backgroundColor: 'rgba(255,255,255,0.2)' },
 
   modalOverlay: {
@@ -418,20 +487,91 @@ const styles = StyleSheet.create({
   },
   celebrationCard: {
     width: '80%',
-    padding: 30,
-    borderRadius: 20,
+    padding: 24,
+    borderRadius: 24,
     alignItems: 'center',
-    elevation: 5,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    overflow: 'hidden',
+    paddingTop: 0,
   },
-  closeBtn: {
-    marginTop: 20,
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-  },
+
+  celebrationAccent: {
+  height: 5,
+  width: '100%',
+  borderRadius: 3,
+  marginBottom: 20,
+},
+celebrationTitle: {
+  textAlign: 'center',
+  fontSize: 26,
+  fontWeight: '800',
+  marginBottom: 10,
+},
+celebrationSubtitle: {
+  textAlign: 'center',
+  opacity: 0.75,
+  fontSize: 15,
+  lineHeight: 22,
+  marginBottom: 20,
+  paddingHorizontal: 10,
+},
+celebrationHighlight: {
+  fontWeight: '700',
+},
+celebrationStats: {
+  flexDirection: 'row',
+  borderRadius: 14,
+  padding: 16,
+  width: '100%',
+  justifyContent: 'space-around',
+  marginBottom: 24,
+},
+celebrationStat: {
+  alignItems: 'center',
+  flex: 1,
+},
+celebrationStatVal: {
+  fontSize: 22,
+  fontWeight: '800',
+},
+celebrationStatLabel: {
+  fontSize: 12,
+  opacity: 0.6,
+  marginTop: 2,
+},
+celebrationStatDivider: {
+  width: 1,
+  height: '80%',
+  alignSelf: 'center',
+},
+celebrationBtn: {
+  width: '100%',
+  borderRadius: 14,
+  overflow: 'hidden',
+},
+celebrationBtnGradient: {
+  paddingVertical: 16,
+  alignItems: 'center',
+  borderRadius: 14,
+},
+celebrationBtnText: {
+  color: '#fff',
+  fontWeight: '800',
+  fontSize: 16,
+},
+
+celebrationIconWrapper: {
+  width: 90,
+  height: 90,
+  borderRadius: 45,
+  justifyContent: 'center',
+  alignItems: 'center',
+  marginBottom: 16,
+  marginTop: 8,
+},
 });
 

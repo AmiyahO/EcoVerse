@@ -47,6 +47,7 @@ function getActivityMetric(activity: any) {
 
 export default function ActivityScreen() {
   const { colors } = useAppTheme();
+  const userRegion = useActivityStore(s => s.userRegion);
   
   const activities = useActivityStore((state) => state.activities);
   const CATEGORIES = ['all', 'walking', 'running', 'cycling', 'electricity', 'water'];
@@ -175,7 +176,7 @@ export default function ActivityScreen() {
                 {/* Footer */}
                 <View style={styles.cardFooter}>
                   <ThemedText style={[styles.footerText, { color: colors.text }]}>
-                    🌍 {calculateCarbonSaved(item).toFixed(2)} kg CO₂
+                    🌍 {calculateCarbonSaved(item, userRegion).toFixed(2)} kg CO₂
                   </ThemedText>
 
                   <ThemedText style={[styles.footerText, { color: colors.text }]}>

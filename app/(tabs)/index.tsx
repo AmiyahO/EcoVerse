@@ -11,9 +11,10 @@ import { calculateTokens, calculateCarbonSaved, getEcoZone, getWeekCarbonCompari
 
 export default function HomeScreen() {
   const { colors } = useAppTheme();
+  const userRegion = useActivityStore(s => s.userRegion);
   
   const activities = useActivityStore((state) => state.activities);
-  const recentActivity = activities[activities.length - 1];
+  const recentActivity = activities[0];
 
   const now = new Date();
   const startOfWeek = new Date();
@@ -32,7 +33,7 @@ export default function HomeScreen() {
   );
 
   const weeklyCarbonSaved = weeklyActivities.reduce(
-    (sum, a) => sum + calculateCarbonSaved(a),
+    (sum, a) => sum + calculateCarbonSaved(a, userRegion),
     0
   );
 

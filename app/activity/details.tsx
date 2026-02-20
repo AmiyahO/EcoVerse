@@ -2,12 +2,11 @@
 import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
-import { useThemeStore } from '@/src/store/themeStore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { auth, db } from '@/src/firebase/config';
-import { useEffect, useState } from 'react';
-import { doc, deleteDoc, updateDoc, increment, getDoc, onSnapshot } from 'firebase/firestore';
+import { useState } from 'react';
+import { doc, deleteDoc, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 function getActivityMetric(activity: any) {
@@ -49,12 +48,12 @@ function getActivityMetric(activity: any) {
 
 export default function ActivityDetailsScreen() {
   const { colors } = useAppTheme();
+  const userRegion = useActivityStore(s => s.userRegion);
   
   const { id } = useLocalSearchParams();
   const activity = useActivityStore((state) =>
     state.getActivityById(id as string)
   );
-  const removeActivity = useActivityStore((state) => state.removeActivity);
 
   if (!activity) {
     return null; // Don't render anything if activity is gone
@@ -80,12 +79,8 @@ export default function ActivityDetailsScreen() {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
               
-              // Fetch region for accurate carbon calculation
-              const userSnap = await getDoc(userRef);
-              const region = userSnap.data()?.region || 'GLOBAL_AVG';
-
               const tokensToRemove = calculateTokens(activity);
-              const carbonToRemove = calculateCarbonSaved(activity, region);
+              const carbonToRemove = calculateCarbonSaved(activity, userRegion);
 
               // NAVIGATE BACK FIRST
               if (router.canGoBack()) {

@@ -11,6 +11,7 @@ import { FontAwesome6 } from '@expo/vector-icons';
 
 export default function EditActivityScreen() {
   const { colors } = useAppTheme();
+  const [userRegion, setUserRegion] = useState('GLOBAL_AVG');
   const { id } = useLocalSearchParams();
   
   // Get existing activity from local store
@@ -51,7 +52,7 @@ export default function EditActivityScreen() {
 
       // 2. Calculate OLD impact
       const oldTokens = calculateTokens(activity);
-      const oldCarbon = calculateCarbonSaved(activity, region);
+      const oldCarbon = calculateCarbonSaved(activity, userRegion);
 
       // 3. Prepare NEW data
       const updatedData = {
@@ -65,7 +66,7 @@ export default function EditActivityScreen() {
 
       // 4. Calculate NEW impact
       const newTokens = calculateTokens(updatedData);
-      const newCarbon = calculateCarbonSaved(updatedData, region);
+      const newCarbon = calculateCarbonSaved(updatedData, userRegion);
 
       // 5. Calculate Difference (New - Old)
       const tokenDiff = newTokens - oldTokens;
@@ -81,8 +82,9 @@ export default function EditActivityScreen() {
         totalCarbonSaved: increment(carbonDiff)
       });
 
-      Alert.alert("Success", "Activity updated!");
-      router.back();
+      Alert.alert("Success", "Activity updated!", [
+        { text: "OK", onPress: () => router.back() }
+      ]);
     } catch (error) {
       console.error("Update error:", error);
       Alert.alert("Error", "Failed to update activity.");

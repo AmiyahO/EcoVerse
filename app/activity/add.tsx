@@ -4,11 +4,11 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, Alert } from 'react-native';
 import { db, auth } from '@/src/firebase/config';
-import { collection, addDoc, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
-import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
+import { calculateTokens, calculateCarbonSaved, BASELINES } from '@/src/utils/ecoLogic';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking', label: 'Walking', icon: 'person-walking' },
@@ -20,7 +20,7 @@ const ACTIVITY_CATEGORIES = [
 
 export default function AddActivityScreen() {
   const { colors } = useAppTheme();
-  
+
   const addActivity = useActivityStore((state) => state.addActivity);
 
   const [category, setCategory] = useState<ActivityCategory | null>(null);
@@ -30,22 +30,7 @@ export default function AddActivityScreen() {
   const [kwhSaved, setKwhSaved] = useState('');
   const [litersSaved, setLitersSaved] = useState('');
 
-  // Get the user's profile data (which contains the region)
-  // If you have a userStore or similar, use that. 
-  // Otherwise, fetch it once or pass it in.
-  const [userRegion, setUserRegion] = useState('GLOBAL_AVG');
-
-  useEffect(() => {
-    const fetchRegion = async () => {
-      if (auth.currentUser) {
-        const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        if (snap.exists()) {
-          setUserRegion(snap.data().region || 'GLOBAL_AVG');
-        }
-      }
-    };
-    fetchRegion();
-  }, []);
+  const userRegion = useActivityStore(s => s.userRegion);
 
   const resetInputs = () => {
     setSteps('');
@@ -96,9 +81,6 @@ export default function AddActivityScreen() {
         totalCarbonSaved: increment(carbonSaved)
       });
 
-    // 6. Update Local Store REMOVED
-    // addActivity({ id: Date.now().toString(), ...newActivityData } as any);
-
     router.back();
     } catch (error) {
     console.error("Error saving activity:", error);
@@ -108,7 +90,7 @@ export default function AddActivityScreen() {
 
   const isSaveDisabled =
     !category ||
-    (category === 'walking' && !steps) ||
+    (category === 'walking' && !steps && !distance) ||
     (category === 'running' && (!distance || !duration)) ||
     (category === 'cycling' && !distance) ||
     (category === 'electricity' && !kwhSaved) ||
@@ -159,14 +141,24 @@ export default function AddActivityScreen() {
       
       {/* conditional inputs based on category */}
       {category === 'walking' && (
-        <Input
-          label="Steps"
-          value={steps}
-          setValue={setSteps}
-          placeholder="e.g. 4500"
-          placeholderTextColor={colors.text + '99'}
-          style={{ color: colors.text }}
-        />
+        <>
+          <Input
+            label="Steps"
+            value={steps}
+            setValue={setSteps}
+            placeholder="e.g. 4500"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
+          />
+          <Input
+            label="Distance (km) — optional"
+            value={distance}
+            setValue={setDistance}
+            placeholder="e.g. 3.2"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
+          />
+        </>
       )}
 
       {category === 'running' && (
@@ -202,25 +194,35 @@ export default function AddActivityScreen() {
       )}
 
       {category === 'electricity' && (
-        <Input
-          label="kWh Saved"
-          value={kwhSaved}
-          setValue={setKwhSaved}
-          placeholder="e.g. 2.5"
-          placeholderTextColor={colors.text + '99'}
-          style={{ color: colors.text }}
-        />
+        <>
+          <Input
+            label="kWh Saved"
+            value={kwhSaved}
+            setValue={setKwhSaved}
+            placeholder="e.g. 2.5"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
+          />
+          <ThemedText style={{ fontSize: 12, opacity: 0.5, color: colors.text, marginTop: -12 }}>
+            {BASELINES.electricity.label}
+          </ThemedText>
+        </>
       )}
 
       {category === 'water' && (
-        <Input
-          label="Liters Saved"
-          value={litersSaved}
-          setValue={setLitersSaved}
-          placeholder="e.g. 10"
-          placeholderTextColor={colors.text + '99'}
-          style={{ color: colors.text }}
-        />
+        <>  
+          <Input
+            label="Liters Saved"
+            value={litersSaved}
+            setValue={setLitersSaved}
+            placeholder="e.g. 10"
+            placeholderTextColor={colors.text + '99'}
+            style={{ color: colors.text }}
+          />
+          <ThemedText style={{ fontSize: 12, opacity: 0.5, color: colors.text, marginTop: -12 }}>
+            {BASELINES.water.label}
+          </ThemedText>
+        </>
       )}
 
       {/* Save */}
