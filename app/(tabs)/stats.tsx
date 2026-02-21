@@ -3,7 +3,7 @@ import { ThemedText } from '@/components/themed-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateCarbonSaved, calculateTokens, getWeekRange, getWeeklyCO2Data } from '@/src/utils/ecoLogic';
+import { calculateCarbonSaved, calculateTokens, CATEGORY_COLORS, getWeekRange, getWeeklyCO2Data } from '@/src/utils/ecoLogic';
 import { ScrollView, StyleSheet, View, FlatList, Dimensions } from 'react-native';
 import { useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
@@ -12,14 +12,6 @@ import { CartesianChart, Bar } from 'victory-native';
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = SCREEN_WIDTH - 32;
 
-const CATEGORY_COLORS = {
-  walking: '#66BB6A',
-  running: '#43A047',
-  cycling: '#2E7D32',
-  electricity: '#FBC02D',
-  water: '#29B6F6',
-};
-
 const CATEGORY_ICONS: Record<string, string> = {
   walking: 'person-walking',
   running: 'person-running',
@@ -27,8 +19,6 @@ const CATEGORY_ICONS: Record<string, string> = {
   electricity: 'bolt',
   water: 'droplet',
 };
-
-
 
 export default function StatsScreen() {
   const { colors } = useAppTheme();

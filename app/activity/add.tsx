@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, Alert } from 'react-native';
 import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import { calculateFinalTokens, calculateStreak, calculateTokens, calculateCarbonSaved, BASELINES } from '@/src/utils/ecoLogic';
+import { calculateFinalTokens, calculateStreak, calculateTokens, calculateCarbonSaved, BASELINES, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking', label: 'Walking', icon: 'person-walking' },
@@ -117,14 +117,19 @@ export default function AddActivityScreen() {
                 }}
                 style={[
                   styles.categoryCard,
-                  selected && styles.categoryCardActive,
-                  { backgroundColor: selected ? '#2e7d3230' : colors.surface }
+                  { 
+                    backgroundColor: selected 
+                      ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '22'
+                      : colors.surface,
+                    borderWidth: selected ? 1 : 0,
+                    borderColor: selected ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '66' : 'transparent',
+                  }
                 ]}
               >
                 <FontAwesome6
                   name={item.icon as any}
                   size={26}
-                  color={selected ? '#2E7D32' : colors.icon}
+                  color={selected ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') : colors.icon}
                 />
                 <ThemedText
                   style={[
@@ -223,6 +228,9 @@ export default function AddActivityScreen() {
           />
           <ThemedText style={{ fontSize: 12, opacity: 0.5, color: colors.text, marginTop: -12 }}>
             {BASELINES.water.label}
+          </ThemedText>
+          <ThemedText style={{ fontSize: 12, opacity: 0.45, color: colors.text, marginTop: -8, fontStyle: 'italic' }}>
+            💧 Water savings are primarily tracked via tokens. CO₂ impact is small by nature.
           </ThemedText>
         </>
       )}

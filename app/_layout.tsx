@@ -119,16 +119,36 @@ export default function RootLayout() {
 }, [user, hasFinishedOnboarding, loading]);
 
   if (loading ) {
+    const bg = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
+    const shimmer = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
+    const shimmer2 = scheme === 'dark' ? '#222' : '#F3F4F6';
+
     return (
-      <View style={{ 
-          flex: 1, 
-          justifyContent: 'center', 
-          alignItems: 'center', 
-          backgroundColor: scheme === 'dark' ? '#000000' : '#F9FAFB' 
-        }}>
-        <ActivityIndicator 
-          size="large" 
-          color={scheme === 'dark' ? '#34C9C9' : '#2E7D32'} />
+      <View style={{ flex: 1, backgroundColor: bg, padding: 20, paddingTop: 60 }}>
+        {/* Avatar + name skeleton */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 }}>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shimmer }} />
+          <View style={{ gap: 8 }}>
+            <View style={{ width: 120, height: 14, borderRadius: 7, backgroundColor: shimmer }} />
+            <View style={{ width: 80, height: 10, borderRadius: 5, backgroundColor: shimmer2 }} />
+          </View>
+        </View>
+
+        {/* Hero card skeleton */}
+        <View style={{ width: '100%', height: 180, borderRadius: 20, backgroundColor: shimmer, marginBottom: 16 }} />
+
+        {/* Two half-width cards */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
+          <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
+        </View>
+
+        {/* Full width card */}
+        <View style={{ width: '100%', height: 110, borderRadius: 14, backgroundColor: shimmer, marginBottom: 16 }} />
+
+        {/* Two more rows */}
+        <View style={{ width: '70%', height: 14, borderRadius: 7, backgroundColor: shimmer2, marginBottom: 10 }} />
+        <View style={{ width: '50%', height: 14, borderRadius: 7, backgroundColor: shimmer2 }} />
       </View>
     );
   }

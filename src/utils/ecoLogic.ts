@@ -19,6 +19,14 @@ export const BASELINES = {
   water: { litresPerWeek: 1400, label: 'avg person uses ~1,400 L/week' },
 };
 
+export const CATEGORY_COLORS: Record<string, string> = {
+  walking:     '#4CAF50', // green
+  running:     '#FF7043', // orange-red
+  cycling:     '#29B6F6', // sky blue
+  electricity: '#FFC107', // amber
+  water:       '#26C6DA', // cyan
+};
+
 // calculate tokens based on activity type and metrics (Gamified)
 export function calculateTokens(activity: Activity): number {
   switch (activity.category) {
