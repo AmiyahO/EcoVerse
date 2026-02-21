@@ -40,6 +40,14 @@ type ActivityState = {
   celebrated: boolean;
   celebratedWeek: string | null; // tracks which week was celebrated
   userRegion: string;
+  userProfile: {
+    displayName: string;
+    email: string;
+    photoURL: string | null;
+    weeklyTarget: number;
+  } | null;
+  _hasHydrated: boolean;
+  
   setActivities: (activities: Activity[]) => void; // Add this
   addActivity: (activity: Activity) => void;
   removeActivity: (id: string) => void;
@@ -49,6 +57,8 @@ type ActivityState = {
   setCelebrated: (val: boolean) => void;
   checkAndResetCelebration: () => void; // call on app load
   setUserRegion: (region: string) => void;
+  setUserProfile: (profile: { displayName: string; email: string; photoURL: string | null; weeklyTarget: number }) => void;
+  setHasHydrated: () => void;
 };
 
 export const useActivityStore = create<ActivityState>()(
@@ -58,6 +68,8 @@ export const useActivityStore = create<ActivityState>()(
       celebrated: false,
       celebratedWeek: null,
       userRegion: 'GLOBAL_AVG',
+      userProfile: null,
+      _hasHydrated: false,
 
       setActivities: (activities) => set({ activities }),
 
@@ -97,6 +109,10 @@ export const useActivityStore = create<ActivityState>()(
           set({ celebrated: false, celebratedWeek: null });
         }
       },
+
+      setUserProfile: (profile) => set({ userProfile: profile }),
+
+      setHasHydrated: () => set({ _hasHydrated: true }),
   }),
     {
       name: 'activity-store', // AsyncStorage key
@@ -107,6 +123,9 @@ export const useActivityStore = create<ActivityState>()(
         celebrated: state.celebrated,
         celebratedWeek: state.celebratedWeek,
       }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated();
+      },
     }
   )
 );

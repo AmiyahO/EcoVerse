@@ -1,12 +1,12 @@
 // index.tsx (dashboard)
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { useThemeStore } from '@/src/store/themeStore';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { calculateTokens, calculateCarbonSaved, getEcoZone, getWeekCarbonComparison } from '@/src/utils/ecoLogic';
 
 export default function HomeScreen() {
@@ -64,95 +64,93 @@ export default function HomeScreen() {
   const comparison = getWeekCarbonComparison(activities);
 
   return (
-    <ThemedView style={[
-      styles.container, 
-      { backgroundColor: colors.background },
-      ]}
-    >
-      <ThemedText type="title" style={{ fontSize: 24, color: colors.text, textAlign: 'center' }}>
-        Your Sustainability Dashboard
-      </ThemedText>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={[styles.container, { backgroundColor: colors.background }]}>
+            <ThemedText type="title" style={{ fontSize: 24, color: colors.text, textAlign: 'center' }}>
+              Your Sustainability Dashboard
+            </ThemedText>
 
-      {/* ECO SCORE (CIRCULAR HERO) */}
-      <View style={styles.scoreWrapper}>
-        <View style={[
-          styles.scoreCircle,
-          { backgroundColor: colors.tint + '22' }  // adding transparency
-        ]}>
-          <ThemedText style={[styles.scoreLabel, { color: colors.text }]}>EcoScore</ThemedText>
-          <ThemedText style={[styles.scoreNumber, { color: colors.text }]}>{ecoScore}</ThemedText>
-        </View>
-        <ThemedText style={[styles.zoneText, { color: colors.text }]}>
-          {zone.message}
-        </ThemedText>
+            {/* ECO SCORE (CIRCULAR HERO) */}
+            <View style={styles.scoreWrapper}>
+              <View style={[
+                styles.scoreCircle,
+                { backgroundColor: colors.tint + '22' }  // adding transparency
+              ]}>
+                <ThemedText style={[styles.scoreLabel, { color: colors.text }]}>EcoScore</ThemedText>
+                <ThemedText style={[styles.scoreNumber, { color: colors.text }]}>{ecoScore}</ThemedText>
+              </View>
+              <ThemedText style={[styles.zoneText, { color: colors.text }]}>
+                {zone.message}
+              </ThemedText>
 
-        {/* ECO TOKENS (PILL) */}
-        <View style={[
-          styles.tokenPill,
-          { backgroundColor: colors.tint + '22'}
-        ]}>
-          <FontAwesome6 name="leaf" size={18} color={colors.tint} />
-          <ThemedText style={[styles.tokenText, { color: colors.text }]}>
-            {weeklyTokens} Eco Tokens
-          </ThemedText>
-        </View>
-      </View>
+              {/* ECO TOKENS (PILL) */}
+              <View style={[
+                styles.tokenPill,
+                { backgroundColor: colors.tint + '22'}
+              ]}>
+                <FontAwesome6 name="leaf" size={18} color={colors.tint} />
+                <ThemedText style={[styles.tokenText, { color: colors.text }]}>
+                  {weeklyTokens} Eco Tokens
+                </ThemedText>
+              </View>
+            </View>
 
-      <ThemedText style={[styles.CO2, { color: colors.text }]}>
-        You've saved approx {weeklyCarbonSaved.toFixed(2)} kg CO₂e this week
-      </ThemedText>
+            <ThemedText style={[styles.CO2, { color: colors.text }]}>
+              You've saved approx {weeklyCarbonSaved.toFixed(2)} kg CO₂e this week
+            </ThemedText>
 
-      <ThemedText style={[styles.Comparison, { color: colors.text }]}>
-        {comparison.direction === "up"
-          ? `↑ ${comparison.percentage}% more impact than last week`
-          : comparison.direction === "down"
-          ? `↓ ${comparison.percentage}% less impact than last week`
-          : "No change compared to last week"}
-      </ThemedText>
+            <ThemedText style={[styles.Comparison, { color: colors.text }]}>
+              {comparison.direction === "up"
+                ? `↑ ${comparison.percentage}% more impact than last week`
+                : comparison.direction === "down"
+                ? `↓ ${comparison.percentage}% less impact than last week`
+                : "No change compared to last week"}
+            </ThemedText>
 
-      {/* OTHER CARDS */}
-      <View style={[
-        styles.card, 
-        styles.sectionBreak,
-        { backgroundColor: colors.surface}
-      ]} >
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Activities logged this week</ThemedText>
-        <ThemedText style={[styles.bigNumber, { color: colors.text }]}>{weeklyActivityCount}</ThemedText>
-      </View>
+            {/* OTHER CARDS */}
+            <View style={[
+              styles.card, 
+              styles.sectionBreak,
+              { backgroundColor: colors.surface}
+            ]} >
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Activities logged this week</ThemedText>
+              <ThemedText style={[styles.bigNumber, { color: colors.text }]}>{weeklyActivityCount}</ThemedText>
+            </View>
 
-      <View style={[
-        styles.card,
-        { backgroundColor: colors.surface }
-      ]}>
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Most Recent Activity</ThemedText>
-        {recentActivity ? (
-          <ThemedText style={{ color: colors.text }}>
-            {recentActivity.category.charAt(0).toUpperCase() + recentActivity.category.slice(1)}:{' '}
-            {recentActivity.steps
-              ? `${recentActivity.steps} steps`
-              : recentActivity.distance
-              ? `${recentActivity.distance} km${recentActivity.duration ? ` for ${recentActivity.duration} min` : ''}`
-              : recentActivity.kwhSaved
-              ? `${recentActivity.kwhSaved} kWh saved`
-              : recentActivity.litersSaved
-              ? `${recentActivity.litersSaved} L saved`
-              : ''}
-          </ThemedText>
-        ) : (
-          <ThemedText style={[styles.hintText, { color: colors.text + '99' }]}>No activities yet.</ThemedText>
-        )}
-      </View>
+            <View style={[
+              styles.card,
+              { backgroundColor: colors.surface }
+            ]}>
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Most Recent Activity</ThemedText>
+              {recentActivity ? (
+                <ThemedText style={{ color: colors.text }}>
+                  {recentActivity.category.charAt(0).toUpperCase() + recentActivity.category.slice(1)}:{' '}
+                  {
+                    recentActivity.steps
+                    ? `${recentActivity.steps} steps`
+                    : recentActivity.distance
+                    ? `${recentActivity.distance} km${recentActivity.duration ? ` for ${recentActivity.duration} min` : ''}`
+                    : recentActivity.kwhSaved
+                    ? `${recentActivity.kwhSaved} kWh saved`
+                    : recentActivity.litersSaved
+                    ? `${recentActivity.litersSaved} L saved`
+                    : ''}
+                </ThemedText>
+              ) : (
+                <ThemedText style={[styles.hintText, { color: colors.text + '99' }]}>No activities yet.</ThemedText>
+              )}
+            </View>
 
-      <View style={[
-        styles.card,
-        { backgroundColor: colors.surface }
-      ]}>
-        <ThemedText type="link" onPress={() => router.push('/activity/add')}>
-          + Add new activity
-        </ThemedText>
-      </View>
-
-    </ThemedView>
+            <View style={[
+              styles.card,
+              { backgroundColor: colors.surface }
+            ]}>
+              <ThemedText type="link" onPress={() => router.push('/activity/add')}>
+                + Add new activity
+              </ThemedText>
+            </View>
+    </ScrollView>
+  </SafeAreaView>
   );
 }
 
@@ -160,7 +158,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    paddingTop: 50,
     gap: 16,
   },
 

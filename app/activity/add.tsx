@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View, Alert } from 'react-native';
 import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import { calculateTokens, calculateCarbonSaved, BASELINES } from '@/src/utils/ecoLogic';
+import { calculateFinalTokens, calculateStreak, calculateTokens, calculateCarbonSaved, BASELINES } from '@/src/utils/ecoLogic';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking', label: 'Walking', icon: 'person-walking' },
@@ -20,8 +20,10 @@ const ACTIVITY_CATEGORIES = [
 
 export default function AddActivityScreen() {
   const { colors } = useAppTheme();
-
-  const addActivity = useActivityStore((state) => state.addActivity);
+  
+  // Pull streak from the store:
+  const activities = useActivityStore(s => s.activities);
+  const streak = calculateStreak(activities); // import calculateStreak too
 
   const [category, setCategory] = useState<ActivityCategory | null>(null);
   const [steps, setSteps] = useState('');
@@ -67,7 +69,7 @@ export default function AddActivityScreen() {
 
     // 3. Calculate impact for this specific entry
     // We use rawData here so the logic functions get 0 or undefined as expected
-    const tokensEarned = calculateTokens(rawData as any);
+    const tokensEarned = calculateFinalTokens(rawData as any, streak);
     const carbonSaved = calculateCarbonSaved(rawData as any, userRegion);
 
     try {

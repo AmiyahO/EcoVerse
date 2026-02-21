@@ -16,11 +16,11 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
   const [currentPage, setCurrentPage] = useState(0);
 
   // Animated values for each dot
-  const dotAnim = steps.map(() => useRef(new Animated.Value(0.3)).current);
+  const dotAnims = useRef(steps.map(() => new Animated.Value(0.3))).current;
 
   // Animate dot opacity & scale
   useEffect(() => {
-    dotAnim.forEach((anim, idx) => {
+    dotAnims.forEach((anim, idx) => {
       Animated.timing(anim, {
         toValue: idx === currentPage ? 1 : 0.3,
         duration: 250,
@@ -62,10 +62,10 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
               styles.dot,
               {
                 backgroundColor: idx === currentPage ? colors.tint : colors.surfaceMuted,
-                opacity: dotAnim[idx],
+                opacity: dotAnims[idx],
                 transform: [
                   {
-                    scale: dotAnim[idx].interpolate({
+                    scale: dotAnims[idx].interpolate({
                       inputRange: [0.3, 1],
                       outputRange: [0.8, 1.2],
                     }),

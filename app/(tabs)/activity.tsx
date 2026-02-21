@@ -5,15 +5,16 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
 function getActivityMetric(activity: any) {
   switch (activity.category) {
     case 'walking':
-      return activity.steps
-        ? `${activity.steps.toLocaleString()} steps`
-        : '—';
+      if (activity.steps) return `${activity.steps.toLocaleString()} steps`;
+      if (activity.distance) return `${activity.distance} km`;
+      return '—';
 
     case 'running':
       if (activity.distance && activity.duration) {
@@ -73,7 +74,7 @@ export default function ActivityScreen() {
     };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
         <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>Activity</ThemedText>
@@ -193,7 +194,7 @@ export default function ActivityScreen() {
           }}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -208,7 +209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     paddingHorizontal: 4,
-    paddingTop: 30,
   },
   addButton: {
     paddingHorizontal: 12,

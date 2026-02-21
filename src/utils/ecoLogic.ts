@@ -23,10 +23,12 @@ export const BASELINES = {
 export function calculateTokens(activity: Activity): number {
   switch (activity.category) {
     case 'walking':
-      return Math.floor((activity.steps ?? 0) / 100);
+      if (activity.steps) return Math.floor(activity.steps / 100);
+      // distance-only: estimate steps from distance (1km ≈ 1282 steps)
+      return Math.floor((activity.distance ?? 0) * 1282 / 100);
 
       case 'running':
-      return Math.floor((activity.distance ?? 0) * 20);
+      return Math.floor((activity.distance ?? 0) * 25);
 
     case 'cycling':
       return Math.floor((activity.distance ?? 0) * 10);
@@ -40,6 +42,16 @@ export function calculateTokens(activity: Activity): number {
     default:
       return 0;
   }
+}
+
+// Streak-boosted token calculation
+export function calculateFinalTokens(activity: Activity, currentStreak: number): number {
+  const baseTokens = calculateTokens(activity);
+  
+  // +10% per 5-day streak, capped at +50%
+  const multiplier = 1 + Math.min(Math.floor(currentStreak / 5) * 0.1, 0.5);
+  
+  return Math.floor(baseTokens * multiplier);
 }
 
 // CO₂ logic based on activity type and metrics
@@ -58,7 +70,7 @@ export function calculateCarbonSaved(
     }
 
     case 'cycling': {
-      return (activity.distance ?? 0) * 0.21;
+      return (activity.distance ?? 0) * 0.25;
     }
 
     case 'electricity':
@@ -67,7 +79,7 @@ export function calculateCarbonSaved(
       return (activity.kwhSaved ?? 0) * intensity;
 
     case 'water':
-      // 0.000298 kg CO₂ per litre (pumping + heating baseline)
+      // 0.003 kg CO₂ per litre (pumping + heating baseline)
       return (activity.litersSaved ?? 0) * 0.003;
 
     default:
@@ -104,6 +116,11 @@ export function calculateStreak(activities: { date: string }[]) {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // If today has no activity, start checking from yesterday
+  if (!activeDays.has(today.toDateString())) {
+    today.setDate(today.getDate() - 1);
+  }
 
   while (true) {
     const dayString = today.toDateString();

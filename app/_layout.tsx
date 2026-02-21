@@ -11,16 +11,14 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
 
-// Keep the native splash screen visible while we fetch Firebase data
-// SplashScreen.preventAutoHideAsync();
-
 export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);  
-  const [loading, setLoading] = useState(true);
-  const { setActivities, clearActivities, setUserRegion } = useActivityStore(); // Get actions from store
+  const [userDocReady, setUserDocReady] = useState(false);
+  const [activitiesReady, setActivitiesReady] = useState(false);
+  const loading = !userDocReady || !activitiesReady;  const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore(); // Get actions from store
   const checkAndResetCelebration = useActivityStore((s) => s.checkAndResetCelebration);
 
   // Listen for Firebase auth state
@@ -50,17 +48,20 @@ export default function RootLayout() {
           if (docSnap.exists()) {
             const data = docSnap.data();
 
-            // ❌ REMEMBER TO REMOVE
-            console.log("Snapshot received:", data.hasFinishedOnboarding);
-
             setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
             setUserRegion(data.region || 'GLOBAL_AVG');
+            setUserProfile({
+              displayName: data.displayName || '',
+              email: data.email || currentUser.email || '',
+              photoURL: data.photoURL || null,
+              weeklyTarget: data.weeklyTarget || 500,
+            });
           }
-          setLoading(false);
-          }, (error) => {
-            console.error(error);
-            setLoading(false)
-          });
+          setUserDocReady(true); // was setLoading(false)
+        }, (error) => {
+          console.error(error);
+          setUserDocReady(true);
+        });
 
           // 2. LISTEN TO USER'S ACTIVITIES
           // REAL-TIME ACTIVITY SYNC
@@ -75,12 +76,14 @@ export default function RootLayout() {
             })) as any[];
 
             setActivities(firebaseData); // Update the store with REAL Firebase data
+            setActivitiesReady(true);
         });
       } else {
         // Clear everything immediately
         setUser(null);
         setHasFinishedOnboarding(null);
-        setLoading(false);
+        setUserDocReady(true);   // was setLoading(false)
+        setActivitiesReady(true);
       }
     });
 
@@ -129,9 +132,6 @@ export default function RootLayout() {
       </View>
     );
   }
-
-  // ❌ REMEMBER TO REMOVE
-  console.log("Current State:", { user: !!user, hasFinishedOnboarding })
 
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>

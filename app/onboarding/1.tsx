@@ -26,8 +26,8 @@ export default function OnboardingStep1() {
         end={{ x: 1, y: 1 }}
         style={styles.container}
         >
-      <Animated.Text style={styles.title}>Welcome to EcoVerse 🌱</Animated.Text>
-      <Animated.Text style={styles.subtitle}>
+      <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>Welcome to EcoVerse 🌱</Animated.Text>
+      <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>
         Track your CO₂ footprint and make sustainable choices.
       </Animated.Text>
     </LinearGradient>

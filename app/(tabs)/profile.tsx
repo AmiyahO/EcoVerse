@@ -9,8 +9,6 @@ import { router } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, useRef } from 'react';
-import { auth, db } from '@/src/firebase/config';
-import { doc, onSnapshot } from 'firebase/firestore';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { Modal } from 'react-native';
 
@@ -66,11 +64,13 @@ export default function ProfileScreen() {
   const streak = calculateStreak(activities);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showSecondCannon, setShowSecondCannon] = useState(false);
+  const hasHydrated = useActivityStore(s => s._hasHydrated);
   
   // Real-time Firestore State
-  const [profile, setProfile] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
+  const userProfile = useActivityStore(s => s.userProfile);
+  const profile = userProfile; // keeps all the existing references working
+  const loading = !userProfile; // simple loading state
+  
   const celebrated = useActivityStore((state) => state.celebrated);
   const setCelebrated = useActivityStore((state) => state.setCelebrated);
 
@@ -83,7 +83,7 @@ export default function ProfileScreen() {
   ? profile?.photoURL?.replace('=s96-c', '=s400-c') 
   : profile?.photoURL;
 
-  // 1. Calculate tokens BEFORE the effects so 'progress' is available
+  // Calculate tokens BEFORE the effects so 'progress' is available
   const weeklyTokens = activities
     .filter((a) => a.date && isThisWeek(a.date))
     .reduce((sum, a) => sum + calculateTokens(a), 0);
@@ -91,52 +91,16 @@ export default function ProfileScreen() {
   const progress = Math.min(weeklyTokens / dynamicTarget, 1);
   const weeklyDots = getWeeklyActivityDots(activities);
 
-  // 2. Main Firestore Effect
+  // Celebration Effect
   useEffect(() => {
-    let snapUnsubscribe: (() => void) | undefined;
-  
-    const authUnsubscribe = auth.onAuthStateChanged((user) => {
-      // Kill existing snapshot listener on any auth change
-      if (snapUnsubscribe) {
-        snapUnsubscribe();
-        snapUnsubscribe = undefined;
-      }
+    if (progress >= 1 && !loading && !celebrated && hasHydrated) {
+      setShowCelebration(true);
+      setTimeout(() => setShowSecondCannon(true), 300);
+      setCelebrated(true);
+    }
+  }, [progress, loading, hasHydrated]);
 
-      if (!user) {
-        setProfile(null);
-        setLoading(false);
-        return; // Stop here, don't touch Firestore
-      }
-      
-      // Direct listener to the user document
-      const docRef = doc(db, "users", user.uid);
-      snapUnsubscribe = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-          setProfile(docSnap.data());
-        }
-        setLoading(false);
-      }, (error) => {
-        console.error("Firestore Error:", error);
-        setLoading(false);
-      });
-    });
-
-    return () => {
-      authUnsubscribe();
-      if (snapUnsubscribe) snapUnsubscribe();
-    };
-  }, []);
-
-  // 3. Celebration Effect
-  useEffect(() => {
-  if (progress >= 1 && !loading && !celebrated) {
-    setShowCelebration(true);
-    setTimeout(() => setShowSecondCannon(true), 300);
-    setCelebrated(true);
-  }
-  }, [progress, loading]);
-
-  // 4. Target change reset
+  // Target change reset
   useEffect(() => {
     // Skip the initial mount — only react to actual changes
     if (prevTarget.current === null) {

@@ -109,6 +109,11 @@ export default function EditProfileScreen() {
         return;
     }
 
+    if (!weeklyTarget.trim() || isNaN(Number(weeklyTarget)) || Number(weeklyTarget) < 1) {
+      Alert.alert("Invalid Target", "Please enter a valid weekly token target (minimum 1).");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await updateDoc(doc(db, 'users', auth.currentUser.uid), {

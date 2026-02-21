@@ -1,14 +1,11 @@
 // layout.tsx for the bottom tab navigator
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-// import React from 'react';
 import { HapticTab } from '@/components/haptic-tab';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { useThemeStore } from '@/src/store/themeStore';
 
 export default function TabLayout() {
   const { scheme, colors } = useAppTheme();
-  const themeMode = useThemeStore((s) => s.mode);
 
   return (
     <Tabs

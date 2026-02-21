@@ -9,43 +9,6 @@ import { useState } from 'react';
 import { doc, deleteDoc, updateDoc, increment, getDoc } from 'firebase/firestore';
 import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 
-function getActivityMetric(activity: any) {
-  switch (activity.category) {
-    case 'walking':
-      return activity.steps
-        ? `${activity.steps.toLocaleString()} steps`
-        : '—';
-
-    case 'running':
-      if (activity.distance && activity.duration) {
-        return `${activity.distance} km · ${activity.duration} min`;
-      }
-      return activity.distance
-        ? `${activity.distance} km`
-        : activity.duration
-        ? `${activity.duration} min`
-        : '—';
-
-    case 'cycling':
-      return activity.distance
-        ? `${activity.distance} km`
-        : '—';
-
-    case 'electricity':
-      return activity.kwhSaved
-        ? `${activity.kwhSaved} kWh saved`
-        : '—';
-
-    case 'water':
-      return activity.litersSaved
-        ? `${activity.litersSaved} L saved`
-        : '—';
-
-    default:
-      return '—';
-  }
-}
-
 export default function ActivityDetailsScreen() {
   const { colors } = useAppTheme();
   const userRegion = useActivityStore(s => s.userRegion);
@@ -55,11 +18,11 @@ export default function ActivityDetailsScreen() {
     state.getActivityById(id as string)
   );
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   if (!activity) {
     return null; // Don't render anything if activity is gone
   }
-
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const confirmDelete = () => {
     Alert.alert(
@@ -116,7 +79,7 @@ export default function ActivityDetailsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <ThemedText type="title" style={{ lineHeight: 50, color: colors.text }}>
         {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
@@ -126,7 +89,13 @@ export default function ActivityDetailsScreen() {
       {/* Info Card */}
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
         {activity.category === 'walking' && (
-          <Detail label="Steps" value={activity.steps} suffix="steps" />
+          <>
+            {activity.steps ? (
+              <Detail label="Steps" value={activity.steps} suffix="steps" />
+            ) : (
+              <Detail label="Distance" value={activity.distance} suffix="km" />
+            )}
+          </>
         )}
 
         {activity.category === 'running' && (

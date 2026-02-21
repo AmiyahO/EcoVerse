@@ -1,7 +1,7 @@
 import { View, StyleSheet, Pressable, TextInput, Alert, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
-import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/src/firebase/config';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ThemedText } from '@/components/themed-text';
@@ -11,11 +11,11 @@ import { FontAwesome6 } from '@expo/vector-icons';
 
 export default function EditActivityScreen() {
   const { colors } = useAppTheme();
-  const [userRegion, setUserRegion] = useState('GLOBAL_AVG');
   const { id } = useLocalSearchParams();
   
   // Get existing activity from local store
   const activity = useActivityStore((state) => state.getActivityById(id as string));
+  const userRegion = useActivityStore(s => s.userRegion);
 
   // Form State
   const [steps, setSteps] = useState('');
@@ -45,10 +45,6 @@ export default function EditActivityScreen() {
       setIsSaving(true);
       const userRef = doc(db, 'users', auth.currentUser.uid);
       const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
-
-      // 1. Fetch region for impact re-calculation
-      const userSnap = await getDoc(userRef);
-      const region = userSnap.data()?.region || 'GLOBAL_AVG';
 
       // 2. Calculate OLD impact
       const oldTokens = calculateTokens(activity);
@@ -97,14 +93,20 @@ export default function EditActivityScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <FontAwesome6 name="pen-to-square" size={24} color={colors.tint} />
-        <ThemedText type="title" style={{ color: colors.text }}>
+        <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>
           {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
         </ThemedText>
       </View>
 
       <View style={styles.form}>
         {activity.category === 'walking' && (
-          <EditInput label="Steps" value={steps} onChange={setSteps} />
+          <>
+            {activity.steps !== undefined ? (
+              <EditInput label="Steps" value={steps} onChange={setSteps} />
+            ) : (
+              <EditInput label="Distance (km)" value={distance} onChange={setDistance} />
+            )}
+          </>
         )}
         {activity.category === 'running' && (
           <>
@@ -140,7 +142,7 @@ function EditInput({ label, value, onChange }: { label: string, value: string, o
   const { colors } = useAppTheme();
   return (
     <View style={styles.inputGroup}>
-      <ThemedText style={styles.label}>{label}</ThemedText>
+      <ThemedText style={[styles.label, {color: colors.text}]}>{label}</ThemedText>
       <TextInput
         style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
         value={value}

@@ -49,6 +49,15 @@ function SettingItem({
   );
 }
 
+const REGION_LABELS: Record<string, string> = {
+  US: '🇺🇸 United States',
+  UK: '🇬🇧 United Kingdom',
+  EU: '🇪🇺 European Union',
+  INDIA: '🇮🇳 India',
+  CHINA: '🇨🇳 China',
+  GLOBAL_AVG: '🌐 Other / Global',
+};
+
 export default function SettingsScreen() { 
   const { colors } = useAppTheme();
   const mode = useThemeStore((s) => s.mode);
@@ -85,25 +94,6 @@ export default function SettingsScreen() {
       setRegionModalVisible(false); // Close modal after selection
     }
   };
-
-  // const handleRegionChange = () => {
-  //   const regions = ['US', 'UK', 'EU', 'INDIA', 'CHINA', 'GLOBAL_AVG'];
-
-  //   // We create the button array explicitly to satisfy TypeScript
-  //   const buttons: any[] = regions.map(r => ({
-  //     text: r,
-  //     onPress: async () => {
-  //       if (auth.currentUser) {
-  //         await updateDoc(doc(db, 'users', auth.currentUser.uid), { region: r });
-  //         setRegion(r);
-  //       }
-  //     }
-  //   }));
-
-  //   buttons.push({ text: "Cancel", style: "cancel" });
-
-  //   Alert.alert("Select Region", "Calculations will update for future activities.", buttons);
-  // };
 
   const handleSignOut = () => {
     Alert.alert("Sign Out", "Are you sure you want to sign out?", [
@@ -165,7 +155,7 @@ export default function SettingsScreen() {
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </Pressable>
-        <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>Settings</ThemedText>
+        <ThemedText type="title" style={[styles.headerTitle, { color: colors.text, lineHeight: 35 }]}>Settings</ThemedText>
       </View>
     
       <ScrollView 
@@ -179,7 +169,7 @@ export default function SettingsScreen() {
         ]}>
           <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Account</ThemedText>
           <SettingItem label="Email" value={auth.currentUser?.email || 'Not available'} />
-          <SettingItem label="Region" value={region} onPress={ () => setRegionModalVisible(true) } />
+          <SettingItem label="Region" value={REGION_LABELS[region] ?? region} onPress={() => setRegionModalVisible(true)} />
           <SettingItem label="Sign out" onPress={handleSignOut} iconName="log-out-outline" iconColor="#FF4444" />
         </View>
 
@@ -242,7 +232,7 @@ export default function SettingsScreen() {
             <ThemedText type="subtitle" style={{ color: colors.text, marginBottom: 15 }}>Select Region</ThemedText>
             {regions.map((r) => (
               <Pressable key={r} onPress={() => selectRegion(r)} style={styles.modalOption}>
-                <ThemedText style={{ color: colors.text }}>{r}</ThemedText>
+                <ThemedText style={{ color: colors.text }}>{REGION_LABELS[r] ?? r}</ThemedText>
                 {region === r && <Ionicons name="checkmark" size={20} color="#4CAF50" />}
               </Pressable>
             ))}
@@ -273,6 +263,10 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center', 
+  },
+  headerTitle: {
+    fontSize: 30,
+    fontWeight: '700'
   },
   scrollContent: {
     paddingHorizontal: 16,

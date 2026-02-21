@@ -228,14 +228,6 @@ export default function LoginScreen() {
                 ? "Already have an account? Login" : "Don't have an account? Sign Up"}
             </Text>
           </Pressable>
-
-          {/* DEV BYPASS */}
-          <Pressable 
-            onPress={() => router.replace('/(tabs)')}
-            style={{ marginTop: 20, alignSelf: 'center' }}
-          >
-            <Text style={{ color: 'gray', fontSize: 12 }}>Dev: Skip Login</Text>
-          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </LinearGradient>
