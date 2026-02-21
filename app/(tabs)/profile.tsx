@@ -1,126 +1,98 @@
 // (tabs)/profile.tsx
-import { View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { Animated, View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateStreak , calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { calculateStreak, calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
 import { router } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, useRef } from 'react';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import { Modal } from 'react-native';
+import { auth } from '@/src/firebase/config';
 
-// Helper function to check if a date is within the current week
 function isThisWeek(date: string) {
   const d = new Date(date);
   const now = new Date();
-
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - now.getDay());
   startOfWeek.setHours(0, 0, 0, 0);
-
   return d >= startOfWeek;
 }
 
-const WEEK_DAYS = ['Sun', 'Mon','Tue','Wed','Thu','Fri','Sat'];
+const WEEK_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-//
 function getWeeklyActivityDots(activities: any[]) {
   const now = new Date();
-  // Set to start of today (local time)
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  // Calculate Sunday of this week
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - today.getDay());
-
-  // Array for 7 days starting from Sunday
   const dots = Array(7).fill(false);
-
   activities.forEach(a => {
     if (!a.date) return;
-    
     const d = new Date(a.date);
-
-    // Normalize activity date to midnight local time for accurate day-to-day comparison
     const activityDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-
-    // Check if the activity falls within the current week's range
-    if(activityDate >= startOfWeek && activityDate <= today) {
-      const dayIndex = activityDate.getDay(); 
-      dots[dayIndex] = true;
+    if (activityDate >= startOfWeek && activityDate <= today) {
+      dots[activityDate.getDay()] = true;
     }
   });
-
   return dots;
 }
 
 export default function ProfileScreen() {
   const { colors, scheme } = useAppTheme();
   const userRegion = useActivityStore(s => s.userRegion);
-  const activities = useActivityStore((state) => state.activities);
+  const activities = useActivityStore(s => s.activities);
   const streak = calculateStreak(activities);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [showSecondCannon, setShowSecondCannon] = useState(false);
   const hasHydrated = useActivityStore(s => s._hasHydrated);
-  
-  // Real-time Firestore State
+
   const userProfile = useActivityStore(s => s.userProfile);
-  const profile = userProfile; // keeps all the existing references working
-  const loading = !userProfile; // simple loading state
-  
-  const celebrated = useActivityStore((state) => state.celebrated);
-  const setCelebrated = useActivityStore((state) => state.setCelebrated);
+  const profile = userProfile;
+  const loading = !userProfile;
+
+  const celebrated = useActivityStore(s => s.celebrated);
+  const setCelebrated = useActivityStore(s => s.setCelebrated);
 
   const dynamicTarget = profile?.weeklyTarget || 500;
   const prevTarget = useRef<number | null>(null);
+  const resetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Only attempt replacement if it's a googleusercontent URL
   const isGoogleImage = profile?.photoURL?.includes('googleusercontent.com');
-  const highResPhoto = isGoogleImage 
-  ? profile?.photoURL?.replace('=s96-c', '=s400-c') 
-  : profile?.photoURL;
+  const highResPhoto = isGoogleImage
+    ? profile?.photoURL?.replace('=s96-c', '=s400-c')
+    : profile?.photoURL;
 
-  // Calculate tokens BEFORE the effects so 'progress' is available
   const weeklyTokens = activities
-    .filter((a) => a.date && isThisWeek(a.date))
+    .filter(a => a.date && isThisWeek(a.date))
     .reduce((sum, a) => sum + calculateTokens(a), 0);
 
   const progress = Math.min(weeklyTokens / dynamicTarget, 1);
   const weeklyDots = getWeeklyActivityDots(activities);
+  const activeDaysThisWeek = weeklyDots.filter(Boolean).length;
 
-  // Celebration Effect
-  useEffect(() => {
-    if (progress >= 1 && !loading && !celebrated && hasHydrated) {
-      setShowCelebration(true);
-      setTimeout(() => setShowSecondCannon(true), 300);
-      setCelebrated(true);
-    }
-  }, [progress, loading, hasHydrated]);
+  const totalTokens = activities.reduce((sum, a) => sum + calculateTokens(a), 0);
+  const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+
+  // Member since
+  const memberSince = auth.currentUser?.metadata?.creationTime
+    ? new Date(auth.currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    : null;
 
   // Target change reset
   useEffect(() => {
-    // Skip the initial mount — only react to actual changes
     if (prevTarget.current === null) {
       prevTarget.current = dynamicTarget;
       return;
     }
-    
     if (prevTarget.current !== dynamicTarget) {
-      const oldTarget = prevTarget.current; // save BEFORE updating
+      const oldTarget = prevTarget.current;
       prevTarget.current = dynamicTarget;
-
-      // Only reset if new target is strictly higher AND progress no longer meets it
       if (dynamicTarget > oldTarget && progress < 1) {
-        // Use a timeout to avoid state collision with Firestore snapshot
-        setTimeout(() => setCelebrated(false), 300);
+        resetTimeout.current = setTimeout(() => setCelebrated(false), 300);
       }
     }
   }, [dynamicTarget]);
 
-  // 5. Loading return comes AFTER all hooks are declared
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
@@ -129,207 +101,168 @@ export default function ProfileScreen() {
     );
   }
 
+  const gradientColors: [string, string, string] = scheme === 'dark'
+    ? ['#1B5E20', '#00897B', '#004D40']
+    : ['#2E7D32', '#00897B', '#006064'];
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View>
-        <View style={styles.headerRow}>
-          <ThemedText type="title" style={{ color: colors.text }}>Profile</ThemedText>
-          <Pressable onPress={() => router.push('/settings')}>
-            <FontAwesome6 name="gear" size={20} color="#6b6b6b" />
-          </Pressable>
-        </View>
-
-        <ThemedText style={[styles.subtle, { color: colors.text, paddingHorizontal: 18 }]}>
-          Your sustainability journey
-        </ThemedText>
-      </View>
-
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        
-        {/* User Card */}
+        {/* ── Hero Card ── */}
         <LinearGradient
-          colors={scheme === 'dark' ? ['#34C9C9', '#2E7D32'] : ['#2E7D32', '#34C9C9']}
+          colors={scheme === 'dark'
+            ? ['#1B5E20', '#00897B', '#004D40']
+            : ['#2E7D32', '#00897B', '#006064']}
           start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.card}
+          end={{ x: 0.8, y: 1 }}
+          style={styles.heroCard}
         >
+          {/* Decorative circles */}
+          <View style={styles.decorCircle1} />
+          <View style={styles.decorCircle2} />
+
+          {/* Top row: title + settings */}
+          <View style={styles.heroTopRow}>
+            <View>
+              <ThemedText style={styles.heroScreenLabel}>Profile</ThemedText>
+              {memberSince && (
+                <ThemedText style={styles.heroMemberSince}>Member since {memberSince}</ThemedText>
+              )}
+            </View>
+            <Pressable onPress={() => router.push('/settings')} style={styles.settingsBtn}>
+              <FontAwesome6 name="gear" size={16} color="#ffffffcc" />
+            </Pressable>
+          </View>
+
+          {/* Avatar + name + edit */}
           <View style={styles.profileInfoRow}>
-            {/* Avatar - Shows Google Photo or First Initial */}
             {profile?.photoURL ? (
               <View style={styles.avatarWrapper}>
-                <Image 
-                  source={{ uri: highResPhoto || profile.photoURL }} 
-                  style={styles.avatar} 
-                />
+                <Image source={{ uri: highResPhoto || profile.photoURL }} style={styles.avatar} />
               </View>
             ) : (
-              <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted }]}>
-                <ThemedText style={{ fontSize: 24, color: colors.text }}>
-                  {loading ? '' : (profile?.displayName?.charAt(0).toUpperCase() || 'U')}
+              <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                <ThemedText style={styles.avatarInitial}>
+                  {profile?.displayName?.charAt(0).toUpperCase() || 'U'}
                 </ThemedText>
               </View>
             )}
-
-            <View style={{ flex: 1, marginLeft: 15 }}>
-              <ThemedText type="defaultSemiBold" style={{ color: '#fff', fontSize: 20 }}>
+            <View style={{ flex: 1, marginLeft: 14 }}>
+              <ThemedText style={styles.displayName}>
                 {profile?.displayName || 'Eco Explorer'}
               </ThemedText>
-              <ThemedText style={{ color: '#ffffffcc', fontSize: 14 }}>
-                {profile?.email}
-              </ThemedText>
+              <ThemedText style={styles.emailText}>{profile?.email}</ThemedText>
             </View>
-
-            {/* Edit Button */}
-            <Pressable 
-              onPress={() => router.push('/edit-profile')}
-              style={styles.editButton}
-            >
+            <Pressable onPress={() => router.push('/edit-profile')} style={styles.editButton}>
               <FontAwesome6 name="pen" size={12} color="#fff" />
             </Pressable>
           </View>
 
+          {/* Stats row */}
           <View style={styles.statsSummary}>
-             <View style={styles.miniStat}>
-                <ThemedText style={styles.miniStatVal}>{activities.reduce((sum, a) => sum + calculateTokens(a), 0)}</ThemedText>
-                <ThemedText style={styles.miniStatLabel}>Tokens</ThemedText>
-             </View>
-             <View style={styles.divider} />
-             <View style={styles.miniStat}>
-                <ThemedText style={styles.miniStatVal}>
-                  {activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0).toFixed(2)}
-                </ThemedText>
-                <ThemedText style={styles.miniStatLabel}>kg CO₂ total</ThemedText>
-             </View>
+            <View style={styles.miniStat}>
+              <ThemedText style={styles.miniStatVal}>{totalTokens.toLocaleString()}</ThemedText>
+              <ThemedText style={styles.miniStatLabel}>Tokens</ThemedText>
+            </View>
+            <View style={styles.statsDivider} />
+            <View style={styles.miniStat}>
+              <ThemedText style={styles.miniStatVal}>{totalCO2.toFixed(2)}</ThemedText>
+              <ThemedText style={styles.miniStatLabel}>kg CO₂ saved</ThemedText>
+            </View>
           </View>
         </LinearGradient>
 
-        {/* Consistency Card */}
+        {/* ── Consistency Card ── */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Consistency</ThemedText>
-          <ThemedText style={[styles.subtle, { color: colors.text }]}>
-             {streak > 0 ? `🌱 ${streak}-day streak active` : 'Log an activity to start your streak'}
-          </ThemedText>
-          <View style={styles.streakRow}>
+          <View style={styles.cardTitleRow}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
+              Consistency
+            </ThemedText>
+            <View style={styles.streakBadge}>
+              <FontAwesome6
+                name="leaf"
+                size={12}
+                color={streak > 0 ? colors.tint : colors.text}
+                style={{ opacity: streak > 0 ? 1 : 0.3 }}
+              />
+              <ThemedText style={[
+                styles.streakBadgeText,
+                { color: streak > 0 ? colors.tint : colors.text, opacity: streak > 0 ? 1 : 0.4 }
+              ]}>
+                {streak > 0 ? `${streak}-day streak` : 'No streak yet'}
+              </ThemedText>
+            </View>
+          </View>
+
+          {/* Week dots */}
+          <View style={styles.dotsRow}>
             {WEEK_DAYS.map((day, idx) => (
-              <View key={day} style={styles.streakItem}>
-                <ThemedText style={{ color: colors.text, fontSize: 10 }}>{day}</ThemedText>
-                <View style={[styles.dot, { backgroundColor: weeklyDots[idx] ? colors.tint : colors.surfaceMuted }]} />
+              <View key={idx} style={styles.dotItem}>
+                <View style={[
+                  styles.dot,
+                  weeklyDots[idx]
+                    ? { backgroundColor: colors.tint }
+                    : { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.tint + '30' }
+                ]}>
+                  {weeklyDots[idx] && (
+                    <FontAwesome6 name="check" size={8} color="#fff" />
+                  )}
+                </View>
+                <ThemedText style={[styles.dotLabel, { color: colors.text }]}>{day}</ThemedText>
               </View>
             ))}
           </View>
-        </View>
 
-        {/* Weekly Goal */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Weekly Goal Progress</ThemedText>
-            <ThemedText style={{ color: colors.tint, fontWeight: 'bold' }}>{Math.round(progress * 100)}%</ThemedText>
-          </View>
-
-          <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
-            <View style={[styles.progressBarFill, { width: `${progress * 100}%`, backgroundColor: colors.tint }]} />
-          </View>
-
-          <ThemedText style={[styles.subtle, { color: colors.text }]}>
-            {weeklyTokens} / {dynamicTarget} EcoTokens
+          <ThemedText style={[styles.activeDaysLabel, { color: colors.text }]}>
+            {activeDaysThisWeek === 0
+              ? 'No activity logged this week yet'
+              : `${activeDaysThisWeek} of 7 days active this week`}
           </ThemedText>
         </View>
-      </ScrollView>
 
-      {/* GOAL CELEBRATION MODAL */}
-      <Modal
-        transparent={true}
-        visible={showCelebration}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <LinearGradient
-            colors={scheme === 'dark' ? ['#1a1a2e', '#16213e'] : ['#ffffff', '#f0fdf4']}
-            style={styles.celebrationCard}
-          >
-            {/* Top accent bar */}
+        {/* ── Weekly Goal Card ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <View style={styles.cardTitleRow}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
+              Weekly Goal
+            </ThemedText>
+            <ThemedText style={{ color: colors.tint, fontWeight: '700', fontSize: 15 }}>
+              {Math.round(progress * 100)}%
+            </ThemedText>
+          </View>
+
+          {/* Token count */}
+          <View style={styles.goalTokenRow}>
+            <ThemedText style={[styles.goalTokenCurrent, { color: colors.tint }]}>
+              {weeklyTokens}
+            </ThemedText>
+            <ThemedText style={[styles.goalTokenSep, { color: colors.text }]}>
+              {' '}/ {dynamicTarget} tokens
+            </ThemedText>
+          </View>
+
+          {/* Progress bar */}
+          <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
             <LinearGradient
-              colors={['#2E7D32', '#34C9C9']}
+              colors={gradientColors}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
-              style={styles.celebrationAccent}
+              style={[styles.progressBarFill, { width: `${progress * 100}%` }]}
             />
+          </View>
 
-            <View style={[styles.celebrationIconWrapper, { backgroundColor: colors.tint + '20' }]}>
-              <FontAwesome6 name="earth-americas" size={52} color={colors.tint} />
-            </View>
-
-            <ThemedText type="title" style={[styles.celebrationTitle, { color: colors.text }]}>
-              Weekly Goal Crushed!
+          {progress >= 1 ? (
+            <ThemedText style={[styles.goalCompleteLabel, { color: colors.tint }]}>
+              🎉 Goal reached this week!
             </ThemedText>
-
-            <ThemedText style={[styles.celebrationSubtitle, { color: colors.text }]}>
-              You earned{' '}
-              <ThemedText style={[styles.celebrationHighlight, { color: colors.tint }]}>
-                {weeklyTokens} EcoTokens
-              </ThemedText>
-              {' '}this week — goal of {dynamicTarget} crushed! 🌱
+          ) : (
+            <ThemedText style={[styles.goalRemainingLabel, { color: colors.text }]}>
+              {dynamicTarget - weeklyTokens} tokens to go
             </ThemedText>
-
-            {/* Stats row */}
-            <View style={[styles.celebrationStats, { backgroundColor: colors.tint + '18' }]}>
-              <View style={styles.celebrationStat}>
-                <ThemedText style={[styles.celebrationStatVal, { color: colors.tint }]}>
-                  {weeklyTokens}
-                </ThemedText>
-                <ThemedText style={[styles.celebrationStatLabel, { color: colors.text }]}>
-                  Tokens
-                </ThemedText>
-              </View>
-              <View style={[styles.celebrationStatDivider, { backgroundColor: colors.tint + '40' }]} />
-              <View style={styles.celebrationStat}>
-                <ThemedText style={[styles.celebrationStatVal, { color: colors.tint }]}>
-                  {activities.filter(a => a.date && isThisWeek(a.date)).length}
-                </ThemedText>
-                <ThemedText style={[styles.celebrationStatLabel, { color: colors.text }]}>
-                  Activities
-                </ThemedText>
-              </View>
-            </View>
-
-            <Pressable
-              style={styles.celebrationBtn}
-              onPress={() => {
-                setShowCelebration(false);
-                setShowSecondCannon(false);
-              }}
-            >
-              <LinearGradient
-                colors={['#2E7D32', '#34C9C9']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.celebrationBtnGradient}
-              >
-                <ThemedText style={styles.celebrationBtnText}>Awesome! 🎉</ThemedText>
-              </LinearGradient>
-            </Pressable>
-          </LinearGradient>
-
-          <ConfettiCannon
-            count={200}
-            origin={{ x: -10, y: 0 }}
-            fadeOut={true}
-            explosionSpeed={400}
-            fallSpeed={3000}
-          />
-          {/* Second cannon from the right */}
-          {showSecondCannon && (
-            <ConfettiCannon
-              count={200}
-              origin={{ x: 400, y: 0 }}
-              fadeOut={true}
-              explosionSpeed={400}
-              fallSpeed={3000}
-            />
           )}
         </View>
-      </Modal>
+
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -337,205 +270,238 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    //paddingTop: 30,
+    gap: 14,
+    paddingBottom: 24,
+  },
+
+  // Hero card
+  heroCard: {
+    borderRadius: 20,
+    padding: 20,
     gap: 16,
-    // paddingBottom: 10,
   },
-
-  headerRow: {
+  heroTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    // alignItems: 'center',
-    paddingTop: 20,
-    paddingHorizontal: 18,
+    alignItems: 'flex-start',
+  },
+  heroScreenLabel: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  heroMemberSince: {
+    fontSize: 12,
+    color: '#ffffffaa',
+    marginTop: 2,
+  },
+  settingsBtn: {
+    padding: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 20,
   },
 
-  subtle: {
-    fontSize: 13,
-    opacity: 0.6,
-  },
-
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    //backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
-    gap: 5
-  },
-
-  progressBarBg: {
-    height: 10,
-    borderRadius: 5,
-    //backgroundColor: 'rgba(0,0,0,0.1)', // #0000001a
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-
-  progressBarFill: {
-    height: '100%',
-    //backgroundColor: '#2E7D32',
-    borderRadius: 5,
-  },
-
-  streakRow: {
+  // Avatar
+  profileInfoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-
-  streakItem: {
     alignItems: 'center',
-    gap: 5,
   },
-
-  dot: {
-    width: 14,
-    height: 14,
-    borderRadius: 8,
-    marginTop: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
-  },
-
+  avatarWrapper: {},
   avatar: {
     width: 70,
     height: 70,
     borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 3,
     borderColor: '#fff',
+    overflow: 'hidden',
   },
-
-  avatarWrapper: {
-    position: 'relative',
-  },
-
-  profileInfoRow: {
-    flexDirection: 'row',
+  avatarPlaceholder: {
+    justifyContent: 'center',
     alignItems: 'center',
-    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
-
+  avatarInitial: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  displayName: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  emailText: {
+    fontSize: 13,
+    color: '#ffffffcc',
+    marginTop: 2,
+  },
   editButton: {
     padding: 8,
     backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: 20,
   },
 
+  // Stats row
   statsSummary: {
     flexDirection: 'row',
-    marginTop: 20,
-    paddingTop: 15,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.2)',
-    width: '100%',
     justifyContent: 'space-evenly',
-    alignContent: 'center',
+  },
+  miniStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  miniStatVal: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  miniStatLabel: {
+    color: '#ffffffcc',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  statsDivider: {
+    width: 1,
+    height: '80%',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
 
-  miniStat: { 
+  // Cards
+  card: {
+    padding: 16,
+    borderRadius: 16,
+    gap: 12,
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    flex: 1,        // each stat takes equal space
+  },
+
+  // Streak badge
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  streakBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Dots
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     paddingHorizontal: 4,
   },
-  miniStatVal: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  miniStatLabel: { color: '#ffffffcc', fontSize: 12, textAlign: 'center', },
-  divider: { width: 1, height: '80%', backgroundColor: 'rgba(255,255,255,0.2)' },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
+  dotItem: {
     alignItems: 'center',
+    gap: 6,
   },
-  celebrationCard: {
-    width: '80%',
-    padding: 24,
-    borderRadius: 24,
+  dot: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
-    elevation: 10,
+    justifyContent: 'center',
+  },
+  dotLabel: {
+    fontSize: 11,
+    opacity: 0.5,
+    fontWeight: '500',
+  },
+  activeDaysLabel: {
+    fontSize: 12,
+    opacity: 0.5,
+    textAlign: 'center',
+  },
+
+  // Weekly goal
+  goalTokenRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
+  goalTokenCurrent: {
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  goalTokenSep: {
+    fontSize: 15,
+    opacity: 0.5,
+  },
+  progressBarBg: {
+    height: 14,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 7,
+  },
+  goalCompleteLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  goalRemainingLabel: {
+    fontSize: 12,
+    opacity: 0.5,
+  },
+
+  // Celebration banner
+  celebrationBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    padding: 16,
+    paddingTop: 60,
+  },
+  celebrationBannerInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    overflow: 'hidden',
-    paddingTop: 0,
+    elevation: 8,
   },
-
-  celebrationAccent: {
-  height: 5,
-  width: '100%',
-  borderRadius: 3,
-  marginBottom: 20,
+  bannerTitle: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  bannerSub: {
+    color: '#ffffffcc',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  decorCircle1: {
+  position: 'absolute',
+  width: 180,
+  height: 180,
+  borderRadius: 90,
+  backgroundColor: 'rgba(255,255,255,0.05)',
+  top: -40,
+  right: -40,
 },
-celebrationTitle: {
-  textAlign: 'center',
-  fontSize: 26,
-  fontWeight: '800',
-  marginBottom: 10,
-},
-celebrationSubtitle: {
-  textAlign: 'center',
-  opacity: 0.75,
-  fontSize: 15,
-  lineHeight: 22,
-  marginBottom: 20,
-  paddingHorizontal: 10,
-},
-celebrationHighlight: {
-  fontWeight: '700',
-},
-celebrationStats: {
-  flexDirection: 'row',
-  borderRadius: 14,
-  padding: 16,
-  width: '100%',
-  justifyContent: 'space-around',
-  marginBottom: 24,
-},
-celebrationStat: {
-  alignItems: 'center',
-  flex: 1,
-},
-celebrationStatVal: {
-  fontSize: 22,
-  fontWeight: '800',
-},
-celebrationStatLabel: {
-  fontSize: 12,
-  opacity: 0.6,
-  marginTop: 2,
-},
-celebrationStatDivider: {
-  width: 1,
-  height: '80%',
-  alignSelf: 'center',
-},
-celebrationBtn: {
-  width: '100%',
-  borderRadius: 14,
-  overflow: 'hidden',
-},
-celebrationBtnGradient: {
-  paddingVertical: 16,
-  alignItems: 'center',
-  borderRadius: 14,
-},
-celebrationBtnText: {
-  color: '#fff',
-  fontWeight: '800',
-  fontSize: 16,
-},
-
-celebrationIconWrapper: {
-  width: 90,
-  height: 90,
-  borderRadius: 45,
-  justifyContent: 'center',
-  alignItems: 'center',
-  marginBottom: 16,
-  marginTop: 8,
+decorCircle2: {
+  position: 'absolute',
+  width: 120,
+  height: 120,
+  borderRadius: 60,
+  backgroundColor: 'rgba(255,255,255,0.04)',
+  bottom: -20,
+  left: 20,
 },
 });
-

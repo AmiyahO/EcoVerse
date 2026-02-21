@@ -149,8 +149,12 @@ export default function ActivityScreen() {
       {/* Header */}
       <View style={styles.header}>
         <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>Activity</ThemedText>
-        <Pressable style={styles.addButton} onPress={() => router.push('/activity/add')}>
-          <ThemedText type="link">＋ Add</ThemedText>
+        <Pressable
+          style={[styles.addButton, { backgroundColor: colors.tint }]}
+          onPress={() => router.push('/activity/add')}
+        >
+          <FontAwesome6 name="plus" size={13} color="#fff" />
+          <ThemedText style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Log</ThemedText>
         </Pressable>
       </View>
 
@@ -164,16 +168,23 @@ export default function ActivityScreen() {
           contentContainerStyle={{ gap: 8 }}
           renderItem={({ item }) => {
             const active = filter === item;
+            const chipColor = item === 'all' ? colors.tint : (CATEGORY_COLORS[item] ?? colors.tint);
+
             return (
               <Pressable
                 onPress={() => setFilter(item)}
-                style={[styles.filterChip, active && styles.filterChipActive]}
+                style={[styles.filterChip, 
+                  active && { backgroundColor: chipColor + '28', borderColor: chipColor + '66', borderWidth: 1 },
+                ]}
               >
+                {item !== 'all' && active && (
+                  <FontAwesome6 name={CATEGORY_ICON[item]} size={11} color={chipColor} />
+                )}
                 <ThemedText
                   style={[
                     styles.filterText,
+                   { color: active ? chipColor : colors.text },
                     active && styles.filterTextActive,
-                    { color: colors.text },
                   ]}
                 >
                   {item === 'all' ? 'All' : item.charAt(0).toUpperCase() + item.slice(1)}
@@ -186,16 +197,30 @@ export default function ActivityScreen() {
 
       {/* List */}
       {filteredActivities.length === 0 ? (
-        <ThemedText style={[styles.emptyText, { color: colors.text }]}>
-          {filter === 'all'
-            ? 'No activities yet. Start moving 🌱'
-            : `No ${filter} activities yet. Log your first one ${
-                filter === 'water' ? '💧' :
-                filter === 'electricity' ? '⚡' :
-                filter === 'cycling' ? '🚴' :
-                filter === 'running' ? '🏃' : '👟'
-              }`}
+        <View style={styles.emptyState}>
+        <View style={[styles.emptyIconCircle, { backgroundColor: colors.tint + '15' }]}>
+          <FontAwesome6
+            name={filter === 'all' ? 'leaf' : (CATEGORY_ICON[filter] ?? 'leaf')}
+            size={36}
+            color={filter === 'all' ? colors.tint : (CATEGORY_COLORS[filter] ?? colors.tint)}
+          />
+        </View>
+        <ThemedText style={[styles.emptyTitle, { color: colors.text }]}>
+          {filter === 'all' ? 'No activities yet' : `No ${filter} activities yet`}
         </ThemedText>
+        <ThemedText style={[styles.emptySubtitle, { color: colors.text }]}>
+          {filter === 'all'
+            ? 'Start logging to track your eco impact'
+            : `Log your first ${filter} activity to see it here`}
+        </ThemedText>
+        <Pressable
+          style={[styles.emptyBtn, { backgroundColor: colors.tint }]}
+          onPress={() => router.push('/activity/add')}
+        >
+          <FontAwesome6 name="plus" size={13} color="#fff" />
+          <ThemedText style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Log Activity</ThemedText>
+        </Pressable>
+      </View>
       ) : (
         <SectionList
           sections={sections}
@@ -232,9 +257,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   addButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
   },
 
   // Section header
@@ -311,9 +339,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 999,
-  },
-  filterChipActive: {
-    backgroundColor: 'rgba(46,125,50,0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   filterText: {
     fontSize: 13,
@@ -327,5 +357,40 @@ const styles = StyleSheet.create({
     marginTop: 40,
     textAlign: 'center',
     opacity: 0.6,
+  },
+
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
+  emptyIconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    opacity: 0.5,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginTop: 8,
   },
 });

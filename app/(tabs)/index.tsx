@@ -47,7 +47,12 @@ export default function HomeScreen() {
   const activeDays  = new Set(weeklyActivities.map(a => new Date(a.date).toDateString())).size;
   const uniqueCategories = new Set(weeklyActivities.map(a => a.category)).size;
 
-  const baseScore        = Math.min((weeklyTokens / 500) * 70, 70);
+  const weeklyTarget = userProfile?.weeklyTarget ?? 500;
+  const progress     = Math.min(weeklyTokens / weeklyTarget, 1);
+
+  const firstName = userProfile?.displayName?.split(' ')[0] || 'Explorer';
+
+  const baseScore        = Math.min((weeklyTokens / weeklyTarget) * 70, 70);
   const consistencyBonus = (activeDays / 7) * 20;
   const varietyBonus     = (uniqueCategories / 3) * 10;
   const ecoScore         = Math.round(baseScore + consistencyBonus + varietyBonus);
@@ -63,11 +68,6 @@ export default function HomeScreen() {
   const comparisonArrow =
     comparison.direction === 'up'   ? '↑' :
     comparison.direction === 'down' ? '↓' : '—';
-
-  const weeklyTarget = userProfile?.weeklyTarget ?? 500;
-  const progress     = Math.min(weeklyTokens / weeklyTarget, 1);
-
-  const firstName = userProfile?.displayName?.split(' ')[0] || 'Explorer';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>

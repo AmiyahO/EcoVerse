@@ -3,51 +3,14 @@ import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Pressable, ScrollView, StyleSheet, View, Alert, Modal } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
 import { router } from "expo-router";
 import { GoogleAuthProvider, reauthenticateWithCredential, signOut, deleteUser } from 'firebase/auth';
 import { auth, db } from '@/src/firebase/config';
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-
-function SettingItem({
-  label,
-  value,
-  onPress,
-  iconName,
-  iconColor,
-  showChevron = true, // New prop to control chevron visibility
-  isDestructive = false,
-}: {
-  label: string;
-  value?: string;
-  onPress?: () => void;
-  iconName?: string;
-  iconColor?: string;
-  showChevron?: boolean;
-  isDestructive?: boolean;
-}) {
-  const { colors } = useAppTheme();
-
-  return (
-    <Pressable
-      disabled={!onPress}
-      onPress={onPress}
-      style={styles.item}
-    >
-      {/* Left: Label */}
-      <ThemedText style={{ color: isDestructive ? '#FF4444' : colors.text }}>{label}</ThemedText>
-
-      {/* Right: Value + Icon */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        {iconName && <Ionicons name={iconName as any} size={18} color={iconColor} />}
-        {value && <ThemedText style={[styles.value, { color: colors.text }]}>{value}</ThemedText>}
-        {onPress && showChevron && <Ionicons name="chevron-forward" size={16} color={colors.text + '44'} />}
-      </View>
-    </Pressable>
-  );
-}
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const REGION_LABELS: Record<string, string> = {
   US: '🇺🇸 United States',
@@ -58,72 +21,129 @@ const REGION_LABELS: Record<string, string> = {
   GLOBAL_AVG: '🌐 Other / Global',
 };
 
-export default function SettingsScreen() { 
+type SettingRowProps = {
+  label: string;
+  value?: string;
+  onPress?: () => void;
+  leftIcon?: string;
+  leftIconColor?: string;
+  isDestructive?: boolean;
+  showChevron?: boolean;
+  badge?: string;
+};
+
+function SettingRow({
+  label,
+  value,
+  onPress,
+  leftIcon,
+  leftIconColor,
+  isDestructive = false,
+  showChevron = true,
+  badge,
+}: SettingRowProps) {
   const { colors } = useAppTheme();
-  const mode = useThemeStore((s) => s.mode);
-  const setMode = useThemeStore((s) => s.setMode);
+  const textColor = isDestructive ? '#EF5350' : colors.text;
 
-  const [region, setRegion] = useState('Loading...');
-  const [loading, setLoading] = useState(true);
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        styles.row,
+        pressed && onPress ? { opacity: 0.6 } : {},
+      ]}
+    >
+      <View style={styles.rowLeft}>
+        {leftIcon && (
+          <View style={[styles.rowIconWrap, { backgroundColor: (leftIconColor ?? colors.tint) + '18' }]}>
+            <Ionicons name={leftIcon as any} size={16} color={leftIconColor ?? colors.tint} />
+          </View>
+        )}
+        <ThemedText style={[styles.rowLabel, { color: textColor }]}>{label}</ThemedText>
+      </View>
+
+      <View style={styles.rowRight}>
+        {badge && (
+          <View style={[styles.badge, { backgroundColor: colors.tint + '22' }]}>
+            <ThemedText style={[styles.badgeText, { color: colors.tint }]}>{badge}</ThemedText>
+          </View>
+        )}
+        {value && (
+          <ThemedText style={[styles.rowValue, { color: colors.text }]}>{value}</ThemedText>
+        )}
+        {onPress && showChevron && (
+          <Ionicons name="chevron-forward" size={15} color={colors.text + '33'} />
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+function SectionHeader({ title }: { title: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <ThemedText style={[styles.sectionHeader, { color: colors.text  }]}>
+      {title}
+    </ThemedText>
+  );
+}
+
+export default function SettingsScreen() {
+  const { colors } = useAppTheme();
+  const mode = useThemeStore(s => s.mode);
+  const setMode = useThemeStore(s => s.setMode);
+
+  const [region, setRegion] = useState('GLOBAL_AVG');
+  const [regionModalVisible, setRegionModalVisible] = useState(false);
   const regions = ['US', 'UK', 'EU', 'INDIA', 'CHINA', 'GLOBAL_AVG'];
-
-  const [isRegionModalVisible, setRegionModalVisible] = useState(false); // New state
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (!user) return;
-    try {
-      const docRef = doc(db, 'users', user.uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setRegion(snap.data().region || 'GLOBAL_AVG');
+      if (!user) return;
+      try {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (snap.exists()) setRegion(snap.data().region || 'GLOBAL_AVG');
+      } catch (e) {
+        console.error('Firestore fetch error:', e);
       }
-    } catch (error) {
-      console.error("Firestore fetch error:", error);
-    } finally {
-      setLoading(false);
-    }
-  });
-  return () => unsubscribe();
+    });
+    return () => unsubscribe();
   }, []);
 
   const selectRegion = async (r: string) => {
     if (auth.currentUser) {
       await updateDoc(doc(db, 'users', auth.currentUser.uid), { region: r });
       setRegion(r);
-      setRegionModalVisible(false); // Close modal after selection
+      setRegionModalVisible(false);
     }
   };
 
   const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      { 
-        text: "Log Out", 
-        style: "destructive", 
-        onPress: () => signOut(auth).then(() => router.replace('/login')) 
-      }
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => signOut(auth).then(() => router.replace('/login')),
+      },
     ]);
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "Delete Account",
-      "This is permanent. All your eco-data and tokens will be deleted. Are you absolutely sure?",
+      'Delete Account',
+      'This is permanent. All your eco-data and tokens will be deleted. Are you absolutely sure?',
       [
-        { text: "Cancel", style: "cancel" },
-        { 
-          text: "Delete Everything", 
-          style: "destructive", 
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
           onPress: async () => {
             const user = auth.currentUser;
-            if (user) {
-              try {
-                // Re-authenticate Google users before deleting
-              const isGoogleUser = user.providerData.some(
-                p => p.providerId === 'google.com'
-              );
-
+            if (!user) return;
+            try {
+              const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
               if (isGoogleUser) {
                 await GoogleSignin.hasPlayServices();
                 const userInfo = await GoogleSignin.signIn();
@@ -132,117 +152,184 @@ export default function SettingsScreen() {
                 const credential = GoogleAuthProvider.credential(idToken);
                 await reauthenticateWithCredential(user, credential);
               }
-
-                // 1. Delete Firestore Data
-                await deleteDoc(doc(db, "users", user.uid));
-                // 2. Delete Auth User
-                await deleteUser(user);
-                router.replace('/login');
-              } catch (e: any) {
-                Alert.alert("Error", e.message || "Please try again.");
-              }
+              await deleteDoc(doc(db, 'users', user.uid));
+              await deleteUser(user);
+              router.replace('/login');
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Please try again.');
             }
-          } 
-        }
+          },
+        },
       ]
     );
   };
 
+  const themeIcon = mode === 'dark' ? 'moon' : mode === 'light' ? 'sunny' : 'phone-portrait-outline';
+  const themeColor = mode === 'dark' ? '#7878f8' : mode === 'light' ? '#FDB813' : '#4A90E2';
+  const themeLabel = mode === 'system' ? 'System' : mode === 'dark' ? 'Dark' : 'Light';
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
-        <ThemedText type="title" style={[styles.headerTitle, { color: colors.text, lineHeight: 35 }]}>Settings</ThemedText>
+        <ThemedText style={[styles.headerTitle, { color: colors.text }]}>Settings</ThemedText>
       </View>
-    
-      <ScrollView 
+
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        >
-        {/* Account Section */}
-        <View style={[
-          styles.section,
-          { backgroundColor: colors.surface }
-        ]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Account</ThemedText>
-          <SettingItem label="Email" value={auth.currentUser?.email || 'Not available'} />
-          <SettingItem label="Region" value={REGION_LABELS[region] ?? region} onPress={() => setRegionModalVisible(true)} />
-          <SettingItem label="Sign out" onPress={handleSignOut} iconName="log-out-outline" iconColor="#FF4444" />
-        </View>
-
-        {/* Preferences Section*/}
-        <View style={[
-          styles.section,
-          { backgroundColor: colors.surface }
-        ]}>
-          <ThemedText type="defaultSemiBold" style = {{color: colors.text}}>Preferences</ThemedText>
-
-          <SettingItem
-            label="Theme"
-            value={mode === 'system' ? 'System' : mode === 'dark' ? 'Dark' : 'Light'}
-            onPress={() => setMode(mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system')}
-            iconName={mode === 'dark' ? 'moon' : mode === 'light' ? 'sunny' : 'phone-portrait'}
-            iconColor={mode === 'dark' ? '#7878f8' : mode === 'light' ? '#FDB813' : '#4A90E2'} 
-          />
-
-          <SettingItem label="Notifications" value="On" />
-        </View>
-
-        {/* Data Section */}
-        <View style={[
-          styles.section,
-          { backgroundColor: colors.surface }
-        ]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Data</ThemedText>
-          <SettingItem label="Sync status" value="Up to date" />
-          <SettingItem label="Reset local data" />
-        </View>
-
-        {/* About Section*/}
-        <View style={[
-          styles.section,
-          { backgroundColor: colors.surface }
-        ]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>About</ThemedText>
-          {/* Placeholder versions */}
-          <SettingItem label="Version" value="1.0.1 (Beta)" /> 
-          <SettingItem label="Terms of Service" onPress={() => {}} />
-          <SettingItem label="Privacy Policy" onPress={() => Alert.alert("Privacy", "Your data is stored securely in Firebase and used only for CO₂ calculation.")} />
-        </View>
-
-        {/* Delete Section */}
+      >
+        {/* ── Account ── */}
+        <SectionHeader title="Account" />
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Danger Zone</ThemedText>
-          <SettingItem 
-            label="Delete Account" 
-            onPress={handleDeleteAccount} 
-            isDestructive={true} 
+          <SettingRow
+            label="Email"
+            value={auth.currentUser?.email ?? '—'}
+            leftIcon="mail-outline"
+            leftIconColor="#4A90E2"
+            showChevron={false}
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Region"
+            value={REGION_LABELS[region] ?? region}
+            leftIcon="globe-outline"
+            leftIconColor="#29B6F6"
+            onPress={() => setRegionModalVisible(true)}
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Sign Out"
+            leftIcon="log-out-outline"
+            leftIconColor="#EF5350"
+            isDestructive
+            showChevron={false}
+            onPress={handleSignOut}
+          />
+        </View>
+
+        {/* ── Preferences ── */}
+        <SectionHeader title="Preferences" />
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <SettingRow
+            label="Theme"
+            value={themeLabel}
+            leftIcon={themeIcon}
+            leftIconColor={themeColor}
+            onPress={() => setMode(mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system')}
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Notifications"
+            leftIcon="notifications-outline"
+            leftIconColor="#FFC107"
+            badge="Soon"
             showChevron={false}
           />
         </View>
+
+        {/* ── Data ── */}
+        <SectionHeader title="Data" />
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <SettingRow
+            label="Sync status"
+            leftIcon="cloud-done-outline"
+            leftIconColor="#4CAF50"
+            badge="Soon"
+            showChevron={false}
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Reset local data"
+            leftIcon="refresh-outline"
+            leftIconColor="#FF7043"
+            badge="Soon"
+            showChevron={false}
+          />
+        </View>
+
+        {/* ── About ── */}
+        <SectionHeader title="About" />
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <SettingRow
+            label="Version"
+            value="1.0.1 (Beta)"
+            leftIcon="information-circle-outline"
+            leftIconColor="#26C6DA"
+            showChevron={false}
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Privacy Policy"
+            leftIcon="shield-checkmark-outline"
+            leftIconColor="#4CAF50"
+            onPress={() =>
+              Alert.alert(
+                'Privacy',
+                'Your data is stored securely in Firebase and used only for CO₂ calculation.'
+              )
+            }
+          />
+          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
+          <SettingRow
+            label="Terms of Service"
+            leftIcon="document-text-outline"
+            leftIconColor="#29B6F6"
+            onPress={() => {}}
+          />
+        </View>
+
+        {/* ── Danger Zone ── */}
+        <SectionHeader title="Danger Zone" />
+        <View style={[styles.section, styles.dangerSection, { backgroundColor: '#EF535010', borderColor: '#EF535030' }]}>
+          <SettingRow
+            label="Delete Account"
+            leftIcon="trash-outline"
+            leftIconColor="#EF5350"
+            isDestructive
+            showChevron={false}
+            onPress={handleDeleteAccount}
+          />
+        </View>
+
+        <ThemedText style={[styles.footerNote, { color: colors.text }]}>
+          EcoVerse · v1.0.1 Beta · Made with 🌱
+        </ThemedText>
       </ScrollView>
 
-      {/* --- Region Selection Modal --- */}
-      <Modal visible={isRegionModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <ThemedText type="subtitle" style={{ color: colors.text, marginBottom: 15 }}>Select Region</ThemedText>
-            {regions.map((r) => (
-              <Pressable key={r} onPress={() => selectRegion(r)} style={styles.modalOption}>
-                <ThemedText style={{ color: colors.text }}>{REGION_LABELS[r] ?? r}</ThemedText>
-                {region === r && <Ionicons name="checkmark" size={20} color="#4CAF50" />}
+      {/* ── Region Modal ── */}
+      <Modal visible={regionModalVisible} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setRegionModalVisible(false)}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>Select Region</ThemedText>
+            <ThemedText style={[styles.modalSubtitle, { color: colors.text }]}>
+              Used for accurate CO₂ calculations
+            </ThemedText>
+            {regions.map((r, idx) => (
+              <Pressable
+                key={r}
+                onPress={() => selectRegion(r)}
+                style={[
+                  styles.modalOption,
+                  idx < regions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.surfaceMuted },
+                  region === r && { backgroundColor: colors.tint + '12' },
+                ]}
+              >
+                <ThemedText style={[styles.modalOptionText, { color: colors.text }]}>
+                  {REGION_LABELS[r]}
+                </ThemedText>
+                {region === r && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                )}
               </Pressable>
             ))}
-            <Pressable onPress={() => setRegionModalVisible(false)} style={styles.closeBtn}>
-              <ThemedText style={{ color: colors.text, opacity: 0.6 }}>Cancel</ThemedText>
-            </Pressable>
           </View>
-        </View>
+        </Pressable>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -251,64 +338,133 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: 60, 
-    paddingBottom: 16,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
-  backButton: {
-    width: 40,
-    height: 40,
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
-    alignItems: 'center', 
+    alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 30,
-    fontWeight: '700'
+    fontSize: 24,
+    fontWeight: '700',
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingBottom: 32,
-    gap: 16,
+    paddingBottom: 40,
+    gap: 6,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '600',
+    opacity: 0.7,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginTop: 16,
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
   section: {
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
+    borderRadius: 14,
+    overflow: 'hidden',
   },
-  item: {
+  dangerSection: {
+    borderWidth: 1,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: 52,
+  },
+  row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
-  value: {
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  rowIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowLabel: {
+    fontSize: 15,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  rowValue: {
+    fontSize: 13,
+    opacity: 0.5,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  badgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  // Footer
+  footerNote: {
+    textAlign: 'center',
     fontSize: 12,
-    opacity: 0.6,
+    opacity: 0.3,
+    marginTop: 16,
   },
+
+  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
+    padding: 16,
+    paddingBottom: 32,
   },
-  modalContent: {
-    width: '80%',
-    borderRadius: 16,
-    padding: 20,
-    elevation: 5,
+  modalCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    paddingTop: 20,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    paddingHorizontal: 20,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    opacity: 0.5,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 12,
   },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
-  },
-  closeBtn: {
-    marginTop: 15,
     alignItems: 'center',
-  }
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  modalOptionText: {
+    fontSize: 15,
+  },
 });
