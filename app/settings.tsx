@@ -3,8 +3,8 @@ import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Pressable, ScrollView, StyleSheet, View, Alert, Modal } from 'react-native';
-import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
-import { router } from "expo-router";
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { GoogleAuthProvider, reauthenticateWithCredential, signOut, deleteUser } from 'firebase/auth';
 import { auth, db } from '@/src/firebase/config';
 import { useEffect, useState } from 'react';
@@ -33,14 +33,8 @@ type SettingRowProps = {
 };
 
 function SettingRow({
-  label,
-  value,
-  onPress,
-  leftIcon,
-  leftIconColor,
-  isDestructive = false,
-  showChevron = true,
-  badge,
+  label, value, onPress, leftIcon, leftIconColor,
+  isDestructive = false, showChevron = true, badge,
 }: SettingRowProps) {
   const { colors } = useAppTheme();
   const textColor = isDestructive ? '#EF5350' : colors.text;
@@ -49,10 +43,7 @@ function SettingRow({
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && onPress ? { opacity: 0.6 } : {},
-      ]}
+      style={({ pressed }) => [styles.row, pressed && onPress ? { opacity: 0.6 } : {}]}
     >
       <View style={styles.rowLeft}>
         {leftIcon && (
@@ -62,7 +53,6 @@ function SettingRow({
         )}
         <ThemedText style={[styles.rowLabel, { color: textColor }]}>{label}</ThemedText>
       </View>
-
       <View style={styles.rowRight}>
         {badge && (
           <View style={[styles.badge, { backgroundColor: colors.tint + '22' }]}>
@@ -70,7 +60,7 @@ function SettingRow({
           </View>
         )}
         {value && (
-          <ThemedText style={[styles.rowValue, { color: colors.text }]}>{value}</ThemedText>
+          <ThemedText style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>{value}</ThemedText>
         )}
         {onPress && showChevron && (
           <Ionicons name="chevron-forward" size={15} color={colors.text + '33'} />
@@ -83,14 +73,14 @@ function SettingRow({
 function SectionHeader({ title }: { title: string }) {
   const { colors } = useAppTheme();
   return (
-    <ThemedText style={[styles.sectionHeader, { color: colors.text  }]}>
+    <ThemedText style={[styles.sectionHeader, { color: colors.text }]}>
       {title}
     </ThemedText>
   );
 }
 
 export default function SettingsScreen() {
-  const { colors } = useAppTheme();
+  const { scheme, colors } = useAppTheme();
   const mode = useThemeStore(s => s.mode);
   const setMode = useThemeStore(s => s.setMode);
 
@@ -98,8 +88,12 @@ export default function SettingsScreen() {
   const [regionModalVisible, setRegionModalVisible] = useState(false);
   const regions = ['US', 'UK', 'EU', 'INDIA', 'CHINA', 'GLOBAL_AVG'];
 
+  // Explicit modal card colour — never rely on colors.surface in light mode (too close to white background)
+  const modalCardBg = scheme === 'dark' ? '#1E2420' : '#FFFFFF';
+  const modalOverlayBg = scheme === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)';
+
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsub = auth.onAuthStateChanged(async (user) => {
       if (!user) return;
       try {
         const snap = await getDoc(doc(db, 'users', user.uid));
@@ -108,7 +102,7 @@ export default function SettingsScreen() {
         console.error('Firestore fetch error:', e);
       }
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   const selectRegion = async (r: string) => {
@@ -123,8 +117,7 @@ export default function SettingsScreen() {
     Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
-        text: 'Sign Out',
-        style: 'destructive',
+        text: 'Sign Out', style: 'destructive',
         onPress: () => signOut(auth).then(() => router.replace('/login')),
       },
     ]);
@@ -137,8 +130,7 @@ export default function SettingsScreen() {
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Everything',
-          style: 'destructive',
+          text: 'Delete Everything', style: 'destructive',
           onPress: async () => {
             const user = auth.currentUser;
             if (!user) return;
@@ -178,10 +170,8 @@ export default function SettingsScreen() {
         <ThemedText style={[styles.headerTitle, { color: colors.text }]}>Settings</ThemedText>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+
         {/* ── Account ── */}
         <SectionHeader title="Account" />
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
@@ -269,7 +259,7 @@ export default function SettingsScreen() {
             onPress={() =>
               Alert.alert(
                 'Privacy',
-                'Your data is stored securely in Firebase and used only for CO₂ calculation.'
+                'Your data is stored securely in Firebase and used only for CO₂ calculation. Region is used solely to apply correct emission factors — no GPS data is collected.'
               )
             }
           />
@@ -300,33 +290,51 @@ export default function SettingsScreen() {
         </ThemedText>
       </ScrollView>
 
-      {/* ── Region Modal ── */}
-      <Modal visible={regionModalVisible} transparent animationType="fade">
-        <Pressable style={styles.modalOverlay} onPress={() => setRegionModalVisible(false)}>
-          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+      {/* ── Region Modal — bottom sheet style ── */}
+      <Modal visible={regionModalVisible} transparent animationType="slide">
+        <Pressable
+          style={[styles.modalOverlay, { backgroundColor: modalOverlayBg }]}
+          onPress={() => setRegionModalVisible(false)}
+        >
+          {/* Inner Pressable stops tap-through closing the modal when tapping the card itself */}
+          <Pressable
+            style={[styles.modalCard, { backgroundColor: modalCardBg }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Drag handle */}
+            <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
+
             <ThemedText style={[styles.modalTitle, { color: colors.text }]}>Select Region</ThemedText>
             <ThemedText style={[styles.modalSubtitle, { color: colors.text }]}>
-              Used for accurate CO₂ calculations
+              Used for accurate CO₂ calculations — no GPS data collected.
             </ThemedText>
+
             {regions.map((r, idx) => (
               <Pressable
                 key={r}
                 onPress={() => selectRegion(r)}
-                style={[
+                style={({ pressed }) => [
                   styles.modalOption,
-                  idx < regions.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.surfaceMuted },
-                  region === r && { backgroundColor: colors.tint + '12' },
+                  idx < regions.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.text + '15',
+                  },
+                  region === r && { backgroundColor: colors.tint + '15' },
+                  pressed && { opacity: 0.7 },
                 ]}
               >
                 <ThemedText style={[styles.modalOptionText, { color: colors.text }]}>
                   {REGION_LABELS[r]}
                 </ThemedText>
-                {region === r && (
+                {region === r ? (
                   <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                ) : (
+                  <View style={[styles.modalOptionCircle, { borderColor: colors.text + '20' }]} />
                 )}
               </Pressable>
             ))}
-          </View>
+            <View style={{ height: 8 }} />
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -334,137 +342,54 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-    gap: 6,
-  },
+  backBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  headerTitle: { fontSize: 24, fontWeight: '700' },
+  scrollContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 6 },
   sectionHeader: {
-    fontSize: 12,
-    fontWeight: '600',
-    opacity: 0.7,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginTop: 16,
-    marginBottom: 4,
-    paddingHorizontal: 4,
+    fontSize: 12, fontWeight: '600', opacity: 0.7,
+    textTransform: 'uppercase', letterSpacing: 0.8,
+    marginTop: 16, marginBottom: 4, paddingHorizontal: 4,
   },
-  section: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  dangerSection: {
-    borderWidth: 1,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: 52,
-  },
+  section: { borderRadius: 14, overflow: 'hidden' },
+  dangerSection: { borderWidth: 1 },
+  separator: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 13,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 14, paddingVertical: 13,
   },
-  rowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flex: 1,
-  },
-  rowIconWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowLabel: {
-    fontSize: 15,
-  },
-  rowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  rowValue: {
-    fontSize: 13,
-    opacity: 0.5,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-
-  // Footer
-  footerNote: {
-    textAlign: 'center',
-    fontSize: 12,
-    opacity: 0.3,
-    marginTop: 16,
-  },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  rowIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { fontSize: 15 },
+  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '55%' },
+  rowValue: { fontSize: 13, opacity: 0.5, flexShrink: 1 },
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  badgeText: { fontSize: 11, fontWeight: '600' },
+  footerNote: { textAlign: 'center', fontSize: 12, opacity: 0.3, marginTop: 16 },
 
   // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 32,
-  },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    paddingTop: 20,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 12, paddingBottom: 24,
+    // Shadow lifts card off screen in light mode
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
   },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    paddingHorizontal: 20,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    opacity: 0.5,
-    paddingHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 12,
-  },
+  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  modalTitle: { fontSize: 17, fontWeight: '700', paddingHorizontal: 20 },
+  modalSubtitle: { fontSize: 13, opacity: 0.5, paddingHorizontal: 20, marginTop: 4, marginBottom: 12 },
   modalOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16,
   },
-  modalOptionText: {
-    fontSize: 15,
-  },
+  modalOptionText: { fontSize: 15 },
+  modalOptionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },
 });

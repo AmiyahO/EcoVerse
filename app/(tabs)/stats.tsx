@@ -189,16 +189,6 @@ export default function StatsScreen() {
                   </View>
                 );
               })}
-              <View style={styles.dualBarLegend}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendSwatch, { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.text + '30' }]} />
-                  <ThemedText style={[styles.subtle, { color: colors.text }]}>Last week</ThemedText>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendSwatch, { backgroundColor: colors.tint }]} />
-                  <ThemedText style={[styles.subtle, { color: colors.text }]}>This week</ThemedText>
-                </View>
-              </View>
             </View>
           );
           return null;

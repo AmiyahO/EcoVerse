@@ -1,5 +1,5 @@
 // (tabs)/profile.tsx
-import { Animated, View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -10,6 +10,7 @@ import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, useRef } from 'react';
 import { auth } from '@/src/firebase/config';
+import StreakCalendarSheet from '@/components/streak-calendar-sheet';
 
 function isThisWeek(date: string) {
   const d = new Date(date);
@@ -44,14 +45,13 @@ export default function ProfileScreen() {
   const userRegion = useActivityStore(s => s.userRegion);
   const activities = useActivityStore(s => s.activities);
   const streak = calculateStreak(activities);
-  const hasHydrated = useActivityStore(s => s._hasHydrated);
 
   const userProfile = useActivityStore(s => s.userProfile);
   const profile = userProfile;
   const loading = !userProfile;
 
-  const celebrated = useActivityStore(s => s.celebrated);
   const setCelebrated = useActivityStore(s => s.setCelebrated);
+  const [calendarVisible, setCalendarVisible] = useState(false);
 
   const dynamicTarget = profile?.weeklyTarget || 500;
   const prevTarget = useRef<number | null>(null);
@@ -73,12 +73,10 @@ export default function ProfileScreen() {
   const totalTokens = activities.reduce((sum, a) => sum + calculateTokens(a), 0);
   const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
 
-  // Member since
   const memberSince = auth.currentUser?.metadata?.creationTime
     ? new Date(auth.currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : null;
 
-  // Target change reset
   useEffect(() => {
     if (prevTarget.current === null) {
       prevTarget.current = dynamicTarget;
@@ -108,20 +106,17 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+
         {/* ── Hero Card ── */}
         <LinearGradient
-          colors={scheme === 'dark'
-            ? ['#1B5E20', '#00897B', '#004D40']
-            : ['#2E7D32', '#00897B', '#006064']}
+          colors={scheme === 'dark' ? ['#1B5E20', '#00897B', '#004D40'] : ['#2E7D32', '#00897B', '#006064']}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.8, y: 1 }}
           style={styles.heroCard}
         >
-          {/* Decorative circles */}
           <View style={styles.decorCircle1} />
           <View style={styles.decorCircle2} />
 
-          {/* Top row: title + settings */}
           <View style={styles.heroTopRow}>
             <View>
               <ThemedText style={styles.heroScreenLabel}>Profile</ThemedText>
@@ -134,7 +129,6 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* Avatar + name + edit */}
           <View style={styles.profileInfoRow}>
             {profile?.photoURL ? (
               <View style={styles.avatarWrapper}>
@@ -148,9 +142,7 @@ export default function ProfileScreen() {
               </View>
             )}
             <View style={{ flex: 1, marginLeft: 14 }}>
-              <ThemedText style={styles.displayName}>
-                {profile?.displayName || 'Eco Explorer'}
-              </ThemedText>
+              <ThemedText style={styles.displayName}>{profile?.displayName || 'Eco Explorer'}</ThemedText>
               <ThemedText style={styles.emailText}>{profile?.email}</ThemedText>
             </View>
             <Pressable onPress={() => router.push('/edit-profile')} style={styles.editButton}>
@@ -158,7 +150,6 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* Stats row */}
           <View style={styles.statsSummary}>
             <View style={styles.miniStat}>
               <ThemedText style={styles.miniStatVal}>{totalTokens.toLocaleString()}</ThemedText>
@@ -172,53 +163,59 @@ export default function ProfileScreen() {
           </View>
         </LinearGradient>
 
-        {/* ── Consistency Card ── */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
-          <View style={styles.cardTitleRow}>
-            <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
-              Consistency
-            </ThemedText>
-            <View style={styles.streakBadge}>
-              <FontAwesome6
-                name="leaf"
-                size={12}
-                color={streak > 0 ? colors.tint : colors.text}
-                style={{ opacity: streak > 0 ? 1 : 0.3 }}
-              />
-              <ThemedText style={[
-                styles.streakBadgeText,
-                { color: streak > 0 ? colors.tint : colors.text, opacity: streak > 0 ? 1 : 0.4 }
-              ]}>
-                {streak > 0 ? `${streak}-day streak` : 'No streak yet'}
+        {/* ── Consistency Card — tappable ── */}
+        <Pressable
+          onPress={() => setCalendarVisible(true)}
+          style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
+        >
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <View style={styles.cardTitleRow}>
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
+                Consistency
               </ThemedText>
-            </View>
-          </View>
-
-          {/* Week dots */}
-          <View style={styles.dotsRow}>
-            {WEEK_DAYS.map((day, idx) => (
-              <View key={idx} style={styles.dotItem}>
-                <View style={[
-                  styles.dot,
-                  weeklyDots[idx]
-                    ? { backgroundColor: colors.tint }
-                    : { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.tint + '30' }
-                ]}>
-                  {weeklyDots[idx] && (
-                    <FontAwesome6 name="check" size={8} color="#fff" />
-                  )}
+              <View style={styles.cardTitleRight}>
+                <View style={styles.streakBadge}>
+                  <FontAwesome6
+                    name="leaf"
+                    size={12}
+                    color={streak > 0 ? colors.tint : colors.text}
+                    style={{ opacity: streak > 0 ? 1 : 0.3 }}
+                  />
+                  <ThemedText style={[
+                    styles.streakBadgeText,
+                    { color: streak > 0 ? colors.tint : colors.text, opacity: streak > 0 ? 1 : 0.4 }
+                  ]}>
+                    {streak > 0 ? `${streak}-day streak` : 'No streak yet'}
+                  </ThemedText>
                 </View>
-                <ThemedText style={[styles.dotLabel, { color: colors.text }]}>{day}</ThemedText>
+                {/* Hint to tap */}
+                <FontAwesome6 name="chevron-right" size={11} color={colors.text + '33'} />
               </View>
-            ))}
-          </View>
+            </View>
 
-          <ThemedText style={[styles.activeDaysLabel, { color: colors.text }]}>
-            {activeDaysThisWeek === 0
-              ? 'No activity logged this week yet'
-              : `${activeDaysThisWeek} of 7 days active this week`}
-          </ThemedText>
-        </View>
+            <View style={styles.dotsRow}>
+              {WEEK_DAYS.map((day, idx) => (
+                <View key={idx} style={styles.dotItem}>
+                  <View style={[
+                    styles.dot,
+                    weeklyDots[idx]
+                      ? { backgroundColor: colors.tint }
+                      : { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.tint + '30' }
+                  ]}>
+                    {weeklyDots[idx] && <FontAwesome6 name="check" size={8} color="#fff" />}
+                  </View>
+                  <ThemedText style={[styles.dotLabel, { color: colors.text }]}>{day}</ThemedText>
+                </View>
+              ))}
+            </View>
+
+            <ThemedText style={[styles.activeDaysLabel, { color: colors.text }]}>
+              {activeDaysThisWeek === 0
+                ? 'No activity logged this week yet'
+                : `${activeDaysThisWeek} of 7 days active this week`}
+            </ThemedText>
+          </View>
+        </Pressable>
 
         {/* ── Weekly Goal Card ── */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -231,7 +228,6 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
 
-          {/* Token count */}
           <View style={styles.goalTokenRow}>
             <ThemedText style={[styles.goalTokenCurrent, { color: colors.tint }]}>
               {weeklyTokens}
@@ -241,7 +237,6 @@ export default function ProfileScreen() {
             </ThemedText>
           </View>
 
-          {/* Progress bar */}
           <View style={[styles.progressBarBg, { backgroundColor: colors.surfaceMuted }]}>
             <LinearGradient
               colors={gradientColors}
@@ -263,85 +258,36 @@ export default function ProfileScreen() {
         </View>
 
       </ScrollView>
+
+      {/* ── Streak Calendar Sheet ── */}
+      <StreakCalendarSheet
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+        activities={activities}
+        streak={streak}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    gap: 14,
-    paddingBottom: 24,
-  },
+  container: { padding: 16, gap: 14, paddingBottom: 24 },
 
-  // Hero card
-  heroCard: {
-    borderRadius: 20,
-    padding: 20,
-    gap: 16,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroScreenLabel: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  heroMemberSince: {
-    fontSize: 12,
-    color: '#ffffffaa',
-    marginTop: 2,
-  },
-  settingsBtn: {
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 20,
-  },
+  heroCard: { borderRadius: 20, padding: 20, gap: 16 },
+  heroTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  heroScreenLabel: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  heroMemberSince: { fontSize: 12, color: '#ffffffaa', marginTop: 2 },
+  settingsBtn: { padding: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20 },
 
-  // Avatar
-  profileInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  profileInfoRow: { flexDirection: 'row', alignItems: 'center' },
   avatarWrapper: {},
-  avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    borderWidth: 3,
-    borderColor: '#fff',
-    overflow: 'hidden',
-  },
-  avatarPlaceholder: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
-  avatarInitial: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  displayName: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  emailText: {
-    fontSize: 13,
-    color: '#ffffffcc',
-    marginTop: 2,
-  },
-  editButton: {
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20,
-  },
+  avatar: { width: 70, height: 70, borderRadius: 35, borderWidth: 3, borderColor: '#fff', overflow: 'hidden' },
+  avatarPlaceholder: { justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
+  avatarInitial: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  displayName: { fontSize: 19, fontWeight: '700', color: '#fff' },
+  emailText: { fontSize: 13, color: '#ffffffcc', marginTop: 2 },
+  editButton: { padding: 8, backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20 },
 
-  // Stats row
   statsSummary: {
     flexDirection: 'row',
     paddingTop: 14,
@@ -349,159 +295,38 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'space-evenly',
   },
-  miniStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  miniStatVal: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  miniStatLabel: {
-    color: '#ffffffcc',
-    fontSize: 11,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  statsDivider: {
-    width: 1,
-    height: '80%',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-  },
+  miniStat: { alignItems: 'center', flex: 1 },
+  miniStatVal: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  miniStatLabel: { color: '#ffffffcc', fontSize: 11, textAlign: 'center', marginTop: 2 },
+  statsDivider: { width: 1, height: '80%', alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
 
-  // Cards
-  card: {
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
+  card: { padding: 16, borderRadius: 16, gap: 12 },
+  cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitleRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
-  // Streak badge
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  streakBadgeText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  streakBadgeText: { fontSize: 13, fontWeight: '600' },
 
-  // Dots
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 4,
-  },
-  dotItem: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  dot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotLabel: {
-    fontSize: 11,
-    opacity: 0.5,
-    fontWeight: '500',
-  },
-  activeDaysLabel: {
-    fontSize: 12,
-    opacity: 0.5,
-    textAlign: 'center',
-  },
+  dotsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
+  dotItem: { alignItems: 'center', gap: 6 },
+  dot: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  dotLabel: { fontSize: 11, opacity: 0.5, fontWeight: '500' },
+  activeDaysLabel: { fontSize: 12, opacity: 0.5, textAlign: 'center' },
 
-  // Weekly goal
-  goalTokenRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  goalTokenCurrent: {
-    fontSize: 32,
-    fontWeight: '800',
-  },
-  goalTokenSep: {
-    fontSize: 15,
-    opacity: 0.5,
-  },
-  progressBarBg: {
-    height: 14,
-    borderRadius: 7,
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 7,
-  },
-  goalCompleteLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  goalRemainingLabel: {
-    fontSize: 12,
-    opacity: 0.5,
-  },
+  goalTokenRow: { flexDirection: 'row', alignItems: 'baseline' },
+  goalTokenCurrent: { fontSize: 32, fontWeight: '800' },
+  goalTokenSep: { fontSize: 15, opacity: 0.5 },
+  progressBarBg: { height: 14, borderRadius: 7, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 7 },
+  goalCompleteLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  goalRemainingLabel: { fontSize: 12, opacity: 0.5 },
 
-  // Celebration banner
-  celebrationBanner: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 999,
-    padding: 16,
-    paddingTop: 60,
-  },
-  celebrationBannerInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  bannerTitle: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 15,
-  },
-  bannerSub: {
-    color: '#ffffffcc',
-    fontSize: 12,
-    marginTop: 2,
-  },
   decorCircle1: {
-  position: 'absolute',
-  width: 180,
-  height: 180,
-  borderRadius: 90,
-  backgroundColor: 'rgba(255,255,255,0.05)',
-  top: -40,
-  right: -40,
-},
-decorCircle2: {
-  position: 'absolute',
-  width: 120,
-  height: 120,
-  borderRadius: 60,
-  backgroundColor: 'rgba(255,255,255,0.04)',
-  bottom: -20,
-  left: 20,
-},
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.05)', top: -40, right: -40,
+  },
+  decorCircle2: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.04)', bottom: -20, left: 20,
+  },
 });
