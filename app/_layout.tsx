@@ -1,12 +1,12 @@
-// layout for the root navigator
-import { View, ActivityIndicator } from 'react-native';
+// _layout.tsx
+import { View } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { auth, db } from '@/src/firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore'; // Added missing imports
+import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
@@ -15,151 +15,147 @@ export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);  
+  const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);
   const [userDocReady, setUserDocReady] = useState(false);
   const [activitiesReady, setActivitiesReady] = useState(false);
-  const loading = !userDocReady || !activitiesReady;  const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore(); // Get actions from store
-  const checkAndResetCelebration = useActivityStore((s) => s.checkAndResetCelebration);
+  const loading = !userDocReady || !activitiesReady;
 
-  // Listen for Firebase auth state
+  const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore();
+  const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
+
+  // Tracks whether we've done the initial full load yet
+  const initialLoadDone = useRef(false);
+
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
-    let unsubscribeActivities: (() => void) | undefined; // Added for activities
+    let unsubscribeActivities: (() => void) | undefined;
 
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      // Clean up any existing doc listener when auth state changes and previous user data
-      // 1. KILL the listener IMMEDIATELY on any auth change
-      if (unsubscribeDoc) {
-        unsubscribeDoc();
-        unsubscribeDoc = undefined; 
-      }
+      if (unsubscribeDoc)        { unsubscribeDoc();        unsubscribeDoc = undefined; }
+      if (unsubscribeActivities) { unsubscribeActivities(); unsubscribeActivities = undefined; }
 
-      if (unsubscribeActivities) unsubscribeActivities();
-      clearActivities(); // Clear the store so the new user doesn't see old data
-      
+      clearActivities();
+      initialLoadDone.current = false;
+
       if (currentUser) {
         setUser(currentUser);
-        
-        // LISTEN to the document in real-time
-        const userDocRef = doc(db, "users", currentUser.uid);
 
-        // 2. Fixed syntax: combined the success and error callbacks correctly
-        unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
+        // ── User profile listener ──
+        unsubscribeDoc = onSnapshot(
+          doc(db, 'users', currentUser.uid),
+          (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
+              setUserRegion(data.region || 'GLOBAL_AVG');
+              setUserProfile({
+                displayName: data.displayName || '',
+                email: data.email || currentUser.email || '',
+                photoURL: data.photoURL || null,
+                weeklyTarget: data.weeklyTarget || 500,
+              });
+            }
+            setUserDocReady(true);
+          },
+          (error) => { console.error(error); setUserDocReady(true); }
+        );
 
-            setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
-            setUserRegion(data.region || 'GLOBAL_AVG');
-            setUserProfile({
-              displayName: data.displayName || '',
-              email: data.email || currentUser.email || '',
-              photoURL: data.photoURL || null,
-              weeklyTarget: data.weeklyTarget || 500,
+        // ── Activities listener ──
+        const q = query(
+          collection(db, 'users', currentUser.uid, 'activities'),
+          orderBy('date', 'desc')
+        );
+
+        unsubscribeActivities = onSnapshot(
+          q,
+          { includeMetadataChanges: false },
+          (snapshot) => {
+            if (!initialLoadDone.current) {
+              // First snapshot: full replace from server data
+              // Filter out soft-deleted activities
+              const firebaseData = snapshot.docs
+                .map(d => ({ id: d.id, ...d.data() }))
+                .filter((d: any) => !d.deleted) as any[];
+              setActivities(firebaseData);
+              initialLoadDone.current = true;
+              setActivitiesReady(true);
+              return;
+            }
+
+            // Subsequent snapshots: apply only what changed.
+            // This is the key fix — we never call setActivities again after initial load,
+            // so a deleted doc can't get written back into the store.
+            const store = useActivityStore.getState();
+            snapshot.docChanges().forEach(change => {
+              if (change.type === 'added') {
+                const data = change.doc.data();
+                if (data.deleted) return; // skip soft-deleted
+                const exists = store.activities.some(a => a.id === change.doc.id);
+                if (!exists) {
+                  store.addActivity({ id: change.doc.id, ...data } as any);
+                }
+              } else if (change.type === 'modified') {
+                const data = change.doc.data();
+                if (data.deleted) {
+                  // Soft-deleted — remove from local store
+                  store.removeActivity(change.doc.id);
+                } else {
+                  store.updateActivity(change.doc.id, { id: change.doc.id, ...data });
+                }
+              } else if (change.type === 'removed') {
+                store.removeActivity(change.doc.id);
+              }
             });
           }
-          setUserDocReady(true); // was setLoading(false)
-        }, (error) => {
-          console.error(error);
-          setUserDocReady(true);
-        });
-
-        // 2. LISTEN TO USER'S ACTIVITIES
-        // REAL-TIME ACTIVITY SYNC
-        // This ensures the dashboard updates automatically when you add/delete
-        const activitiesRef = collection(db, "users", currentUser.uid, "activities");
-        const q = query(activitiesRef, orderBy("date", "desc"));
-
-        unsubscribeActivities = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
-          // Use docChanges to handle adds, modifies, and deletes correctly
-          // On first load, all docs come as 'added' — that's fine
-          snapshot.docChanges().forEach(change => {
-            if (change.type === 'removed') {
-              useActivityStore.getState().removeActivity(change.doc.id);
-            }
-          });
-
-          // For adds and modifications, rebuild from full snapshot
-          // (only non-pending/non-cached writes)
-          if (!snapshot.metadata.hasPendingWrites) {
-            const firebaseData = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as any[];
-            setActivities(firebaseData);
-            setActivitiesReady(true);
-          } else {
-            setActivitiesReady(true);
-          }
-        });
+        );
       } else {
-        // Clear everything immediately
         setUser(null);
         setHasFinishedOnboarding(null);
-        setUserDocReady(true);   // was setLoading(false)
+        setUserDocReady(true);
         setActivitiesReady(true);
       }
     });
 
-    // CLEANUP FUNCTION for first useEffect
     return () => {
       unsubscribeAuth();
-      if (unsubscribeDoc) unsubscribeDoc();
+      if (unsubscribeDoc)        unsubscribeDoc();
       if (unsubscribeActivities) unsubscribeActivities();
     };
   }, []);
 
   useEffect(() => {
-    if (colors.background) {
-      SystemUI.setBackgroundColorAsync(colors.background);
-    }
+    if (colors.background) SystemUI.setBackgroundColorAsync(colors.background);
   }, [colors.background]);
 
-  useEffect(() => {
-  checkAndResetCelebration();
-}, []); // runs once on app load
+  useEffect(() => { checkAndResetCelebration(); }, []);
 
-  // navigation useEffect
   useEffect(() => {
-  if (!loading) {
-    if (!user) {
-      router.replace('/login');
-    } else if (hasFinishedOnboarding === false) {
-      router.replace('/onboarding');
-    } else if (hasFinishedOnboarding === true) {
-      router.replace('/(tabs)');
+    if (!loading) {
+      if (!user)                          router.replace('/login');
+      else if (hasFinishedOnboarding === false) router.replace('/onboarding');
+      else if (hasFinishedOnboarding === true)  router.replace('/(tabs)');
     }
-  }
-}, [user, hasFinishedOnboarding, loading]);
+  }, [user, hasFinishedOnboarding, loading]);
 
-  if (loading ) {
-    const bg = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
-    const shimmer = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
-    const shimmer2 = scheme === 'dark' ? '#222' : '#F3F4F6';
-
+  if (loading) {
+    const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
+    const shimmer  = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
+    const shimmer2 = scheme === 'dark' ? '#222'    : '#F3F4F6';
     return (
       <View style={{ flex: 1, backgroundColor: bg, padding: 20, paddingTop: 60 }}>
-        {/* Avatar + name skeleton */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 }}>
           <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shimmer }} />
           <View style={{ gap: 8 }}>
             <View style={{ width: 120, height: 14, borderRadius: 7, backgroundColor: shimmer }} />
-            <View style={{ width: 80, height: 10, borderRadius: 5, backgroundColor: shimmer2 }} />
+            <View style={{ width: 80,  height: 10, borderRadius: 5, backgroundColor: shimmer2 }} />
           </View>
         </View>
-
-        {/* Hero card skeleton */}
         <View style={{ width: '100%', height: 180, borderRadius: 20, backgroundColor: shimmer, marginBottom: 16 }} />
-
-        {/* Two half-width cards */}
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
           <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
           <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
         </View>
-
-        {/* Full width card */}
         <View style={{ width: '100%', height: 110, borderRadius: 14, backgroundColor: shimmer, marginBottom: 16 }} />
-
-        {/* Two more rows */}
         <View style={{ width: '70%', height: 14, borderRadius: 7, backgroundColor: shimmer2, marginBottom: 10 }} />
         <View style={{ width: '50%', height: 14, borderRadius: 7, backgroundColor: shimmer2 }} />
       </View>
@@ -168,33 +164,25 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {/* Wrap in a View with theme color to prevent transition flashing */}
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <Stack 
-        screenOptions={{ 
-          headerShown: false ,
-          animation: 'slide_from_right',
-          contentStyle: { backgroundColor: colors.background }
-        }}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            animation: 'slide_from_right',
+            contentStyle: { backgroundColor: colors.background },
+          }}
+        >
           {!user ? (
-            // Not signed in → Login screen
             <Stack.Screen name="login" />
           ) : hasFinishedOnboarding === false ? (
-            // New user → Onboarding
-            <Stack.Screen name="onboarding/index" />  
+            <Stack.Screen name="onboarding/index" />
           ) : (
-            // Existing user → Tabs & other stack screens
             <Stack.Screen name="(tabs)" />
           )}
-
-          {/* Screens that can be accessed regardless of finish status or inside tabs */}
           <Stack.Screen name="settings" />
-          <Stack.Screen 
-            name="edit-profile" 
-            options={{ 
-              presentation: 'modal', // Makes it slide up from the bottom like a sheet
-              animation: 'fade_from_bottom' 
-            }} 
+          <Stack.Screen
+            name="edit-profile"
+            options={{ presentation: 'modal', animation: 'fade_from_bottom' }}
           />
         </Stack>
       </View>

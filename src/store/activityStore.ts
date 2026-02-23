@@ -23,6 +23,9 @@ export type ActivityCategory =
   kwhSaved?: number;
   litersSaved?: number;
 
+  // bill reference
+  billId?: string; 
+
   date: string;
 };
 

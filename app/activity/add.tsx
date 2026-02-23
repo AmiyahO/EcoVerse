@@ -43,6 +43,7 @@ export default function AddActivityScreen() {
   const [lastBill, setLastBill]       = useState<BillReading | null>(null);
   const [loadingBill, setLoadingBill] = useState(false);
   const [saving, setSaving]           = useState(false);
+  const saveInProgress = useRef(false); // hard guard against double-save
 
   // OCR state
   const [scanning, setScanning]           = useState(false);
@@ -121,7 +122,8 @@ export default function AddActivityScreen() {
   };
 
   const handleSave = async () => {
-    if (!auth.currentUser || !category) return;
+    if (!auth.currentUser || !category || saveInProgress.current) return;
+    saveInProgress.current = true;
     setSaving(true);
 
     try {
@@ -167,6 +169,7 @@ export default function AddActivityScreen() {
       Alert.alert('Error', 'Could not save activity. Please try again.');
     } finally {
       setSaving(false);
+      saveInProgress.current = false;
     }
   };
 

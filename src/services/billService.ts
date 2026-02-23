@@ -29,9 +29,13 @@ export async function getLastBill(type: BillType): Promise<BillReading | null> {
     const snap = await getDocs(q);
     if (snap.empty) return null;
 
-    const sorted = snap.docs.sort((a, b) =>
-      new Date(b.data().date).getTime() - new Date(a.data().date).getTime()
-    );
+    const sorted = snap.docs
+      .filter(d => !d.data().deleted)          // ← exclude soft-deleted
+      .sort((a, b) =>
+        new Date(b.data().date).getTime() - new Date(a.data().date).getTime()
+      );
+
+    if (sorted.length === 0) return null;      // all bills were deleted
     return { id: sorted[0].id, ...sorted[0].data() } as BillReading;
   } catch (e) {
     console.error('getLastBill error:', e);

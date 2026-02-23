@@ -6,7 +6,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { auth, db } from '@/src/firebase/config';
 import { useState } from 'react';
-import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { doc, updateDoc, increment } from 'firebase/firestore';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
 import { FontAwesome6 } from '@expo/vector-icons';
 
@@ -50,13 +50,22 @@ export default function ActivityDetailsScreen() {
               const userRef     = doc(db, 'users', auth.currentUser.uid);
               const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
 
-              // Firestore first — prevents onSnapshot from re-adding it to local store
-              await deleteDoc(activityRef);
+              // Soft-delete the activity
+              await updateDoc(activityRef, { deleted: true });
+
+              // Also soft-delete the linked bill reading if there is one
+              if (activity.billId) {
+                const billRef = doc(db, 'users', auth.currentUser.uid, 'bills', activity.billId);
+                await updateDoc(billRef, { deleted: true });
+              }
+
               await updateDoc(userRef, {
                 tokens:           increment(-tokens),
                 totalCarbonSaved: increment(-carbon),
               });
-              
+
+              // Now safe to remove locally and navigate
+              removeActivity(activity.id);
               if (router.canGoBack()) router.back();
               else router.replace('/(tabs)/activity');
             } catch (e) {
@@ -117,10 +126,6 @@ export default function ActivityDetailsScreen() {
 
       {/* ── Details card ── */}
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14, opacity: 0.5, marginBottom: 4 }}>
-          DETAILS
-        </ThemedText>
-
         {activity.category === 'walking' && (
           <>
             {activity.steps    !== undefined && <DetailRow icon="shoe-prints" label="Steps"    value={`${activity.steps.toLocaleString()} steps`} colors={colors} />}
