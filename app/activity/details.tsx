@@ -1,76 +1,69 @@
-// activity details screen
-import { View, StyleSheet, Pressable, Alert } from 'react-native';
+// activity/details.tsx
+import { View, StyleSheet, Pressable, Alert, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { auth, db } from '@/src/firebase/config';
 import { useState } from 'react';
-import { doc, deleteDoc, updateDoc, increment, getDoc } from 'firebase/firestore';
-import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { doc, deleteDoc, updateDoc, increment } from 'firebase/firestore';
+import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
+import { FontAwesome6 } from '@expo/vector-icons';
+
+const CATEGORY_ICON: Record<string, string> = {
+  walking:     'person-walking',
+  running:     'person-running',
+  cycling:     'bicycle',
+  electricity: 'bolt',
+  water:       'droplet',
+};
 
 export default function ActivityDetailsScreen() {
   const { colors } = useAppTheme();
-  const userRegion = useActivityStore(s => s.userRegion);
-  
-  const { id } = useLocalSearchParams();
-  const activity = useActivityStore((state) =>
-    state.getActivityById(id as string)
-  );
+  const userRegion     = useActivityStore(s => s.userRegion);
+  const removeActivity = useActivityStore(s => s.removeActivity);
 
+  const { id } = useLocalSearchParams();
+  const activity = useActivityStore(s => s.getActivityById(id as string));
   const [isDeleting, setIsDeleting] = useState(false);
 
-  if (!activity) {
-    return null; // Don't render anything if activity is gone
-  }
+  if (!activity) return null;
+
+  const categoryColor = CATEGORY_COLORS[activity.category] ?? colors.tint;
+  const tokens  = calculateTokens(activity);
+  const carbon  = calculateCarbonSaved(activity, userRegion);
 
   const confirmDelete = () => {
     Alert.alert(
       'Delete activity?',
-      'This action cannot be undone.',
+      'This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            if (!auth.currentUser || !activity|| isDeleting) return;
+            if (!auth.currentUser || isDeleting) return;
+            setIsDeleting(true);
 
             try {
-              setIsDeleting(true); // Prevent multiple taps
-
-              const userRef = doc(db, 'users', auth.currentUser.uid);
+              const userRef     = doc(db, 'users', auth.currentUser.uid);
               const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
-              
-              const tokensToRemove = calculateTokens(activity);
-              const carbonToRemove = calculateCarbonSaved(activity, userRegion);
 
-              // NAVIGATE BACK FIRST
-              if (router.canGoBack()) {
-                router.back();
-              } else {
-                router.replace('/(tabs)/activity'); // Fallback to activity list
-              }
+              // Firestore first — prevents onSnapshot from re-adding it to local store
+              await deleteDoc(activityRef);
+              await updateDoc(userRef, {
+                tokens:           increment(-tokens),
+                totalCarbonSaved: increment(-carbon),
+              });
               
-              // Update the Cloud (Wait a tiny bit so navigation starts)
-              setTimeout(async () => {
-                // Delete the activity
-                await deleteDoc(activityRef);
-
-                // Subtract from totals
-                await updateDoc(userRef, {
-                  tokens: increment(-tokensToRemove),
-                  totalCarbonSaved: increment(-carbonToRemove)
-                });
-                
-                // NOTE: We do NOT call removeActivity(activity.id) here.
-                // Your RootLayout's onSnapshot listener will detect the deletion
-                // and update the store automatically!
-              }, 100);
-            } catch (error) {
-              console.error("Error deleting activity:", error);
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)/activity');
+            } catch (e) {
+              console.error('Delete error:', e);
+              Alert.alert('Error', 'Could not delete activity. Please try again.');
             } finally {
-                setIsDeleting(false);
+              setIsDeleting(false);
             }
           },
         },
@@ -79,131 +72,164 @@ export default function ActivityDetailsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <ThemedText type="title" style={{ lineHeight: 50, color: colors.text }}>
-        {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
-      </ThemedText>
-      
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+    >
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View style={[styles.headerIcon, { backgroundColor: categoryColor + '20' }]}>
+          <FontAwesome6
+            name={CATEGORY_ICON[activity.category] ?? 'leaf'}
+            size={26}
+            color={categoryColor}
+          />
+        </View>
+        <View>
+          <ThemedText style={[styles.categoryName, { color: colors.text }]}>
+            {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
+          </ThemedText>
+          <ThemedText style={[styles.dateText, { color: colors.text }]}>
+            {new Date(activity.date).toLocaleDateString('en-US', {
+              weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+            })}
+          </ThemedText>
+        </View>
+      </View>
 
-      {/* Info Card */}
+      {/* ── Impact summary ── */}
+      <View style={styles.impactRow}>
+        <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
+          <FontAwesome6 name="leaf" size={14} color={colors.tint} />
+          <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
+            {tokens}
+          </ThemedText>
+          <ThemedText style={[styles.impactLabel, { color: colors.text }]}>tokens</ThemedText>
+        </View>
+        <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
+          <FontAwesome6 name="cloud" size={14} color={colors.tint} />
+          <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
+            {carbon.toFixed(2)}
+          </ThemedText>
+          <ThemedText style={[styles.impactLabel, { color: colors.text }]}>kg CO₂ saved</ThemedText>
+        </View>
+      </View>
+
+      {/* ── Details card ── */}
       <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14, opacity: 0.5, marginBottom: 4 }}>
+          DETAILS
+        </ThemedText>
+
         {activity.category === 'walking' && (
           <>
-            {activity.steps ? (
-              <Detail label="Steps" value={activity.steps} suffix="steps" />
-            ) : (
-              <Detail label="Distance" value={activity.distance} suffix="km" />
-            )}
+            {activity.steps    !== undefined && <DetailRow icon="shoe-prints" label="Steps"    value={`${activity.steps.toLocaleString()} steps`} colors={colors} />}
+            {activity.distance !== undefined && <DetailRow icon="route"       label="Distance" value={`${activity.distance} km`}                  colors={colors} />}
           </>
         )}
-
         {activity.category === 'running' && (
           <>
-            <Detail label="Distance" value={activity.distance} suffix="km" />
-            <Detail label="Duration" value={activity.duration} suffix="min" />
+            <DetailRow icon="route"        label="Distance" value={`${activity.distance} km`}  colors={colors} />
+            <DetailRow icon="clock"        label="Duration" value={`${activity.duration} min`} colors={colors} />
           </>
         )}
-
         {activity.category === 'cycling' && (
-          <Detail label="Distance" value={activity.distance} suffix="km" />
+          <DetailRow icon="route" label="Distance" value={`${activity.distance} km`} colors={colors} />
         )}
-
         {activity.category === 'electricity' && (
-          <Detail label="Energy saved" value={activity.kwhSaved} suffix="kWh" />
+          <DetailRow icon="bolt" label="Energy saved" value={`${activity.kwhSaved} kWh`} colors={colors} />
         )}
-
         {activity.category === 'water' && (
-          <Detail label="Water saved" value={activity.litersSaved} suffix="L" />
+          <DetailRow icon="droplet" label="Water saved" value={`${activity.litersSaved?.toLocaleString()} L`} colors={colors} />
         )}
 
-        <Detail
-          label="Date"
-          value={new Date(activity.date).toLocaleString()}
+        <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+
+        <DetailRow
+          icon="calendar"
+          label="Logged at"
+          value={new Date(activity.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+          colors={colors}
         />
       </View>
 
-      {/* Actions */}
+      {/* ── Actions ── */}
       <View style={styles.actions}>
         <Pressable
-          style={[styles.button, styles.edit, { backgroundColor: colors.surface }]}
-          onPress={() => router.push({
-            pathname: '/activity/edit',
-            params: { id: activity.id }
-          })}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            { backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1 },
+          ]}
+          onPress={() => router.push({ pathname: '/activity/edit', params: { id: activity.id } })}
         >
-          <ThemedText style={{ color: colors.text }}>Edit</ThemedText>
+          <FontAwesome6 name="pen" size={14} color={colors.text} style={{ opacity: 0.6 }} />
+          <ThemedText style={{ color: colors.text, fontWeight: '600' }}>Edit</ThemedText>
         </Pressable>
 
         <Pressable
-          style={[styles.button, styles.delete]}
+          style={({ pressed }) => [
+            styles.actionBtn,
+            styles.deleteBtn,
+            { opacity: pressed || isDeleting ? 0.7 : 1 },
+          ]}
           onPress={confirmDelete}
+          disabled={isDeleting}
         >
-          <ThemedText style={{ color: colors.text }}>Delete</ThemedText>
+          <FontAwesome6 name="trash" size={14} color="#fff" />
+          <ThemedText style={{ color: '#fff', fontWeight: '600' }}>
+            {isDeleting ? 'Deleting…' : 'Delete'}
+          </ThemedText>
         </Pressable>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
-function Detail({
-  label,
-  value,
-  suffix,
+function DetailRow({
+  icon, label, value, colors,
 }: {
-  label: string;
-  value?: number | string;
-  suffix?: string;
+  icon: string; label: string; value: string; colors: any;
 }) {
-  if (value === undefined || value === null) return null;
-  const { colors } = useAppTheme();
-
   return (
-    <View style={styles.row}>
-      <ThemedText style={[styles.label, { color: colors.text }]}>{label}</ThemedText>
-      <ThemedText style={{ color: colors.text }}>
-        {value} {suffix ?? ''}
-      </ThemedText>
+    <View style={styles.detailRow}>
+      <FontAwesome6 name={icon as any} size={13} color={colors.text} style={{ opacity: 0.35, width: 16 }} />
+      <ThemedText style={[styles.detailLabel, { color: colors.text }]}>{label}</ThemedText>
+      <ThemedText style={[styles.detailValue, { color: colors.text }]}>{value}</ThemedText>
     </View>
   );
 }
-
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    gap: 20,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 12,
-    //backgroundColor: 'rgba(46,45,45,0.08)', // #2e2d2d14
-    gap: 12,
-  },
-  row: {
-    gap: 2,
-  },
-  label: {
-    fontSize: 13,
-    opacity: 0.6,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  button: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  edit: {
-    backgroundColor: 'rgba(46,45,45,0.12)', // #2e2d2d1f
-  },
-  delete: {
-    backgroundColor: 'rgba(200,60,60,0.15)', // #c83c3c26
-  },
-});
+  container: { padding: 16, gap: 16, paddingBottom: 40 },
 
+  header: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 4 },
+  headerIcon: {
+    width: 60, height: 60, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  categoryName: { fontSize: 22, fontWeight: '700' },
+  dateText:     { fontSize: 13, opacity: 0.5, marginTop: 2 },
+
+  impactRow: { flexDirection: 'row', gap: 12 },
+  impactCard: {
+    flex: 1, padding: 16, borderRadius: 14,
+    alignItems: 'center', gap: 4,
+  },
+  impactValue: { fontSize: 22, fontWeight: '700' },
+  impactLabel: { fontSize: 12, opacity: 0.5 },
+
+  card: { padding: 16, borderRadius: 14, gap: 12 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
+
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  detailLabel: { fontSize: 14, opacity: 0.55, flex: 1 },
+  detailValue: { fontSize: 14, fontWeight: '600' },
+
+  actions: { flexDirection: 'row', gap: 12, marginTop: 8 },
+  actionBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 8,
+    padding: 15, borderRadius: 12,
+  },
+  deleteBtn: { backgroundColor: '#C62828' },
+});

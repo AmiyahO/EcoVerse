@@ -63,20 +63,33 @@ export default function RootLayout() {
           setUserDocReady(true);
         });
 
-          // 2. LISTEN TO USER'S ACTIVITIES
-          // REAL-TIME ACTIVITY SYNC
-          // This ensures the dashboard updates automatically when you add/delete
-          const activitiesRef = collection(db, "users", currentUser.uid, "activities");
-          const q = query(activitiesRef, orderBy("date", "desc"));
+        // 2. LISTEN TO USER'S ACTIVITIES
+        // REAL-TIME ACTIVITY SYNC
+        // This ensures the dashboard updates automatically when you add/delete
+        const activitiesRef = collection(db, "users", currentUser.uid, "activities");
+        const q = query(activitiesRef, orderBy("date", "desc"));
 
-          unsubscribeActivities = onSnapshot(q, (snapshot) => {
+        unsubscribeActivities = onSnapshot(q, { includeMetadataChanges: false }, (snapshot) => {
+          // Use docChanges to handle adds, modifies, and deletes correctly
+          // On first load, all docs come as 'added' — that's fine
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'removed') {
+              useActivityStore.getState().removeActivity(change.doc.id);
+            }
+          });
+
+          // For adds and modifications, rebuild from full snapshot
+          // (only non-pending/non-cached writes)
+          if (!snapshot.metadata.hasPendingWrites) {
             const firebaseData = snapshot.docs.map(doc => ({
               id: doc.id,
-              ...doc.data()
+              ...doc.data(),
             })) as any[];
-
-            setActivities(firebaseData); // Update the store with REAL Firebase data
+            setActivities(firebaseData);
             setActivitiesReady(true);
+          } else {
+            setActivitiesReady(true);
+          }
         });
       } else {
         // Clear everything immediately
