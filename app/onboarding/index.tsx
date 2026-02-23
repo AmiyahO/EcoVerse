@@ -1,71 +1,64 @@
 // onboarding/index.tsx
-import { useAppTheme } from '@/hooks/useAppTheme';
-import { useState } from 'react'; // Added useState
-import { ActivityIndicator, View, StyleSheet } from 'react-native'; // Added UI components
+import { useState } from 'react';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { auth, db } from '@/src/firebase/config';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import OnboardingWrapper from './_onboardingWrapper';
 import Step1 from './1';
 import Step2 from './2';
 import Step3 from './3';
-import { useRouter } from 'expo-router';
-import { auth, db } from '@/src/firebase/config'; // Import your firebase tools
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import Step4 from './4';
+import Step5 from './5';
+import Step6 from './6';
+import Step7 from './7';
 
 export default function Onboarding() {
-  const { scheme } = useAppTheme();
-  const router = useRouter();
-  const [region, setRegion] = useState('GLOBAL_AVG');
-  const [isFinishing, setIsFinishing] = useState(false); // New loading state
+  const router  = useRouter();
+  const [region, setRegion]         = useState('GLOBAL_AVG');
+  const [isFinishing, setIsFinishing] = useState(false);
 
   const handleFinish = async () => {
     const user = auth.currentUser;
+    if (!user) { router.replace('/login'); return; }
 
-    if (user) {
-      setIsFinishing(true); // Start loading
-      
-      try {
-        // Save to Firestore that this specific user is done with onboarding
-        await setDoc(doc(db, "users", user.uid), {
-          hasFinishedOnboarding: true,
-          region: region,
-          email: user.email,
-          lastLogin: serverTimestamp(), // new Date().toISOString()
-        }, { merge: true });
+    setIsFinishing(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        hasFinishedOnboarding: true,
+        region,
+        email: user.email,
+        lastLogin: serverTimestamp(),
+      }, { merge: true });
 
-        // Just navigate directly, don't rely solely on RootLayout
       router.replace('/(tabs)');
-      } catch (error) {
-        console.error("Failed to save onboarding status:", error);
-        setIsFinishing(false);
-      }
-    } else {
-      // If for some reason there's no user, send them to login
-      router.replace('/login');
+    } catch (e) {
+      console.error('Failed to save onboarding:', e);
+      setIsFinishing(false);
     }
   };
 
-  // If saving OR while waiting for RootLayout to transition, show a full-screen loader so they don't interact with steps
   if (isFinishing) {
     return (
-      <View style={[styles.loaderContainer, {backgroundColor: scheme === 'dark' ? '#000000' : '#F9FAFB'}]}>
+      <View style={styles.loader}>
         <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
   }
 
-  // Pass the state down to Step 2
   const steps = [
     <Step1 key="1" />,
-    <Step2 key="2" region={region} setRegion={setRegion} />, 
-    <Step3 key="3" />
+    <Step2 key="2" />,
+    <Step3 key="3" />,
+    <Step4 key="4" />,
+    <Step5 key="5" />,
+    <Step6 key="6" region={region} setRegion={setRegion} />,
+    <Step7 key="7" />,
   ];
 
   return <OnboardingWrapper steps={steps} onFinish={handleFinish} />;
 }
 
 const styles = StyleSheet.create({
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  loader: { flex: 1, backgroundColor: '#0B1E14', justifyContent: 'center', alignItems: 'center' },
 });

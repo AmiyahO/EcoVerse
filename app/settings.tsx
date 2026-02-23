@@ -1,106 +1,135 @@
-// Settings screen
+// settings.tsx
+import {
+  View, StyleSheet, Pressable, ScrollView,
+  Alert, Modal, Switch, Linking,
+} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useThemeStore } from '@/src/store/themeStore';
-import { Pressable, ScrollView, StyleSheet, View, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { GoogleAuthProvider, reauthenticateWithCredential, signOut, deleteUser } from 'firebase/auth';
+import {
+  GoogleAuthProvider, reauthenticateWithCredential,
+  signOut, deleteUser,
+} from 'firebase/auth';
 import { auth, db } from '@/src/firebase/config';
 import { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useActivityStore } from '@/src/store/activityStore';
 
-const REGION_LABELS: Record<string, string> = {
-  US: '🇺🇸 United States',
-  UK: '🇬🇧 United Kingdom',
-  EU: '🇪🇺 European Union',
-  INDIA: '🇮🇳 India',
-  CHINA: '🇨🇳 China',
-  GLOBAL_AVG: '🌐 Other / Global',
-};
+const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
+  { key: 'US',         label: 'United States',  flag: '🇺🇸' },
+  { key: 'UK',         label: 'United Kingdom', flag: '🇬🇧' },
+  { key: 'EU',         label: 'European Union', flag: '🇪🇺' },
+  { key: 'INDIA',      label: 'India',          flag: '🇮🇳' },
+  { key: 'CHINA',      label: 'China',          flag: '🇨🇳' },
+  { key: 'GLOBAL_AVG', label: 'Global Average', flag: '🌐' },
+];
 
-type SettingRowProps = {
+function getRegionLabel(key: string) {
+  const r = REGION_OPTIONS.find(o => o.key === key);
+  return r ? `${r.flag} ${r.label}` : key;
+}
+
+// ── Section wrapper ─────────────────────────────────────────────────────────
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.sectionBlock}>
+      <ThemedText style={[styles.sectionTitle, { color: colors.text }]}>{title}</ThemedText>
+      <View style={[styles.sectionCard, { backgroundColor: colors.surface }]}>
+        {children}
+      </View>
+    </View>
+  );
+}
+
+// ── Single row ───────────────────────────────────────────────────────────────
+type RowProps = {
+  icon: string;
+  iconColor?: string;
   label: string;
   value?: string;
-  onPress?: () => void;
-  leftIcon?: string;
-  leftIconColor?: string;
-  isDestructive?: boolean;
-  showChevron?: boolean;
   badge?: string;
+  destructive?: boolean;
+  chevron?: boolean;
+  onPress?: () => void;
+  rightNode?: React.ReactNode;
+  separator?: boolean;
 };
 
-function SettingRow({
-  label, value, onPress, leftIcon, leftIconColor,
-  isDestructive = false, showChevron = true, badge,
-}: SettingRowProps) {
+function Row({
+  icon, iconColor, label, value, badge,
+  destructive = false, chevron = true,
+  onPress, rightNode, separator = true,
+}: RowProps) {
   const { colors } = useAppTheme();
-  const textColor = isDestructive ? '#EF5350' : colors.text;
+  const iconBg    = (iconColor ?? colors.tint) + '18';
+  const labelColor = destructive ? '#EF5350' : colors.text;
 
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={!onPress}
-      style={({ pressed }) => [styles.row, pressed && onPress ? { opacity: 0.6 } : {}]}
-    >
-      <View style={styles.rowLeft}>
-        {leftIcon && (
-          <View style={[styles.rowIconWrap, { backgroundColor: (leftIconColor ?? colors.tint) + '18' }]}>
-            <Ionicons name={leftIcon as any} size={16} color={leftIconColor ?? colors.tint} />
-          </View>
-        )}
-        <ThemedText style={[styles.rowLabel, { color: textColor }]}>{label}</ThemedText>
-      </View>
-      <View style={styles.rowRight}>
-        {badge && (
-          <View style={[styles.badge, { backgroundColor: colors.tint + '22' }]}>
-            <ThemedText style={[styles.badgeText, { color: colors.tint }]}>{badge}</ThemedText>
-          </View>
-        )}
-        {value && (
-          <ThemedText style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>{value}</ThemedText>
-        )}
-        {onPress && showChevron && (
-          <Ionicons name="chevron-forward" size={15} color={colors.text + '33'} />
-        )}
-      </View>
-    </Pressable>
+    <>
+      <Pressable
+        onPress={onPress}
+        disabled={!onPress}
+        style={({ pressed }) => [styles.row, pressed && onPress ? { opacity: 0.55 } : {}]}
+      >
+        {/* Left icon */}
+        <View style={[styles.rowIconWrap, { backgroundColor: iconBg }]}>
+          <Ionicons name={icon as any} size={16} color={iconColor ?? colors.tint} />
+        </View>
+
+        <ThemedText style={[styles.rowLabel, { color: labelColor }]} numberOfLines={1}>
+          {label}
+        </ThemedText>
+
+        {/* Right side */}
+        <View style={styles.rowRight}>
+          {rightNode}
+          {badge && (
+            <View style={[styles.badge, { backgroundColor: colors.tint + '20' }]}>
+              <ThemedText style={[styles.badgeText, { color: colors.tint }]}>{badge}</ThemedText>
+            </View>
+          )}
+          {value && (
+            <ThemedText style={[styles.rowValue, { color: colors.text }]} numberOfLines={1}>
+              {value}
+            </ThemedText>
+          )}
+          {onPress && chevron && (
+            <Ionicons name="chevron-forward" size={14} color={colors.text + '30'} />
+          )}
+        </View>
+      </Pressable>
+      {separator && <View style={[styles.sep, { backgroundColor: colors.surfaceMuted, marginLeft: 54 }]} />}
+    </>
   );
 }
 
-function SectionHeader({ title }: { title: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <ThemedText style={[styles.sectionHeader, { color: colors.text }]}>
-      {title}
-    </ThemedText>
-  );
-}
-
+// ── Screen ───────────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { scheme, colors } = useAppTheme();
-  const mode = useThemeStore(s => s.mode);
+  const isDark = scheme === 'dark';
+  const mode    = useThemeStore(s => s.mode);
   const setMode = useThemeStore(s => s.setMode);
+  const userProfile = useActivityStore(s => s.userProfile);
 
-  const [region, setRegion] = useState('GLOBAL_AVG');
-  const [regionModalVisible, setRegionModalVisible] = useState(false);
-  const regions = ['US', 'UK', 'EU', 'INDIA', 'CHINA', 'GLOBAL_AVG'];
+  const [region, setRegion]                   = useState('GLOBAL_AVG');
+  const [regionModal, setRegionModal]         = useState(false);
+  const [themeModal, setThemeModal]           = useState(false);
 
-  // Explicit modal card colour — never rely on colors.surface in light mode (too close to white background)
-  const modalCardBg = scheme === 'dark' ? '#1E2420' : '#FFFFFF';
-  const modalOverlayBg = scheme === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)';
+  const modalBg = isDark ? '#1C2820' : '#FFFFFF';
+  const overlayBg = isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)';
 
   useEffect(() => {
-    const unsub = auth.onAuthStateChanged(async (user) => {
+    const unsub = auth.onAuthStateChanged(async user => {
       if (!user) return;
       try {
         const snap = await getDoc(doc(db, 'users', user.uid));
         if (snap.exists()) setRegion(snap.data().region || 'GLOBAL_AVG');
-      } catch (e) {
-        console.error('Firestore fetch error:', e);
-      }
+      } catch (e) { console.error(e); }
     });
     return () => unsub();
   }, []);
@@ -109,12 +138,12 @@ export default function SettingsScreen() {
     if (auth.currentUser) {
       await updateDoc(doc(db, 'users', auth.currentUser.uid), { region: r });
       setRegion(r);
-      setRegionModalVisible(false);
     }
+    setRegionModal(false);
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    Alert.alert('Sign Out', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out', style: 'destructive',
@@ -126,7 +155,7 @@ export default function SettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This is permanent. All your eco-data and tokens will be deleted. Are you absolutely sure?',
+      'This permanently deletes all your data and cannot be undone. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -135,20 +164,19 @@ export default function SettingsScreen() {
             const user = auth.currentUser;
             if (!user) return;
             try {
-              const isGoogleUser = user.providerData.some(p => p.providerId === 'google.com');
-              if (isGoogleUser) {
+              const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+              if (isGoogle) {
                 await GoogleSignin.hasPlayServices();
-                const userInfo = await GoogleSignin.signIn();
-                const idToken = userInfo.data?.idToken;
-                if (!idToken) throw new Error('No ID token');
-                const credential = GoogleAuthProvider.credential(idToken);
-                await reauthenticateWithCredential(user, credential);
+                const info    = await GoogleSignin.signIn();
+                const token   = info.data?.idToken;
+                if (!token) throw new Error('No ID token');
+                await reauthenticateWithCredential(user, GoogleAuthProvider.credential(token));
               }
               await deleteDoc(doc(db, 'users', user.uid));
               await deleteUser(user);
               router.replace('/login');
             } catch (e: any) {
-              Alert.alert('Error', e.message || 'Please try again.');
+              Alert.alert('Error', e.message || 'Could not delete account. Please try again.');
             }
           },
         },
@@ -156,240 +184,346 @@ export default function SettingsScreen() {
     );
   };
 
-  const themeIcon = mode === 'dark' ? 'moon' : mode === 'light' ? 'sunny' : 'phone-portrait-outline';
-  const themeColor = mode === 'dark' ? '#7878f8' : mode === 'light' ? '#FDB813' : '#4A90E2';
-  const themeLabel = mode === 'system' ? 'System' : mode === 'dark' ? 'Dark' : 'Light';
+  // Theme display
+  const THEME_OPTIONS = [
+    { key: 'system', label: 'System',    icon: 'phone-portrait-outline', color: '#6C8EBF' },
+    { key: 'light',  label: 'Light',     icon: 'sunny-outline',           color: '#FDB813' },
+    { key: 'dark',   label: 'Dark',      icon: 'moon-outline',            color: '#7878f8' },
+  ] as const;
+  const currentTheme = THEME_OPTIONS.find(t => t.key === mode) ?? THEME_OPTIONS[0];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </Pressable>
         <ThemedText style={[styles.headerTitle, { color: colors.text }]}>Settings</ThemedText>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+
+        {/* ── Profile card ── */}
+        <Pressable
+          style={[styles.profileCard, { backgroundColor: colors.surface }]}
+          onPress={() => router.push('/edit-profile')}
+        >
+          <View style={[styles.profileAvatar, { backgroundColor: colors.tint + '22' }]}>
+            <ThemedText style={[styles.profileInitial, { color: colors.tint }]}>
+              {userProfile?.displayName?.charAt(0).toUpperCase() || '?'}
+            </ThemedText>
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.profileName, { color: colors.text }]}>
+              {userProfile?.displayName || 'Your Name'}
+            </ThemedText>
+            <ThemedText style={[styles.profileEmail, { color: colors.text }]}>
+              {userProfile?.email || auth.currentUser?.email || ''}
+            </ThemedText>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.text + '40'} />
+        </Pressable>
 
         {/* ── Account ── */}
-        <SectionHeader title="Account" />
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <SettingRow
+        <Section title="Account">
+          <Row
+            icon="globe-outline"
+            iconColor="#29B6F6"
+            label="Region"
+            value={getRegionLabel(region)}
+            onPress={() => setRegionModal(true)}
+            separator={true}
+          />
+          <Row
+            icon="mail-outline"
+            iconColor="#4A90E2"
             label="Email"
             value={auth.currentUser?.email ?? '—'}
-            leftIcon="mail-outline"
-            leftIconColor="#4A90E2"
-            showChevron={false}
+            chevron={false}
+            separator={false}
           />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
-            label="Region"
-            value={REGION_LABELS[region] ?? region}
-            leftIcon="globe-outline"
-            leftIconColor="#29B6F6"
-            onPress={() => setRegionModalVisible(true)}
-          />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
-            label="Sign Out"
-            leftIcon="log-out-outline"
-            leftIconColor="#EF5350"
-            isDestructive
-            showChevron={false}
-            onPress={handleSignOut}
-          />
-        </View>
+        </Section>
 
-        {/* ── Preferences ── */}
-        <SectionHeader title="Preferences" />
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <SettingRow
+        {/* ── Appearance ── */}
+        <Section title="Appearance">
+          <Row
+            icon={currentTheme.icon}
+            iconColor={currentTheme.color}
             label="Theme"
-            value={themeLabel}
-            leftIcon={themeIcon}
-            leftIconColor={themeColor}
-            onPress={() => setMode(mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system')}
+            value={currentTheme.label}
+            onPress={() => setThemeModal(true)}
+            separator={false}
           />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
-            label="Notifications"
-            leftIcon="notifications-outline"
-            leftIconColor="#FFC107"
-            badge="Soon"
-            showChevron={false}
-          />
-        </View>
+        </Section>
 
-        {/* ── Data ── */}
-        <SectionHeader title="Data" />
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <SettingRow
-            label="Sync status"
-            leftIcon="cloud-done-outline"
-            leftIconColor="#4CAF50"
+        {/* ── Notifications ── */}
+        <Section title="Notifications">
+          <Row
+            icon="notifications-outline"
+            iconColor="#FFC107"
+            label="Activity reminders"
             badge="Soon"
-            showChevron={false}
+            chevron={false}
+            separator={true}
           />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
-            label="Reset local data"
-            leftIcon="refresh-outline"
-            leftIconColor="#FF7043"
+          <Row
+            icon="trophy-outline"
+            iconColor="#FF7043"
+            label="Weekly goal alerts"
             badge="Soon"
-            showChevron={false}
+            chevron={false}
+            separator={false}
           />
-        </View>
+        </Section>
 
-        {/* ── About ── */}
-        <SectionHeader title="About" />
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <SettingRow
-            label="Version"
-            value="1.0.1 (Beta)"
-            leftIcon="information-circle-outline"
-            leftIconColor="#26C6DA"
-            showChevron={false}
+        {/* ── Data & Privacy ── */}
+        <Section title="Data & Privacy">
+          <Row
+            icon="cloud-done-outline"
+            iconColor="#4CAF50"
+            label="Cloud sync"
+            value="Active"
+            chevron={false}
+            separator={true}
           />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
+          <Row
+            icon="shield-checkmark-outline"
+            iconColor="#26A69A"
             label="Privacy Policy"
-            leftIcon="shield-checkmark-outline"
-            leftIconColor="#4CAF50"
             onPress={() =>
               Alert.alert(
                 'Privacy',
-                'Your data is stored securely in Firebase and used only for CO₂ calculation. Region is used solely to apply correct emission factors — no GPS data is collected.'
+                'Your data is stored securely in Firebase. Region is used only for CO₂ calculations — no GPS data is ever collected or stored.'
               )
             }
+            separator={true}
           />
-          <View style={[styles.separator, { backgroundColor: colors.surfaceMuted }]} />
-          <SettingRow
+          <Row
+            icon="document-text-outline"
+            iconColor="#29B6F6"
             label="Terms of Service"
-            leftIcon="document-text-outline"
-            leftIconColor="#29B6F6"
             onPress={() => {}}
+            separator={false}
           />
-        </View>
+        </Section>
 
-        {/* ── Danger Zone ── */}
-        <SectionHeader title="Danger Zone" />
-        <View style={[styles.section, styles.dangerSection, { backgroundColor: '#EF535010', borderColor: '#EF535030' }]}>
-          <SettingRow
+        {/* ── About ── */}
+        <Section title="About">
+          <Row
+            icon="leaf-outline"
+            iconColor="#4CAF50"
+            label="Version"
+            value="1.0.1 Beta"
+            chevron={false}
+            separator={true}
+          />
+          <Row
+            icon="star-outline"
+            iconColor="#FFB300"
+            label="Rate EcoVerse"
+            badge="Soon"
+            chevron={false}
+            separator={false}
+          />
+        </Section>
+
+        {/* ── Account Actions ── */}
+        <Section title="Account Actions">
+          <Row
+            icon="log-out-outline"
+            iconColor="#EF5350"
+            label="Sign Out"
+            destructive
+            chevron={false}
+            onPress={handleSignOut}
+            separator={true}
+          />
+          <Row
+            icon="trash-outline"
+            iconColor="#EF5350"
             label="Delete Account"
-            leftIcon="trash-outline"
-            leftIconColor="#EF5350"
-            isDestructive
-            showChevron={false}
+            destructive
+            chevron={false}
             onPress={handleDeleteAccount}
+            separator={false}
           />
-        </View>
+        </Section>
 
-        <ThemedText style={[styles.footerNote, { color: colors.text }]}>
+        <ThemedText style={[styles.footerText, { color: colors.text }]}>
           EcoVerse · v1.0.1 Beta · Made with 🌱
         </ThemedText>
+
       </ScrollView>
 
-      {/* ── Region Modal — bottom sheet style ── */}
-      <Modal visible={regionModalVisible} transparent animationType="slide">
+      {/* ── Region Modal ── */}
+      <Modal visible={regionModal} transparent animationType="slide">
         <Pressable
-          style={[styles.modalOverlay, { backgroundColor: modalOverlayBg }]}
-          onPress={() => setRegionModalVisible(false)}
+          style={[styles.overlay, { backgroundColor: overlayBg }]}
+          onPress={() => setRegionModal(false)}
         >
-          {/* Inner Pressable stops tap-through closing the modal when tapping the card itself */}
           <Pressable
-            style={[styles.modalCard, { backgroundColor: modalCardBg }]}
-            onPress={(e) => e.stopPropagation()}
+            style={[styles.sheet, { backgroundColor: modalBg }]}
+            onPress={e => e.stopPropagation()}
           >
-            {/* Drag handle */}
-            <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
-
-            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>Select Region</ThemedText>
-            <ThemedText style={[styles.modalSubtitle, { color: colors.text }]}>
-              Used for accurate CO₂ calculations — no GPS data collected.
+            <View style={[styles.sheetHandle, { backgroundColor: colors.text + '20' }]} />
+            <ThemedText style={[styles.sheetTitle, { color: colors.text }]}>Select Region</ThemedText>
+            <ThemedText style={[styles.sheetSubtitle, { color: colors.text }]}>
+              Used for accurate CO₂ emission factor calculations.
             </ThemedText>
-
-            {regions.map((r, idx) => (
-              <Pressable
-                key={r}
-                onPress={() => selectRegion(r)}
-                style={({ pressed }) => [
-                  styles.modalOption,
-                  idx < regions.length - 1 && {
-                    borderBottomWidth: StyleSheet.hairlineWidth,
-                    borderBottomColor: colors.text + '15',
-                  },
-                  region === r && { backgroundColor: colors.tint + '15' },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <ThemedText style={[styles.modalOptionText, { color: colors.text }]}>
-                  {REGION_LABELS[r]}
-                </ThemedText>
-                {region === r ? (
-                  <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
-                ) : (
-                  <View style={[styles.modalOptionCircle, { borderColor: colors.text + '20' }]} />
-                )}
-              </Pressable>
-            ))}
-            <View style={{ height: 8 }} />
+            {REGION_OPTIONS.map((r, i) => {
+              const selected = region === r.key;
+              return (
+                <Pressable
+                  key={r.key}
+                  onPress={() => selectRegion(r.key)}
+                  style={({ pressed }) => [
+                    styles.sheetOption,
+                    selected && { backgroundColor: colors.tint + '12' },
+                    pressed && { opacity: 0.6 },
+                    i < REGION_OPTIONS.length - 1 && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.text + '12',
+                    },
+                  ]}
+                >
+                  <ThemedText style={[styles.sheetOptionFlag]}>{r.flag}</ThemedText>
+                  <ThemedText style={[styles.sheetOptionLabel, { color: colors.text }]}>{r.label}</ThemedText>
+                  {selected
+                    ? <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                    : <View style={[styles.radioCircle, { borderColor: colors.text + '25' }]} />
+                  }
+                </Pressable>
+              );
+            })}
+            <View style={{ height: 12 }} />
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* ── Theme Modal ── */}
+      <Modal visible={themeModal} transparent animationType="slide">
+        <Pressable
+          style={[styles.overlay, { backgroundColor: overlayBg }]}
+          onPress={() => setThemeModal(false)}
+        >
+          <Pressable
+            style={[styles.sheet, { backgroundColor: modalBg }]}
+            onPress={e => e.stopPropagation()}
+          >
+            <View style={[styles.sheetHandle, { backgroundColor: colors.text + '20' }]} />
+            <ThemedText style={[styles.sheetTitle, { color: colors.text }]}>Choose Theme</ThemedText>
+
+            {THEME_OPTIONS.map((t, i) => {
+              const selected = mode === t.key;
+              return (
+                <Pressable
+                  key={t.key}
+                  onPress={() => { setMode(t.key); setThemeModal(false); }}
+                  style={({ pressed }) => [
+                    styles.sheetOption,
+                    selected && { backgroundColor: colors.tint + '12' },
+                    pressed && { opacity: 0.6 },
+                    i < THEME_OPTIONS.length - 1 && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.text + '12',
+                    },
+                  ]}
+                >
+                  <View style={[styles.themeIconWrap, { backgroundColor: t.color + '20' }]}>
+                    <Ionicons name={t.icon as any} size={18} color={t.color} />
+                  </View>
+                  <ThemedText style={[styles.sheetOptionLabel, { color: colors.text }]}>{t.label}</ThemedText>
+                  {selected
+                    ? <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                    : <View style={[styles.radioCircle, { borderColor: colors.text + '25' }]} />
+                  }
+                </Pressable>
+              );
+            })}
+            <View style={{ height: 12 }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8,
-  },
-  backBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  headerTitle: { fontSize: 24, fontWeight: '700' },
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 6 },
-  sectionHeader: {
-    fontSize: 12, fontWeight: '600', opacity: 0.7,
-    textTransform: 'uppercase', letterSpacing: 0.8,
-    marginTop: 16, marginBottom: 4, paddingHorizontal: 4,
-  },
-  section: { borderRadius: 14, overflow: 'hidden' },
-  dangerSection: { borderWidth: 1 },
-  separator: { height: StyleSheet.hairlineWidth, marginLeft: 52 },
-  row: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 13,
-  },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  rowIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { fontSize: 15 },
-  rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '55%' },
-  rowValue: { fontSize: 13, opacity: 0.5, flexShrink: 1 },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-  badgeText: { fontSize: 11, fontWeight: '600' },
-  footerNote: { textAlign: 'center', fontSize: 12, opacity: 0.3, marginTop: 16 },
 
-  // Modal
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: {
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10, gap: 12,
+  },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700' },
+
+  scroll: { paddingHorizontal: 16, paddingBottom: 40, gap: 4 },
+
+  // Profile card
+  profileCard: {
+    flexDirection: 'row', alignItems: 'center',
+    padding: 16, borderRadius: 16, gap: 14, marginBottom: 8,
+  },
+  profileAvatar: {
+    width: 48, height: 48, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  profileInitial: { fontSize: 20, fontWeight: '700' },
+  profileName:    { fontSize: 16, fontWeight: '600' },
+  profileEmail:   { fontSize: 13, opacity: 0.5, marginTop: 1 },
+
+  // Section
+  sectionBlock: { gap: 6, marginTop: 10 },
+  sectionTitle: {
+    fontSize: 11, fontWeight: '700', opacity: 0.5,
+    textTransform: 'uppercase', letterSpacing: 1,
+    paddingHorizontal: 4,
+  },
+  sectionCard: { borderRadius: 14, overflow: 'hidden' },
+
+  // Row
+  row: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 14, paddingVertical: 13, gap: 12,
+  },
+  rowIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  rowLabel:    { flex: 1, fontSize: 15 },
+  rowRight:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowValue:    { fontSize: 13, opacity: 0.45, maxWidth: 160 },
+  sep:         { height: StyleSheet.hairlineWidth },
+  badge:       { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
+  badgeText:   { fontSize: 11, fontWeight: '600' },
+
+  footerText: { textAlign: 'center', fontSize: 12, opacity: 0.25, marginTop: 20 },
+
+  // Sheet / Modal
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingTop: 12, paddingBottom: 24,
-    // Shadow lifts card off screen in light mode
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 20,
+    paddingTop: 12, paddingBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.2, shadowRadius: 20, elevation: 24,
   },
-  modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 17, fontWeight: '700', paddingHorizontal: 20 },
-  modalSubtitle: { fontSize: 13, opacity: 0.5, paddingHorizontal: 20, marginTop: 4, marginBottom: 12 },
-  modalOption: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 16,
+  sheetHandle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle:    { fontSize: 17, fontWeight: '700', paddingHorizontal: 20, marginBottom: 4 },
+  sheetSubtitle: { fontSize: 13, opacity: 0.45, paddingHorizontal: 20, marginBottom: 8 },
+  sheetOption: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 15, gap: 12,
   },
-  modalOptionText: { fontSize: 15 },
-  modalOptionCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },
+  sheetOptionFlag:  { fontSize: 22 },
+  sheetOptionLabel: { flex: 1, fontSize: 15 },
+  radioCircle: { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },
+
+  themeIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
 });

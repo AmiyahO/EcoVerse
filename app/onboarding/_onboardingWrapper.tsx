@@ -3,7 +3,8 @@ import PagerView from 'react-native-pager-view';
 import { View, Pressable, Text, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useRef, ReactNode, useState, useEffect } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { LinearGradient } from 'expo-linear-gradient';
+
+const { width: W } = Dimensions.get('window');
 
 interface OnboardingWrapperProps {
   steps: ReactNode[];
@@ -12,19 +13,18 @@ interface OnboardingWrapperProps {
 
 export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapperProps) {
   const pagerRef = useRef<PagerView>(null);
-  const { colors, scheme } = useAppTheme();
+  const { colors } = useAppTheme();
   const [currentPage, setCurrentPage] = useState(0);
 
-  // Animated values for each dot
-  const dotAnims = useRef(steps.map(() => new Animated.Value(0.3))).current;
+  // Animated width for each dot (pill effect for active)
+  const dotWidths = useRef(steps.map((_, i) => new Animated.Value(i === 0 ? 1 : 0))).current;
 
-  // Animate dot opacity & scale
   useEffect(() => {
-    dotAnims.forEach((anim, idx) => {
+    dotWidths.forEach((anim, idx) => {
       Animated.timing(anim, {
-        toValue: idx === currentPage ? 1 : 0.3,
-        duration: 250,
-        useNativeDriver: true,
+        toValue: idx === currentPage ? 1 : 0,
+        duration: 280,
+        useNativeDriver: false,
       }).start();
     });
   }, [currentPage]);
@@ -37,94 +37,94 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
     }
   };
 
+  const handleSkip = () => onFinish();
+
+  const isLast = currentPage === steps.length - 1;
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#0B1E14' }}>
       <PagerView
         style={{ flex: 1 }}
         initialPage={0}
         scrollEnabled={true}
         ref={pagerRef}
-        onPageSelected={(e) => setCurrentPage(e.nativeEvent.position)}
+        onPageSelected={e => setCurrentPage(e.nativeEvent.position)}
       >
-        {steps.map((Step, i) => (
-          <View key={i} style={{ flex: 1 }}>
-            {Step}
-          </View>
+        {steps.map((step, i) => (
+          <View key={i} style={{ flex: 1 }}>{step}</View>
         ))}
       </PagerView>
 
-      {/* Dot Pagination */}
-      <View style={styles.dotsContainer}>
-        {steps.map((_, idx) => (
-          <Animated.View
-            key={idx}
-            style={[
-              styles.dot,
-              {
-                backgroundColor: idx === currentPage ? colors.tint : colors.surfaceMuted,
-                opacity: dotAnims[idx],
-                transform: [
-                  {
-                    scale: dotAnims[idx].interpolate({
-                      inputRange: [0.3, 1],
-                      outputRange: [0.8, 1.2],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        ))}
-      </View>
+      {/* Bottom bar */}
+      <View style={styles.bottomBar}>
 
-      {/* Next button overlay */}
-      <Pressable style={styles.nextButtonWrapper} onPress={handleNext}>
-        <LinearGradient
-          colors={
-            scheme === 'dark'
-              ? ['#34C9C9', '#2E7D32']
-              : ['#2E7D32', '#34C9C9']
-          }
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.nextButton}
-        >
-          <Text style={styles.nextText}>
-            {currentPage === steps.length - 1 ? 'Get Started' : 'Next'}
-          </Text>
-        </LinearGradient>
-      </Pressable>
+        {/* Pill dots */}
+        <View style={styles.dotsRow}>
+          {steps.map((_, idx) => {
+            const width = dotWidths[idx].interpolate({
+              inputRange: [0, 1],
+              outputRange: [8, 24],
+            });
+            const opacity = dotWidths[idx].interpolate({
+              inputRange: [0, 1],
+              outputRange: [0.3, 1],
+            });
+            return (
+              <Animated.View
+                key={idx}
+                style={[
+                  styles.dot,
+                  {
+                    width,
+                    opacity,
+                    backgroundColor: idx === currentPage ? colors.tint : '#ffffff',
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+
+        {/* Buttons row */}
+        <View style={styles.btnRow}>
+          {!isLast ? (
+            <Pressable onPress={handleSkip} style={styles.skipBtn}>
+              <Text style={styles.skipText}>Skip</Text>
+            </Pressable>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+
+          <Pressable
+            onPress={handleNext}
+            style={[styles.nextBtn, { backgroundColor: colors.tint }]}
+          >
+            <Text style={styles.nextText}>
+              {isLast ? 'Get Started 🌱' : 'Next →'}
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  dotsContainer: {
-    position: 'absolute',
-    bottom: 90,
-    flexDirection: 'row',
-    alignSelf: 'center',
-    gap: 8,
+  bottomBar: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 16,
+    gap: 16,
+    backgroundColor: '#0B1E14',
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  dotsRow:   { flexDirection: 'row', justifyContent: 'center', gap: 6, alignItems: 'center' },
+  dot:       { height: 8, borderRadius: 4 },
+  btnRow:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  skipBtn:   { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  skipText:  { color: 'rgba(255,255,255,0.4)', fontSize: 15, fontWeight: '500' },
+  nextBtn: {
+    flex: 2, paddingVertical: 16,
+    borderRadius: 14, alignItems: 'center',
   },
-  nextButtonWrapper: {
-    position: 'absolute',
-    bottom: 40,
-    right: 30,
-  },
-  nextButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 25,
-    borderRadius: 8,
-    alignItems: 'center',
-    },
-  nextText: { 
-    fontWeight: '600', 
-    color: '#fff', 
-    fontSize: 16 
-},
+  nextText:  { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

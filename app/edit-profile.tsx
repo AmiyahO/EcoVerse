@@ -1,5 +1,9 @@
-import { View, StyleSheet, TextInput, Pressable, Alert, ScrollView, Image, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+// edit-profile.tsx
+import {
+  View, StyleSheet, TextInput, Pressable, Alert,
+  ScrollView, Image, ActivityIndicator, Animated,
+} from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
@@ -9,37 +13,48 @@ import { ThemedText } from '@/components/themed-text';
 import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { useActivityStore } from '@/src/store/activityStore';
+
+const CLOUD_NAME    = 'dn70uuubp';
+const UPLOAD_PRESET = 'ecoverse_default';
+
+const WEEKLY_TARGET_PRESETS = [250, 500, 750, 1000, 1500];
 
 export default function EditProfileScreen() {
-  const { colors } = useAppTheme();
-  const [displayName, setDisplayName] = useState('');
-  const [weeklyTarget, setWeeklyTarget] = useState('500');
-  const [photoURL, setPhotoURL] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
+  const setUserProfile = useActivityStore(s => s.setUserProfile);
 
-  // --- CLOUDINARY CONFIG ---
-  const CLOUD_NAME = "dn70uuubp";
-  const UPLOAD_PRESET = "ecoverse_default"; // REPLACE THIS (e.g., ml_default)
+  const [displayName, setDisplayName]   = useState('');
+  const [weeklyTarget, setWeeklyTarget] = useState('500');
+  const [photoURL, setPhotoURL]         = useState<string | null>(null);
+  const [isSaving, setIsSaving]         = useState(false);
+  const [isUploading, setIsUploading]   = useState(false);
+  const [loading, setLoading]           = useState(true);
+  const [nameFocused, setNameFocused]   = useState(false);
+  const [targetFocused, setTargetFocused] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+  }, []);
 
   useEffect(() => {
     async function loadProfile() {
       if (!auth.currentUser) return;
-
       try {
         const snap = await getDoc(doc(db, 'users', auth.currentUser.uid));
-        
         if (snap.exists()) {
           const data = snap.data();
           setDisplayName(data.displayName || '');
           setWeeklyTarget(data.weeklyTarget?.toString() || '500');
           setPhotoURL(data.photoURL || null);
         }
-      } catch (error) {
-        console.error("Error loading profile:", error);
+      } catch (e) {
+        console.error('Error loading profile:', e);
       } finally {
-        setLoading(false); // Set to false when done
+        setLoading(false);
       }
     }
     loadProfile();
@@ -47,55 +62,37 @@ export default function EditProfileScreen() {
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Gallery access is needed.');
+      Alert.alert('Permission needed', 'Please allow gallery access in Settings.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: 'images',
       allowsEditing: true,
       aspect: [1, 1],
-      quality: 0.5,
+      quality: 0.6,
     });
-
-    if (!result.canceled) {
-      uploadToCloudinary(result.assets[0].uri);
-    }
+    if (!result.canceled) uploadToCloudinary(result.assets[0].uri);
   };
 
   const uploadToCloudinary = async (fileUri: string) => {
     setIsUploading(true);
-    
-    // Cloudinary requires FormData for unsigned uploads
     const data = new FormData();
-    data.append('file', {
-      uri: fileUri,
-      type: 'image/jpeg',
-      name: 'avatar.jpg',
-    } as any);
+    data.append('file', { uri: fileUri, type: 'image/jpeg', name: 'avatar.jpg' } as any);
     data.append('upload_preset', UPLOAD_PRESET);
-
     try {
-      const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
-        method: 'POST',
-        body: data,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: data, headers: { Accept: 'application/json', 'Content-Type': 'multipart/form-data' } }
+      );
       const result = await response.json();
       if (result.secure_url) {
         setPhotoURL(result.secure_url);
       } else {
         throw new Error('Upload failed');
       }
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Upload Error", "Failed to upload image to Cloudinary.");
+    } catch (e) {
+      Alert.alert('Upload failed', 'Could not upload your photo. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -103,14 +100,13 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!auth.currentUser) return;
-
     if (!displayName.trim()) {
-        Alert.alert("Required", "Please enter a display name.");
-        return;
+      Alert.alert('Name required', 'Please enter a display name.');
+      return;
     }
-
-    if (!weeklyTarget.trim() || isNaN(Number(weeklyTarget)) || Number(weeklyTarget) < 1) {
-      Alert.alert("Invalid Target", "Please enter a valid weekly token target (minimum 1).");
+    const target = Number(weeklyTarget);
+    if (isNaN(target) || target < 1) {
+      Alert.alert('Invalid target', 'Weekly token target must be at least 1.');
       return;
     }
 
@@ -118,143 +114,258 @@ export default function EditProfileScreen() {
     try {
       await updateDoc(doc(db, 'users', auth.currentUser.uid), {
         displayName: displayName.trim(),
-        weeklyTarget: Number(weeklyTarget) || 500,
-        photoURL: photoURL, // Saves the Cloudinary URL to Firestore
+        weeklyTarget: target,
+        photoURL,
       });
-      // Trigger success haptic
+      // Update local store immediately so header reflects changes
+      setUserProfile({
+        displayName: displayName.trim(),
+        email: auth.currentUser.email || '',
+        photoURL,
+        weeklyTarget: target,
+      });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
     } catch (e) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert("Error", "Could not update profile");
+      Alert.alert('Error', 'Could not save changes. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
 
+  const inputBorder = (focused: boolean) =>
+    focused ? colors.tint + '99' : (isDark ? '#ffffff14' : '#00000014');
+
+  const initial = displayName.charAt(0).toUpperCase() || '?';
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Fixed Left-Aligned Header */}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+
+      {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </Pressable>
-        <ThemedText type="title" style={[styles.headerTitle, { color: colors.text }]}>
-          Edit Profile
-        </ThemedText>
+        <ThemedText style={[styles.headerTitle, { color: colors.text }]}>Edit Profile</ThemedText>
+        {/* Save shortcut in header */}
+        <Pressable
+          onPress={handleSave}
+          disabled={isSaving || loading}
+          style={[styles.headerSaveBtn, { backgroundColor: colors.tint, opacity: (isSaving || loading) ? 0.5 : 1 }]}
+        >
+          {isSaving
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <ThemedText style={styles.headerSaveBtnText}>Save</ThemedText>
+          }
+        </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
+      <Animated.ScrollView
+        style={{ opacity: fadeAnim }}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+
+        {/* ── Avatar ── */}
         <View style={styles.avatarSection}>
-          <Pressable onPress={pickImage} style={styles.avatarContainer}>
-            {photoURL ? (
-              <Image source={{ uri: photoURL }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: colors.surfaceMuted, borderColor: colors.tint, }]}>
-                <ThemedText style={[styles.initialText, {color: colors.text}]}>
-                  {loading ? '' : (displayName.charAt(0).toUpperCase() || 'U')}
-                </ThemedText>
-              </View>
-            )}
-            <View style={[styles.editOverlay, { backgroundColor: colors.tint }]}>
-              {isUploading ? <ActivityIndicator size="small" color="#fff" /> : <FontAwesome6 name="camera" size={12} color="#fff" />}
+          <Pressable onPress={pickImage} style={styles.avatarOuter}>
+            {/* Tinted ring */}
+            <View style={[styles.avatarRing, { borderColor: colors.tint + '55' }]}>
+              {photoURL ? (
+                <Image source={{ uri: photoURL }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatar, { backgroundColor: colors.tint + '22' }]}>
+                  {loading ? (
+                    <ActivityIndicator color={colors.tint} />
+                  ) : (
+                    <ThemedText style={[styles.initial, { color: colors.tint }]}>{initial}</ThemedText>
+                  )}
+                </View>
+              )}
+            </View>
+            {/* Camera badge */}
+            <View style={[styles.cameraBadge, { backgroundColor: colors.tint, borderColor: colors.background }]}>
+              {isUploading
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <FontAwesome6 name="camera" size={11} color="#fff" />
+              }
             </View>
           </Pressable>
+          <ThemedText style={[styles.avatarHint, { color: colors.text }]}>
+            {isUploading ? 'Uploading…' : 'Tap to change photo'}
+          </ThemedText>
         </View>
-        
+
+        {/* ── Form ── */}
         <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={[styles.label, {color: colors.text}]}>Display Name</ThemedText>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="Your name"
-              placeholderTextColor="#888"
-            />
+
+          {/* Display Name */}
+          <View style={styles.fieldGroup}>
+            <ThemedText style={[styles.fieldLabel, { color: colors.text }]}>Display Name</ThemedText>
+            <View style={[styles.inputWrap, { backgroundColor: colors.surface, borderColor: inputBorder(nameFocused) }]}>
+              <Ionicons name="person-outline" size={16} color={colors.text + '55'} style={styles.fieldIcon} />
+              <TextInput
+                style={[styles.textInput, { color: colors.text }]}
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="Your name"
+                placeholderTextColor={colors.text + '44'}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+              />
+              {displayName.length > 0 && (
+                <Pressable onPress={() => setDisplayName('')} style={styles.clearBtn}>
+                  <Ionicons name="close-circle" size={16} color={colors.text + '44'} />
+                </Pressable>
+              )}
+            </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <ThemedText type="defaultSemiBold" style={[styles.label, {color: colors.text}]}>Weekly Token Target</ThemedText>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
-              value={weeklyTarget}
-              onChangeText={setWeeklyTarget}
-              keyboardType="numeric"
-              placeholder="500"
-              placeholderTextColor="#888"
-            />
-            <ThemedText style={[styles.helperText, {color: colors.text}]}>
-              Set a goal for tokens earned through eco-activities each week.
+          {/* Weekly Target */}
+          <View style={styles.fieldGroup}>
+            <View style={styles.fieldLabelRow}>
+              <ThemedText style={[styles.fieldLabel, { color: colors.text }]}>Weekly Token Target</ThemedText>
+              <View style={[styles.targetBadge, { backgroundColor: colors.tint + '18' }]}>
+                <FontAwesome6 name="leaf" size={10} color={colors.tint} />
+                <ThemedText style={[styles.targetBadgeText, { color: colors.tint }]}>
+                  {weeklyTarget || '—'} tokens/week
+                </ThemedText>
+              </View>
+            </View>
+
+            {/* Quick-select preset chips */}
+            <View style={styles.presetRow}>
+              {WEEKLY_TARGET_PRESETS.map(p => {
+                const selected = weeklyTarget === String(p);
+                return (
+                  <Pressable
+                    key={p}
+                    onPress={() => setWeeklyTarget(String(p))}
+                    style={[
+                      styles.presetChip,
+                      {
+                        backgroundColor: selected ? colors.tint : colors.surface,
+                        borderColor: selected ? colors.tint : (isDark ? '#ffffff14' : '#00000012'),
+                      },
+                    ]}
+                  >
+                    <ThemedText style={[styles.presetChipText, { color: selected ? '#fff' : colors.text }]}>
+                      {p}
+                    </ThemedText>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Manual input */}
+            <View style={[styles.inputWrap, { backgroundColor: colors.surface, borderColor: inputBorder(targetFocused) }]}>
+              <FontAwesome6 name="bullseye" size={14} color={colors.text + '55'} style={styles.fieldIcon} />
+              <TextInput
+                style={[styles.textInput, { color: colors.text }]}
+                value={weeklyTarget}
+                onChangeText={setWeeklyTarget}
+                keyboardType="numeric"
+                placeholder="Custom target"
+                placeholderTextColor={colors.text + '44'}
+                onFocus={() => setTargetFocused(true)}
+                onBlur={() => setTargetFocused(false)}
+              />
+            </View>
+            <ThemedText style={[styles.fieldHint, { color: colors.text }]}>
+              Set a weekly goal to stay motivated. You earn tokens through every logged eco-activity.
             </ThemedText>
           </View>
 
-          <Pressable 
-            style={[styles.saveBtn, { backgroundColor: colors.tint, opacity: isSaving ? 0.7 : 1 }]}
-            onPress={handleSave}
-            disabled={isSaving}
-          >
-            <ThemedText style={styles.saveBtnText}>
-              {isSaving ? 'Saving...' : 'Save Changes'}
-            </ThemedText>
-          </Pressable>
         </View>
-      </ScrollView>
+
+        {/* ── Save button ── */}
+        <Pressable
+          style={[styles.saveBtn, { backgroundColor: colors.tint, opacity: (isSaving || loading) ? 0.6 : 1 }]}
+          onPress={handleSave}
+          disabled={isSaving || loading}
+        >
+          {isSaving ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="checkmark" size={18} color="#fff" />
+              <ThemedText style={styles.saveBtnText}>Save Changes</ThemedText>
+            </>
+          )}
+        </Pressable>
+
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10, gap: 12,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center'
+  backBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700'
+  headerTitle:       { flex: 1, fontSize: 20, fontWeight: '700' },
+  headerSaveBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
+  headerSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+
+  scroll: { paddingHorizontal: 20, paddingBottom: 48, gap: 24 },
+
+  // Avatar
+  avatarSection: { alignItems: 'center', paddingVertical: 8 },
+  avatarOuter:   { position: 'relative', marginBottom: 10 },
+  avatarRing: {
+    width: 104, height: 104, borderRadius: 52,
+    borderWidth: 2.5, padding: 3,
   },
-  container: { padding: 20 },
-  avatarSection: { alignItems: 'center', marginBottom: 30 },
-  avatarContainer: { width: 110, height: 110, position: 'relative' },
-  avatar: { 
-    width: 110, 
-    height: 110, 
-    borderRadius: 55, 
-    borderWidth: 3, 
-    justifyContent: 'center', 
-    alignItems: 'center',
-    overflow: 'hidden'
+  avatar: {
+    width: 95, height: 95, borderRadius: 48,
+    alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
-  initialText: { 
-    fontSize: 45, // Increased for better look
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    includeFontPadding: false, // Fixes Android vertical centering issues
-    textAlignVertical: 'center', // Fixes Android vertical centering issues
-    lineHeight: 55
+  initial:    { fontSize: 38, fontWeight: '700' },
+  cameraBadge: {
+    position: 'absolute', bottom: 2, right: 2,
+    width: 30, height: 30, borderRadius: 15,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2,
   },
-  editOverlay: { position: 'absolute', bottom: 5, right: 5, width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#fff' },
-  form: { gap: 24 },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 16, marginLeft: 4 },
-  input: { padding: 16, borderRadius: 12, fontSize: 16 },
-  helperText: { fontSize: 12, opacity: 0.5, paddingHorizontal: 4 },
+  avatarHint: { fontSize: 13, opacity: 0.45 },
+
+  // Form
+  form:       { gap: 20 },
+  fieldGroup: { gap: 10 },
+  fieldLabelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fieldLabel: { fontSize: 14, fontWeight: '600', opacity: 0.7 },
+  fieldHint:  { fontSize: 12, opacity: 0.4, lineHeight: 17, paddingHorizontal: 2 },
+
+  targetBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  targetBadgeText: { fontSize: 11, fontWeight: '600' },
+
+  presetRow:      { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  presetChip:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  presetChipText: { fontSize: 13, fontWeight: '600' },
+
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderRadius: 12,
+    paddingHorizontal: 14, height: 50,
+  },
+  fieldIcon:  { marginRight: 10 },
+  textInput:  { flex: 1, fontSize: 15 },
+  clearBtn:   { padding: 4 },
+
+  // Save
   saveBtn: {
-    marginTop: 10,
-    padding: 18,
-    borderRadius: 15,
-    alignItems: 'center',
-    elevation: 2
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, height: 54, borderRadius: 14, marginTop: 4,
   },
-  saveBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

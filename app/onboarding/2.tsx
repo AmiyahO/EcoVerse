@@ -1,90 +1,123 @@
-// onboarding/2.tsx
-import { Animated, Text, Pressable, StyleSheet, View } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useAppTheme } from '@/hooks/useAppTheme';
-import { REGIONAL_INTENSITY } from '@/src/utils/ecoLogic';
-import { Ionicons } from '@expo/vector-icons';
+// onboarding/2.tsx — How It Works
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import { useEffect, useRef } from 'react';
 
-const REGIONS = [
-  { id: 'US', label: 'United States', flag: '🇺🇸' },
-  { id: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
-  { id: 'EU', label: 'European Union', flag: '🇪🇺' },
-  { id: 'INDIA', label: 'India', flag: '🇮🇳' },
-  { id: 'CHINA', label: 'China', flag: '🇨🇳' },
-  { id: 'GLOBAL_AVG', label: 'Other / Global', flag: '🌐' },
+const STEPS = [
+  {
+    icon: '📋',
+    color: '#4CAF50',
+    title: 'Log an activity',
+    desc: 'Record walking, cycling, electricity savings, reduced water usage, and more.',
+  },
+  {
+    icon: '🧮',
+    color: '#29B6F6',
+    title: 'We calculate your impact',
+    desc: 'EcoVerse converts your activity into kg of CO₂ saved using region-specific emission factors.',
+  },
+  {
+    icon: '🪙',
+    color: '#FFB300',
+    title: 'Earn eco tokens',
+    desc: 'Every saving earns tokens. Build streaks to multiply your earnings. Hit weekly goals.',
+  },
+  {
+    icon: '📈',
+    color: '#FF7043',
+    title: 'Track & improve',
+    desc: 'See your trends, compare weeks, and discover which habits have the most impact.',
+  },
 ];
 
-export default function OnboardingStep2({ region, setRegion }: any) {
-  const { scheme } = useAppTheme();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+export default function OnboardingStep2() {
+  const anims = useRef(STEPS.map((_, i) => ({
+    fade:  new Animated.Value(0),
+    slideX: new Animated.Value(-20),
+  }))).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+    STEPS.forEach((_, i) => {
+      Animated.parallel([
+        Animated.timing(anims[i].fade,   { toValue: 1, duration: 500, delay: 150 + i * 120, useNativeDriver: true }),
+        Animated.timing(anims[i].slideX, { toValue: 0, duration: 400, delay: 150 + i * 120, useNativeDriver: true }),
+      ]).start();
+    });
   }, []);
 
-  const gradientColors: readonly [string, string] =
-    scheme === 'dark' ? ['#34C9C9', '#2E7D32'] : ['#2E7D32', '#34C9C9'];
-
   return (
-    <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.container}
-        >
-      <Animated.Text style={[styles.title, { opacity: fadeAnim }]}>Your Region</Animated.Text>
-      <Animated.Text style={[styles.subtitle, { opacity: fadeAnim }]}>
-        Select your region for more accurate CO₂ calculations
-      </Animated.Text>
+    <View style={styles.container}>
+      <View style={styles.orbTop} />
 
-      <View style={styles.listContainer}>
-        {REGIONS.map((item) => {
-          const isSelected = region === item.id;
-          return (
-            <Pressable
-              key={item.id}
-              onPress={() => setRegion(item.id)}
-              style={[
-                styles.regionItem,
-                isSelected && { backgroundColor: '#fff', borderColor: '#fff' }
-              ]}
-            >
-              <Text style={styles.regionEmoji}>{item.flag}</Text>
-              <Text style={[styles.regionText, isSelected && { color: '#2E7D32', fontWeight: 'bold' }]}>
-                {item.label}
-              </Text>
-              {isSelected && <Ionicons name="checkmark-circle" size={20} color="#2E7D32" />}
-            </Pressable>
-          );
-        })}
+      <View style={styles.header}>
+        <Text style={styles.eyebrow}>HOW IT WORKS</Text>
+        <Text style={styles.headline}>Four simple steps{'\n'}to real impact</Text>
       </View>
-    </LinearGradient>
+
+      <View style={styles.stepsList}>
+        {STEPS.map((step, i) => (
+          <Animated.View
+            key={i}
+            style={[
+              styles.stepCard,
+              {
+                opacity: anims[i].fade,
+                transform: [{ translateX: anims[i].slideX }],
+              },
+            ]}
+          >
+            {/* Left: number + connector */}
+            <View style={styles.stepLeft}>
+              <View style={[styles.iconCircle, { backgroundColor: step.color + '22', borderColor: step.color + '44' }]}>
+                <Text style={styles.stepIcon}>{step.icon}</Text>
+              </View>
+              {i < STEPS.length - 1 && (
+                <View style={[styles.connector, { backgroundColor: step.color + '30' }]} />
+              )}
+            </View>
+
+            {/* Right: text */}
+            <View style={styles.stepRight}>
+              <Text style={styles.stepTitle}>{step.title}</Text>
+              <Text style={styles.stepDesc}>{step.desc}</Text>
+            </View>
+          </Animated.View>
+        ))}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
-  title: { fontSize: 28, fontWeight: '700', marginBottom: 20, color: '#fff' },
-  subtitle: { fontSize: 16, textAlign: 'center', marginBottom: 30, color: '#fff' },
-  listContainer: {
-    width: '100%',
-    paddingHorizontal: 20,
+  container: {
+    flex: 1,
+    backgroundColor: '#0B1E14',
+    paddingHorizontal: 28,
+    paddingTop: 60,
+    paddingBottom: 16,
   },
-  regionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 12,
+  orbTop: {
+    position: 'absolute', top: -40, right: -40,
+    width: 180, height: 180, borderRadius: 90,
+    backgroundColor: '#34C9C914',
+  },
+
+  header:   { marginBottom: 32, gap: 8 },
+  eyebrow:  { color: '#8BE94F', fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
+  headline: { fontSize: 32, fontWeight: '800', color: '#fff', lineHeight: 40, letterSpacing: -0.5 },
+
+  stepsList: { gap: 0 },
+  stepCard: { flexDirection: 'row', gap: 16 },
+
+  stepLeft:   { alignItems: 'center', width: 44 },
+  iconCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    marginBottom: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  regionEmoji: { fontSize: 20, marginRight: 15 },
-  regionText: { color: '#fff', fontSize: 16, flex: 1 },
+  stepIcon:  { fontSize: 20 },
+  connector: { width: 2, flex: 1, minHeight: 16, marginVertical: 4 },
+
+  stepRight: { flex: 1, paddingBottom: 20, paddingTop: 10 },
+  stepTitle: { fontSize: 16, fontWeight: '700', color: '#fff', marginBottom: 4 },
+  stepDesc:  { fontSize: 13, color: 'rgba(255,255,255,0.55)', lineHeight: 19 },
 });
