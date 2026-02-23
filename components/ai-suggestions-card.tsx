@@ -1,10 +1,16 @@
 // components/ai-suggestions-card.tsx
 import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { Animated } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { useEffect, useState } from 'react';
-import { fetchAISuggestions, buildActivitySummary, AISuggestion } from '@/src/services/aiSuggestions';
+import { useEffect, useRef, useState } from 'react';
+import {
+  fetchAISuggestions,
+  buildActivitySummary,
+  AISuggestion,
+  ICON_COLOR_MAP,
+} from '@/src/services/aiSuggestions';
 
 interface Props {
   activities: any[];
@@ -15,17 +21,28 @@ interface Props {
 }
 
 export default function AISuggestionsCard({
-  activities,
-  weeklyTokens,
-  weeklyCO2,
-  activeDaysThisWeek,
-  streak,
+  activities, weeklyTokens, weeklyCO2, activeDaysThisWeek, streak,
 }: Props) {
   const { colors } = useAppTheme();
   const [tips, setTips] = useState<AISuggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [userTriedRefresh, setUserTriedRefresh] = useState(false);
+
+  // Fade-in animation for the tips content
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  const fadeIn = () => {
+    fadeAnim.setValue(0);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const summary = buildActivitySummary(
     activities, weeklyTokens, weeklyCO2, activeDaysThisWeek, streak
@@ -33,11 +50,15 @@ export default function AISuggestionsCard({
 
   const load = async (force = false) => {
     try {
-      if (force) setRefreshing(true);
+      if (force) { setRefreshing(true); setUserTriedRefresh(true); }
       else setLoading(true);
       setError(false);
+
       const result = await fetchAISuggestions(summary, force);
-      setTips(result);
+      setTips(result.tips);
+      setFromCache(result.fromCache);
+      setRateLimited(result.rateLimited);
+      fadeIn();
     } catch {
       setError(true);
     } finally {
@@ -46,13 +67,22 @@ export default function AISuggestionsCard({
     }
   };
 
-  useEffect(() => {
-    load();
-  }, []); // load once on mount — cache handles staleness
+  useEffect(() => { load(); }, []);
+
+  // Resolve icon colour — use ICON_COLOR_MAP, fall back to tint
+  const getIconColor = (icon: string) => ICON_COLOR_MAP[icon] ?? colors.tint;
+
+  // Footer text
+  const footerText = (rateLimited && userTriedRefresh)
+    ? 'Quota limit reached — showing cached tips'
+    : fromCache
+    ? 'Personalised · Updates when your data changes'
+    : 'Powered by Gemini · Updates daily';
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surface }]}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View style={[styles.sparkleWrap, { backgroundColor: colors.tint + '18' }]}>
@@ -61,42 +91,45 @@ export default function AISuggestionsCard({
           <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
             AI Suggestions
           </ThemedText>
+          {/* Rate-limited badge — only show if user actively tried to refresh */}
+          {rateLimited && userTriedRefresh && !loading && (
+            <View style={[styles.offlineBadge, { backgroundColor: colors.surfaceMuted }]}>
+              <ThemedText style={[styles.offlineBadgeText, { color: colors.text }]}>
+                Cached
+              </ThemedText>
+            </View>
+          )}
         </View>
 
-        {/* Refresh button */}
+        {/* Refresh */}
         <Pressable
           onPress={() => load(true)}
           disabled={refreshing || loading}
           hitSlop={8}
           style={({ pressed }) => [
             styles.refreshBtn,
-            { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 },
+            { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
           ]}
         >
           {refreshing ? (
             <ActivityIndicator size={12} color={colors.tint} />
           ) : (
-            <FontAwesome6
-              name="rotate-right"
-              size={12}
-              color={colors.text}
-              style={{ opacity: 0.5 }}
-            />
+            <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
           )}
         </Pressable>
       </View>
 
-      {/* Content */}
+      {/* ── Content ── */}
       {loading ? (
         <View style={styles.loadingRow}>
           <ActivityIndicator size="small" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
+          <ThemedText style={[styles.mutedText, { color: colors.text }]}>
             Personalising your tips…
           </ThemedText>
         </View>
       ) : error ? (
         <View style={styles.errorRow}>
-          <ThemedText style={[styles.errorText, { color: colors.text }]}>
+          <ThemedText style={[styles.mutedText, { color: colors.text }]}>
             Couldn't load tips.{' '}
           </ThemedText>
           <Pressable onPress={() => load(true)}>
@@ -104,42 +137,44 @@ export default function AISuggestionsCard({
           </Pressable>
         </View>
       ) : (
-        <View style={styles.tipsContainer}>
-          {tips.map((tip, i) => (
-            <View
-              key={i}
-              style={[
-                styles.tipRow,
-                i < tips.length - 1 && {
-                  borderBottomWidth: StyleSheet.hairlineWidth,
-                  borderBottomColor: colors.surfaceMuted,
-                  paddingBottom: 12,
-                },
-              ]}
-            >
-              {/* Icon */}
-              <View style={[styles.tipIcon, { backgroundColor: colors.tint + '15' }]}>
-                <FontAwesome6 name={tip.icon as any} size={14} color={colors.tint} />
-              </View>
+        <Animated.View style={[styles.tipsContainer, { opacity: fadeAnim }]}>
+          {tips.map((tip, i) => {
+            const iconColor = getIconColor(tip.icon);
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.tipRow,
+                  i < tips.length - 1 && {
+                    borderBottomWidth: StyleSheet.hairlineWidth,
+                    borderBottomColor: colors.surfaceMuted,
+                    paddingBottom: 12,
+                  },
+                ]}
+              >
+                {/* Icon — coloured per category */}
+                <View style={[styles.tipIcon, { backgroundColor: iconColor + '18' }]}>
+                  <FontAwesome6 name={tip.icon as any} size={14} color={iconColor} />
+                </View>
 
-              {/* Text */}
-              <View style={{ flex: 1, gap: 2 }}>
-                <ThemedText style={[styles.tipTitle, { color: colors.text }]}>
-                  {tip.title}
-                </ThemedText>
-                <ThemedText style={[styles.tipBody, { color: colors.text }]}>
-                  {tip.body}
-                </ThemedText>
+                <View style={{ flex: 1, gap: 3 }}>
+                  <ThemedText style={[styles.tipTitle, { color: colors.text }]}>
+                    {tip.title}
+                  </ThemedText>
+                  <ThemedText style={[styles.tipBody, { color: colors.text }]}>
+                    {tip.body}
+                  </ThemedText>
+                </View>
               </View>
-            </View>
-          ))}
-        </View>
+            );
+          })}
+        </Animated.View>
       )}
 
-      {/* Footer label */}
+      {/* ── Footer ── */}
       {!loading && !error && (
         <ThemedText style={[styles.footerLabel, { color: colors.text }]}>
-          Powered by Gemini · Updates daily
+          {footerText}
         </ThemedText>
       )}
     </View>
@@ -147,84 +182,32 @@ export default function AISuggestionsCard({
 }
 
 const styles = StyleSheet.create({
-  card: {
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
+  card: { padding: 16, borderRadius: 16, gap: 12 },
+
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+
+  sparkleWrap: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  refreshBtn:  { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+
+  offlineBadge: {
+    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sparkleWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  refreshBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loadingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-  },
-  loadingText: {
-    fontSize: 13,
-    opacity: 0.6,
-  },
-  errorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  errorText: {
-    fontSize: 13,
-    opacity: 0.6,
-  },
-  tipsContainer: {
-    gap: 12,
-  },
-  tipRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
+  offlineBadgeText: { fontSize: 11, fontWeight: '600', opacity: 0.5 },
+
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
+  errorRow:   { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
+  mutedText:  { fontSize: 13, opacity: 0.6 },
+
+  tipsContainer: { gap: 12 },
+  tipRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   tipIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 1,
-    flexShrink: 0,
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1, flexShrink: 0,
   },
-  tipTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  tipBody: {
-    fontSize: 13,
-    opacity: 0.65,
-    lineHeight: 18,
-  },
-  footerLabel: {
-    fontSize: 11,
-    opacity: 0.3,
-    textAlign: 'right',
-  },
+  tipTitle: { fontSize: 14, fontWeight: '600', lineHeight: 19 },
+  tipBody:  { fontSize: 13, opacity: 0.6, lineHeight: 18 },
+
+  footerLabel: { fontSize: 11, opacity: 0.35, textAlign: 'right' },
 });
