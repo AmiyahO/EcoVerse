@@ -40,7 +40,8 @@
     "plugins": [
       "expo-router",
       "@react-native-google-signin/google-signin",
-      "expo-health-connect"
+      "expo-health-connect",
+      "react-native-health-connect"
     ],
     "experiments": {
       "typedRoutes": true

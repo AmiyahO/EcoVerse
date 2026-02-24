@@ -41,7 +41,6 @@ const CATEGORY_COLOR: Record<string, string> = {
 export default function HealthConnectSyncScreen() {
   const { colors } = useAppTheme();
   const activities  = useActivityStore(s => s.activities);
-  const addActivity = useActivityStore(s => s.addActivity);
   const userRegion  = useActivityStore(s => s.userRegion);
 
   const [loading,    setLoading]    = useState(true);
@@ -99,20 +98,6 @@ export default function HealthConnectSyncScreen() {
     setSyncing(true);
     try {
       const result = await commitSync(sessions, userRegion, activities, importedIds);
-
-      // Add to local store immediately for instant UI update
-      sessions.filter(s => s.selected).forEach(s => {
-        const hca = s.hcActivity;
-        addActivity({
-          id:       hca.id,
-          category: hca.type,
-          date:     hca.startTime,
-          source:   'health_connect',
-          steps:    hca.steps,
-          distance: hca.distance,
-          duration: hca.duration,
-        });
-      });
 
       setSyncResult(result);
       setShowSuccess(true);

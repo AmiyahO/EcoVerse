@@ -17,7 +17,7 @@ import {
   openHealthConnectSettings,
   openHealthConnectDataManagement,
   RecordType,
-} from 'expo-health-connect';
+} from 'react-native-health-connect';
 import { Platform } from 'react-native';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export async function checkHealthPermissions(): Promise<PermissionStatus> {
 
     const granted = await getGrantedPermissions();
     console.log('[HC] getGrantedPermissions returned:', JSON.stringify(granted));
-    const hasSteps = granted.some(p => p.recordType === 'Steps');
+    const hasSteps = granted.some((p: any) => p.recordType === 'Steps');
     return hasSteps ? 'granted' : 'not_asked';
   } catch (e) {
     console.log('[HC] checkHealthPermissions error:', e);
@@ -149,11 +149,11 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
     ]);
 
     const totalSteps = stepsResult.records.reduce(
-      (sum, r) => sum + (r.count ?? 0), 0
+      (sum: number, r: any) => sum + (r.count ?? 0), 0
     );
 
     const totalDistanceMeters = distanceResult.records.reduce(
-      (sum, r) => sum + (r.distance?.inMeters ?? 0), 0
+      (sum: number, r: any) => sum + (r.distance?.inMeters ?? 0), 0
     );
 
     return {
@@ -181,7 +181,7 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
 
     const activities: HCActivity[] = [];
 
-    for (const session of sessions.records) {
+    for (const session of sessions.records as any[]) {
       // Map Health Connect exercise types to EcoVerse categories
       // Type IDs: 55 = walking, 56 = running, 8 = cycling (road), 9 = cycling (mountain)
       const typeId = session.exerciseType;
@@ -203,7 +203,7 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
         const distResult = await readRecords('Distance', {
           timeRangeFilter: { operator: 'between', startTime: session.startTime, endTime: session.endTime },
         });
-        const distMeters = distResult.records.reduce((s, r) => s + (r.distance?.inMeters ?? 0), 0);
+        const distMeters = distResult.records.reduce((s: number, r: any) => s + (r.distance?.inMeters ?? 0), 0);
         distKm = Math.round((distMeters / 1000) * 100) / 100;
       } catch { /* distance not available */ }
 
@@ -214,7 +214,7 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
           const stepsResult = await readRecords('Steps', {
             timeRangeFilter: { operator: 'between', startTime: session.startTime, endTime: session.endTime },
           });
-          steps = stepsResult.records.reduce((s, r) => s + (r.count ?? 0), 0);
+          steps = stepsResult.records.reduce((s: number, r: any) => s + (r.count ?? 0), 0);
         } catch { /* steps not available */ }
       }
 
