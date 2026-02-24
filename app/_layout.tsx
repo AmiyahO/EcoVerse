@@ -184,6 +184,8 @@ export default function RootLayout() {
             name="edit-profile"
             options={{ presentation: 'modal', animation: 'fade_from_bottom' }}
           />
+          <Stack.Screen name="health-connect-setup" />
+          <Stack.Screen name="health-connect-sync" />
         </Stack>
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />

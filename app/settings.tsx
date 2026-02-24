@@ -14,6 +14,8 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '@/src/firebase/config';
 import { useEffect, useState } from 'react';
+import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
+import { getSyncState, formatSyncDate } from '@/src/services/healthSyncService';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -119,6 +121,8 @@ export default function SettingsScreen() {
   const [region, setRegion]                   = useState('GLOBAL_AVG');
   const [regionModal, setRegionModal]         = useState(false);
   const [themeModal, setThemeModal]           = useState(false);
+  const [hcStatus,   setHcStatus]             = useState<PermissionStatus>('not_asked');
+  const [lastSynced, setLastSynced]           = useState<string | null>(null);
 
   const modalBg = isDark ? '#1C2820' : '#FFFFFF';
   const overlayBg = isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)';
@@ -132,6 +136,11 @@ export default function SettingsScreen() {
       } catch (e) { console.error(e); }
     });
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    checkHealthPermissions().then(setHcStatus);
+    getSyncState().then(s => setLastSynced(s.lastSyncedAt));
   }, []);
 
   const selectRegion = async (r: string) => {
@@ -283,6 +292,22 @@ export default function SettingsScreen() {
 
         {/* ── Data & Privacy ── */}
         <Section title="Data & Privacy">
+          <Row
+            icon="fitness-outline"
+            iconColor="#66BB6A"
+            label="Health Connect"
+            value={hcStatus === 'granted' ? 'Connected' : hcStatus === 'unavailable' ? 'Unavailable' : 'Not connected'}
+            onPress={() => router.push('/health-connect-setup' as any)}
+            separator={true}
+          />
+          <Row
+            icon="sync-outline"
+            iconColor="#29B6F6"
+            label="Sync activities"
+            value={hcStatus === 'granted' ? formatSyncDate(lastSynced) : undefined}
+            onPress={hcStatus === 'granted' ? () => router.push('/health-connect-sync' as any) : () => router.push('/health-connect-setup' as any)}
+            separator={true}
+          />
           <Row
             icon="cloud-done-outline"
             iconColor="#4CAF50"

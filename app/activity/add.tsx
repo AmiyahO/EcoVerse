@@ -20,6 +20,7 @@ import {
 } from '@/src/services/billService';
 import { scanBillFromCamera, OCRCandidate } from '@/src/services/billOCR';
 import OCRCandidatePicker, { OCRNoResultSheet } from '@/components/ocr-candidate-picker';
+import HealthConnectBanner from '@/components/health-connect-banner';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking',     label: 'Walking',     icon: 'person-walking' },
@@ -60,6 +61,7 @@ export default function AddActivityScreen() {
     setDuration('');
     setBillReading('');
     setLastBill(null);
+    setHcAutoFilled(false);
     lastFetchedCategory.current = null;
     setOcrCandidates([]);
     setShowPicker(false);
@@ -186,6 +188,7 @@ export default function AddActivityScreen() {
       kwhSaved,
       litersSaved,
       billId,
+      source: hcAutoFilled ? 'health_connect' : 'manual',
       date: new Date().toISOString(),
     };
 
@@ -213,11 +216,26 @@ export default function AddActivityScreen() {
     (category === 'electricity' && !billReading) ||
     (category === 'water'       && !billReading);
 
-  const preview = (category === 'electricity' || category === 'water') ? previewSaving() : null;
-
   // Walking: which input is "locked" based on what the user has typed
   const stepsLocked    = category === 'walking' && distance.length > 0;
   const distanceLocked = category === 'walking' && steps.length > 0;
+
+  const preview = (category === 'electricity' || category === 'water') ? previewSaving() : null;
+
+  const [hcAutoFilled, setHcAutoFilled] = useState(false); // tracks if current values came from HC
+
+  // Called by the HealthConnectBanner when user taps "Use today's data" or a session
+  const handleHCAutoFill = (data: { steps?: number; distance?: number; duration?: number }) => {
+    if (data.steps    !== undefined) setSteps(String(data.steps));
+    if (data.distance !== undefined) setDistance(String(data.distance));
+    if (data.duration !== undefined) setDuration(String(data.duration));
+    setHcAutoFilled(true);
+  };
+
+  // Reset HC flag when user manually edits
+  const handleStepsChange = (v: string) => { setSteps(v); if (v !== steps) setHcAutoFilled(false); if (v) setDistance(''); };
+  const handleDistanceChange = (v: string) => { setDistance(v); if (v !== distance) setHcAutoFilled(false); if (category === 'walking' && v) setSteps(''); };
+  const handleDurationChange = (v: string) => { setDuration(v); if (v !== duration) setHcAutoFilled(false); };
 
   return (
     <ScrollView
@@ -268,6 +286,11 @@ export default function AddActivityScreen() {
         </View>
       </View>
 
+      {/* ── Health Connect banner ── */}
+      {(category === 'walking' || category === 'running' || category === 'cycling') && (
+        <HealthConnectBanner category={category} onAutoFill={handleHCAutoFill} />
+      )}
+
       {/* ── Walking — mutually exclusive steps / distance ── */}
       {category === 'walking' && (
         <>
@@ -277,7 +300,7 @@ export default function AddActivityScreen() {
             </ThemedText>
             <TextInput
               value={steps}
-              onChangeText={v => { setSteps(v); if (v) setDistance(''); }}
+              onChangeText={handleStepsChange}
               keyboardType="numeric"
               placeholder="e.g. 4500"
               placeholderTextColor={colors.text + '55'}
@@ -302,7 +325,7 @@ export default function AddActivityScreen() {
             </ThemedText>
             <TextInput
               value={distance}
-              onChangeText={v => { setDistance(v); if (v) setSteps(''); }}
+              onChangeText={handleDistanceChange}
               keyboardType="numeric"
               placeholder="e.g. 3.2"
               placeholderTextColor={colors.text + '55'}
@@ -320,14 +343,14 @@ export default function AddActivityScreen() {
       {/* ── Running ── */}
       {category === 'running' && (
         <>
-          <Input label="Distance (km)" value={distance} setValue={setDistance} placeholder="e.g. 3.2" colors={colors} />
-          <Input label="Duration (minutes)" value={duration} setValue={setDuration} placeholder="e.g. 25" colors={colors} />
+          <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
+          <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25" colors={colors} />
         </>
       )}
 
       {/* ── Cycling ── */}
       {category === 'cycling' && (
-        <Input label="Distance (km)" value={distance} setValue={setDistance} placeholder="e.g. 5" colors={colors} />
+        <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 5" colors={colors} />
       )}
 
       {/* ── Bill reading (electricity / water) ── */}
