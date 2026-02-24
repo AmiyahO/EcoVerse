@@ -176,7 +176,7 @@ export default function ProfileScreen() {
               <View style={styles.cardTitleRight}>
                 <View style={styles.streakBadge}>
                   <FontAwesome6
-                    name="leaf"
+                    name="fire"
                     size={12}
                     color={streak > 0 ? colors.tint : colors.text}
                     style={{ opacity: streak > 0 ? 1 : 0.3 }}

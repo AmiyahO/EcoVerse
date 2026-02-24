@@ -1,12 +1,13 @@
 // src/services/healthConnect.ts
 // Health Connect integration for Android.
-// Wraps react-native-health-connect with typed helpers for EcoVerse's activity categories.
+// Uses expo-health-connect (Expo config plugin wrapper around react-native-health-connect).
 //
-// Install: npx expo install react-native-health-connect
+// Install: npm install expo-health-connect
+// Add to app.json plugins: ["expo-health-connect"]
+// Add android.permissions in app.json (see HEALTH_CONNECT_SETUP.md)
 // Then rebuild: npx expo run:android
 //
-// Health Connect requires Android 9+ and the Health Connect app to be installed.
-// On Android 14+, Health Connect is built into the OS.
+// Health Connect requires Android 8+ (API 26). On Android 14+ it's built into the OS.
 
 import {
   initialize,
@@ -16,7 +17,7 @@ import {
   openHealthConnectSettings,
   openHealthConnectDataManagement,
   RecordType,
-} from 'react-native-health-connect';
+} from 'expo-health-connect';
 import { Platform } from 'react-native';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -77,11 +78,19 @@ export async function requestHealthPermissions(): Promise<PermissionStatus> {
     const isAvailable = await initialize();
     if (!isAvailable) return 'unavailable';
 
-    const granted = await requestPermission(REQUIRED_PERMISSIONS);
+    // requestPermission opens the HC dialog. The return value is unreliable
+    // on many devices so we poll checkHealthPermissions after the dialog closes.
+    await requestPermission(REQUIRED_PERMISSIONS);
 
-    // Check if at minimum Steps is granted (others are bonus)
-    const hasSteps = granted.some(p => p.recordType === 'Steps');
-    return hasSteps ? 'granted' : 'denied';
+    // Poll up to 10 times with 600ms gaps (6s total) waiting for HC to reflect the grant
+    for (let i = 0; i < 10; i++) {
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const status = await checkHealthPermissions();
+      if (status === 'granted') return 'granted';
+    }
+
+    // Final check — return whatever we get
+    return checkHealthPermissions();
   } catch (e) {
     console.error('Health Connect permission error:', e);
     return 'denied';
@@ -92,13 +101,20 @@ export async function checkHealthPermissions(): Promise<PermissionStatus> {
   if (Platform.OS !== 'android') return 'unavailable';
 
   try {
+    // Re-initialize each time — required for getGrantedPermissions to reflect
+    // permission changes made while the app was in the background
     const isAvailable = await initialize();
-    if (!isAvailable) return 'unavailable';
+    if (!isAvailable) {
+      console.log('[HC] initialize() returned false — HC not available');
+      return 'unavailable';
+    }
 
     const granted = await getGrantedPermissions();
+    console.log('[HC] getGrantedPermissions returned:', JSON.stringify(granted));
     const hasSteps = granted.some(p => p.recordType === 'Steps');
     return hasSteps ? 'granted' : 'not_asked';
-  } catch {
+  } catch (e) {
+    console.log('[HC] checkHealthPermissions error:', e);
     return 'not_asked';
   }
 }
@@ -117,8 +133,8 @@ function getDateRange(daysBack = 1): { startTime: string; endTime: string } {
     startTime: start.toISOString(),
     endTime:   end.toISOString(),
   };
-  
 }
+
 /**
  * Fetch today's step count and distance from Health Connect.
  * Used to pre-fill the walking log form.

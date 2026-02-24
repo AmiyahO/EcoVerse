@@ -22,7 +22,13 @@
         "foregroundImage": "./assets/images/icon.png"
       },
       "package": "com.amirah.ecoverse",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_DISTANCE",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+      ]
     },
     "ios": {
       "supportsTablet": true,
@@ -34,7 +40,7 @@
     "plugins": [
       "expo-router",
       "@react-native-google-signin/google-signin",
-      "react-native-health-connect"
+      "expo-health-connect"
     ],
     "experiments": {
       "typedRoutes": true

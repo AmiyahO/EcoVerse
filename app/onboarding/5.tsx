@@ -1,5 +1,5 @@
 // onboarding/5.tsx — Permissions
-import { View, Text, StyleSheet, Animated, Pressable, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, Animated, Pressable, ActivityIndicator, Linking, AppState, AppStateStatus } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import {
   requestHealthPermissions,
@@ -52,6 +52,14 @@ export default function OnboardingStep5() {
       }).start();
     });
     checkHealthPermissions().then(setHcStatus);
+
+    // Re-check when user returns from Health Connect app
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') {
+        checkHealthPermissions().then(setHcStatus);
+      }
+    });
+    return () => sub.remove();
   }, []);
 
   const handleGrantHealth = async () => {

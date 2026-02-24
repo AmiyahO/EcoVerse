@@ -1,7 +1,7 @@
 // settings.tsx
 import {
   View, StyleSheet, Pressable, ScrollView,
-  Alert, Modal, Switch, Linking,
+  Alert, Modal, Switch, Linking, AppState, AppStateStatus,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -139,8 +139,16 @@ export default function SettingsScreen() {
   }, []);
 
   useEffect(() => {
-    checkHealthPermissions().then(setHcStatus);
-    getSyncState().then(s => setLastSynced(s.lastSyncedAt));
+    const recheck = () => {
+      checkHealthPermissions().then(setHcStatus);
+      getSyncState().then(s => setLastSynced(s.lastSyncedAt));
+    };
+    recheck();
+    // Re-check when returning from Health Connect app or sync screen
+    const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') recheck();
+    });
+    return () => sub.remove();
   }, []);
 
   const selectRegion = async (r: string) => {
