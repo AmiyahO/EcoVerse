@@ -51,17 +51,28 @@ export default function TabLayout() {
     }).start(() => setShowCelebration(false));
   };
 
+  // If tokens drop below target (e.g. activity deleted), reset celebrated
+  // so the celebration can fire again when target is re-reached
   useEffect(() => {
-      if (progress >= 1 && !loading && !celebrated && hasHydrated) {
+    if (progress < 1 && celebrated && hasHydrated) {
+      setCelebrated(false);
+    }
+  }, [progress]);
+
+  useEffect(() => {
+    if (progress >= 1 && !loading && !celebrated && hasHydrated) {
       setCelebrated(true);
-      setShowCelebration(true);
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 40,
-        friction: 12,
-      }).start();
-      dismissTimeout.current = setTimeout(() => dismissCelebration(), 6000);
+      // Small delay so navigation animation completes before banner slides in
+      setTimeout(() => {
+        setShowCelebration(true);
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 60,
+          friction: 10,
+        }).start();
+        dismissTimeout.current = setTimeout(() => dismissCelebration(), 4000);
+      }, 400);
     }
   }, [progress, loading, hasHydrated, celebrated]);
 
@@ -72,12 +83,6 @@ export default function TabLayout() {
   }, []);
 
   const weeklyActivityCount = activities.filter(a => a.date && isThisWeek(a.date)).length;
-
-  const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
-
-  useEffect(() => {
-    checkAndResetCelebration();
-  }, []);
 
   return (
     <View style={{ flex: 1 }}>

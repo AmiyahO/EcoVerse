@@ -38,12 +38,12 @@ const SUPPORTED_APPS = [
   {
     name: 'Samsung Health',
     icon: '💙',
-    color: '#1429A0',
+    color: '#4F6FD4',
     packageId: 'com.sec.android.app.shealth',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.sec.android.app.shealth',
     steps: [
-      'Tap Menu (≡) → Settings',
       'Open Samsung Health',
+      'Tap Menu (≡) → Settings',
       'Tap "Connected services"',
       'Enable "Health Connect"',
     ],
@@ -92,7 +92,7 @@ const SETUP_STEPS = [
     icon: 'fitness-outline',
     color: '#29B6F6',
     title: 'Connect your fitness app',
-    desc: 'Open your fitness app (Google Fit, Samsung Health, Strava, etc.) and enable Health Connect in its settings.',
+    desc: 'Open your fitness app (e.g. Google Fit, Samsung Health, Strava) and enable Health Connect in its settings. Tap an app below for exact steps.',
     action: null,
   },
   {
@@ -100,7 +100,7 @@ const SETUP_STEPS = [
     icon: 'shield-checkmark-outline',
     color: '#FFB300',
     title: 'Grant EcoVerse access',
-    desc: 'Tap the button below to allow EcoVerse to read your steps, distance, and exercise sessions.',
+    desc: 'Allow EcoVerse to read steps, distance, and workouts. Your data stays on-device — EcoVerse only reads activity summaries to calculate your eco-impact.',
     action: 'Grant access',
   },
 ];
@@ -286,7 +286,9 @@ export default function HealthConnectSetupScreen() {
                     onPress={() => setExpandedApp(isExpanded ? null : app.name)}
                     style={styles.appHeader}
                   >
-                    <Text style={styles.appIcon}>{app.icon}</Text>
+                    <View style={[styles.appIconBadge, { backgroundColor: app.color + '25', borderColor: app.color + '40', borderWidth: 1 }]}>
+                      <Text style={[styles.appIconText, { color: app.color }]}>{app.icon}</Text>
+                    </View>
                     <ThemedText style={[styles.appName, { color: colors.text }]}>{app.name}</ThemedText>
                     <Ionicons
                       name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -429,7 +431,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     gap: 12, padding: 14,
   },
-  appIcon:  { fontSize: 24 },
+  appIcon:     { fontSize: 24 },
+  appIconBadge: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  appIconText:  { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   appName:  { flex: 1, fontSize: 15, fontWeight: '600' },
   appSteps: { paddingHorizontal: 16, paddingBottom: 14, gap: 10 },
   appStepsDivider: { height: StyleSheet.hairlineWidth, marginBottom: 4 },

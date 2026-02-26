@@ -1,17 +1,28 @@
 // onboarding/4.tsx — Tokens & Streaks
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useEffect, useRef } from 'react';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { FontAwesome6 } from '@expo/vector-icons';
 
 const EXAMPLES = [
-  { activity: '30 min walk',       tokens: '+30',   co2: '0.6 kg CO₂' },
-  { activity: '10 km cycle',       tokens: '+50',   co2: '1.4 kg CO₂' },
-  { activity: '100 kWh saved',     tokens: '+100',  co2: '23 kg CO₂'  },
-  { activity: '500 L water saved', tokens: '+50',   co2: '0.5 kg CO₂' },
+  { activity: '30 min walk',       tokens: '+30',  co2: '0.6 kg CO₂' },
+  { activity: '10 km cycle',       tokens: '+100', co2: '2.5 kg CO₂' },
+  { activity: '100 kWh saved',     tokens: '+500', co2: '47.5 kg CO₂' },
+  { activity: '500 L water saved', tokens: '+50',  co2: '1.5 kg CO₂' },
 ];
 
 export default function OnboardingStep4() {
-  const fade  = useRef(new Animated.Value(0)).current;
-  const anims = useRef(EXAMPLES.map(() => new Animated.Value(0))).current;
+  const { scheme, colors } = useAppTheme();
+  const isDark   = scheme !== 'light';
+  const bg       = isDark ? '#0B1E14' : '#F0F7F1';
+  const cardBg   = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(27,67,50,0.06)';
+  const cardBorder = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(27,67,50,0.10)';
+  const textColor = isDark ? '#fff' : '#1B4332';
+  const mutedText = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(27,67,50,0.45)';
+  const headTextColor = isDark ? '#8BE94F' : '#1B5E20';
+
+  const fade      = useRef(new Animated.Value(0)).current;
+  const anims     = useRef(EXAMPLES.map(() => new Animated.Value(0))).current;
   const tokenAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -27,22 +38,27 @@ export default function OnboardingStep4() {
   const tokenCount = tokenAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 230] });
 
   return (
-    <View style={styles.container}>
-      <View style={styles.orbTL} />
+    <ScrollView
+      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.container, { backgroundColor: bg }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.orbTL, { backgroundColor: isDark ? '#FFB30015' : '#FFB30020' }]} />
 
       <Animated.View style={[styles.header, { opacity: fade }]}>
-        <Text style={styles.eyebrow}>TOKENS & IMPACT</Text>
-        <Text style={styles.headline}>Real rewards for{'\n'}real savings</Text>
+        <Text style={[styles.eyebrow, { color: headTextColor }]}>TOKENS & IMPACT</Text>
+        <Text style={[styles.headline, { color: textColor }]}>Real rewards for{'\n'}real savings</Text>
       </Animated.View>
 
       {/* Token counter hero */}
       <Animated.View style={[styles.tokenHero, { opacity: fade }]}>
-        <View style={styles.tokenCircle}>
-          <Text style={styles.tokenLeaf}>🪙</Text>
+        <View style={[styles.tokenCircle, { backgroundColor: isDark ? 'rgba(255,179,0,0.1)' : 'rgba(255,179,0,0.12)', borderColor: 'rgba(255,179,0,0.25)' }]}>
+          {/* Leaf icon — uses screen tint so it matches both light and dark */}
+          <FontAwesome6 name="leaf" size={28} color={isDark ? '#8BE94F' : '#2E7D32'} style={{ marginBottom: 4 }} />
           <AnimatedNumber anim={tokenCount} />
-          <Text style={styles.tokenLabel}>tokens this week</Text>
+          <Text style={[styles.tokenLabel, { color: mutedText }]}>tokens this week</Text>
         </View>
-        <View style={styles.streakBadge}>
+        <View style={[styles.streakBadge, { backgroundColor: isDark ? 'rgba(255,112,0,0.15)' : 'rgba(255,112,0,0.12)', borderColor: 'rgba(255,112,0,0.3)' }]}>
           <Text style={styles.streakFire}>🔥</Text>
           <Text style={styles.streakText}>5 day streak  ×1.5 bonus</Text>
         </View>
@@ -50,12 +66,13 @@ export default function OnboardingStep4() {
 
       {/* Example rows */}
       <View style={styles.examples}>
-        <Text style={styles.examplesLabel}>Example earnings</Text>
+        <Text style={[styles.examplesLabel, { color: mutedText }]}>Example earnings</Text>
         {EXAMPLES.map((ex, i) => (
           <Animated.View
             key={i}
             style={[
               styles.exRow,
+              { backgroundColor: cardBg, borderColor: cardBorder },
               {
                 opacity: anims[i],
                 transform: [{
@@ -64,86 +81,80 @@ export default function OnboardingStep4() {
               },
             ]}
           >
-            <Text style={styles.exActivity}>{ex.activity}</Text>
-            <Text style={styles.exCo2}>{ex.co2}</Text>
+            <Text style={[styles.exActivity, { color: textColor }]}>{ex.activity}</Text>
+            <Text style={[styles.exCo2, { color: mutedText }]}>{ex.co2}</Text>
             <View style={styles.exTokenPill}>
+              <FontAwesome6 name="leaf" size={10} color="#4CAF50" style={{ marginRight: 3 }} />
               <Text style={styles.exTokenText}>{ex.tokens}</Text>
             </View>
           </Animated.View>
         ))}
       </View>
 
-      <Animated.Text style={[styles.note, { opacity: fade }]}>
+      {/* Note — previously cut off; now has paddingBottom on ScrollView */}
+      <Animated.Text style={[styles.note, { opacity: fade, color: mutedText }]}>
         💡 Streaks multiply your tokens. Log every day to keep your streak alive.
       </Animated.Text>
-    </View>
+    </ScrollView>
   );
 }
 
 function AnimatedNumber({ anim }: { anim: Animated.AnimatedInterpolation<number> }) {
-  const [display, setDisplay] = useAnimatedValue(anim);
-  return <Text style={styles.tokenNumber}>{Math.round(display)}</Text>;
-}
-
-function useAnimatedValue(anim: Animated.AnimatedInterpolation<number>): [number, (v: number) => void] {
-  const [val, setVal] = require('react').useState(0);
+  const [display, setDisplay] = require('react').useState(0);
   require('react').useEffect(() => {
-    const id = (anim as any).addListener(({ value }: any) => setVal(value));
+    const id = (anim as any).addListener(({ value }: any) => setDisplay(value));
     return () => (anim as any).removeListener(id);
   }, []);
-  return [val, setVal];
+  return <Text style={styles.tokenNumber}>{Math.round(display)}</Text>;
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#0B1E14',
     paddingHorizontal: 28,
     paddingTop: 60,
-    paddingBottom: 16,
+    paddingBottom: 32, // ensures note is never clipped
   },
   orbTL: {
     position: 'absolute', top: -50, left: -50,
     width: 180, height: 180, borderRadius: 90,
-    backgroundColor: '#FFB30015',
   },
 
   header:   { marginBottom: 24, gap: 6 },
-  eyebrow:  { color: '#8BE94F', fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
-  headline: { fontSize: 32, fontWeight: '800', color: '#fff', lineHeight: 40, letterSpacing: -0.5 },
+  eyebrow:  { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
+  headline: { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
 
   tokenHero: { alignItems: 'center', marginBottom: 24, gap: 10 },
   tokenCircle: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,179,0,0.1)',
-    borderWidth: 1, borderColor: 'rgba(255,179,0,0.25)',
+    borderWidth: 1,
     borderRadius: 20, paddingVertical: 16, paddingHorizontal: 40,
     width: '100%',
   },
-  tokenLeaf:   { fontSize: 28, marginBottom: 4 },
   tokenNumber: { fontSize: 48, fontWeight: '900', color: '#FFB300', letterSpacing: -2 },
-  tokenLabel:  { fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+  tokenLabel:  { fontSize: 13, marginTop: 2 },
   streakBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: 'rgba(255,112,0,0.15)',
-    borderWidth: 1, borderColor: 'rgba(255,112,0,0.3)',
+    borderWidth: 1,
     paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999,
   },
   streakFire: { fontSize: 16 },
   streakText: { color: '#FF7043', fontSize: 13, fontWeight: '600' },
 
-  examples:       { gap: 8 },
-  examplesLabel:  { fontSize: 12, color: 'rgba(255,255,255,0.4)', fontWeight: '600', letterSpacing: 0.5, marginBottom: 2 },
+  examples:      { gap: 8, marginBottom: 16 },
+  examplesLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5, marginBottom: 2 },
   exRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    borderWidth: 1,
   },
-  exActivity:  { flex: 1, fontSize: 14, color: '#fff', fontWeight: '500' },
-  exCo2:       { fontSize: 12, color: 'rgba(255,255,255,0.4)', marginRight: 10 },
-  exTokenPill: { backgroundColor: 'rgba(76,175,80,0.2)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+  exActivity:  { flex: 1, fontSize: 14, fontWeight: '500' },
+  exCo2:       { fontSize: 12, marginRight: 10 },
+  exTokenPill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(76,175,80,0.2)', borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 3,
+  },
   exTokenText: { color: '#4CAF50', fontWeight: '700', fontSize: 13 },
 
-  note: { fontSize: 12, color: 'rgba(255,255,255,0.4)', lineHeight: 18, marginTop: 12, textAlign: 'center' },
+  note: { fontSize: 13, lineHeight: 18, textAlign: 'center' },
 });

@@ -1,42 +1,32 @@
 // onboarding/5.tsx — Permissions
-import { View, Text, StyleSheet, Animated, Pressable, ActivityIndicator, Linking, AppState, AppStateStatus } from 'react-native';
+import { View, Text, StyleSheet, Animated, Pressable, ActivityIndicator, Linking, AppState, AppStateStatus, Platform } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
-import {
-  requestHealthPermissions,
-  checkHealthPermissions,
-  PermissionStatus,
-} from '@/src/services/healthConnect';
-import { Platform } from 'react-native';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { requestHealthPermissions, checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
 
 const HC_PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
 
 const PERMISSIONS = [
-  {
-    icon: '🏃',
-    color: '#66BB6A',
-    name: 'Health & Activity',
-    desc: 'Auto-sync steps and workouts from Google Fit, Samsung Health, Strava and more. No manual entry needed.',
-    id: 'health',
-  },
-  {
-    icon: '🔔',
-    color: '#FFB300',
-    name: 'Notifications',
-    desc: 'Daily reminders to log activities and weekly goal progress alerts.',
-    id: 'notifications',
-    comingSoon: true,
-  },
-  {
-    icon: '📷',
-    color: '#FF7043',
-    name: 'Camera',
-    desc: 'Scan electricity and water bills with OCR to instantly extract your meter reading.',
-    id: 'camera',
-    alwaysGranted: true,
-  },
+  { icon: '🏃', color: '#66BB6A', name: 'Health & Activity', desc: 'Auto-sync steps and workouts from Google Fit, Samsung Health, Strava and more. No manual entry needed.', id: 'health' },
+  { icon: '🔔', color: '#FFB300', name: 'Notifications', desc: 'Daily reminders to log activities and weekly goal progress alerts.', id: 'notifications', comingSoon: true },
+  { icon: '📷', color: '#FF7043', name: 'Camera', desc: 'Scan electricity and water bills with OCR to instantly extract your meter reading.', id: 'camera', alwaysGranted: true },
 ];
 
 export default function OnboardingStep5() {
+  const { scheme } = useAppTheme();
+  const isDark = scheme !== 'light';
+
+  const bg       = isDark ? '#0B1E14' : '#F0F7F1';
+  const headline = isDark ? '#fff' : '#1B4332';
+  const subhead  = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
+  const permName = isDark ? '#fff' : '#1B4332';
+  const permDesc = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
+  const cardBg   = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(27,67,50,0.05)';
+  const noteBg   = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(27,67,50,0.05)';
+  const noteText = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
+  const orbBg    = isDark ? '#29B6F615' : '#29B6F612';
+  const headTextColor = isDark ? '#8BE94F' : '#1B5E20';
+
   const fade  = useRef(new Animated.Value(0)).current;
   const anims = useRef(PERMISSIONS.map(() => new Animated.Value(0))).current;
 
@@ -47,17 +37,11 @@ export default function OnboardingStep5() {
   useEffect(() => {
     Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     PERMISSIONS.forEach((_, i) => {
-      Animated.timing(anims[i], {
-        toValue: 1, duration: 450, delay: 150 + i * 100, useNativeDriver: true,
-      }).start();
+      Animated.timing(anims[i], { toValue: 1, duration: 450, delay: 150 + i * 100, useNativeDriver: true }).start();
     });
     checkHealthPermissions().then(setHcStatus);
-
-    // Re-check when user returns from Health Connect app
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      if (state === 'active') {
-        checkHealthPermissions().then(setHcStatus);
-      }
+      if (state === 'active') checkHealthPermissions().then(setHcStatus);
     });
     return () => sub.remove();
   }, []);
@@ -75,13 +59,13 @@ export default function OnboardingStep5() {
   const hcUnavailable = hcStatus === 'unavailable';
 
   return (
-    <View style={styles.container}>
-      <View style={styles.orbBR} />
+    <View style={[styles.container, { backgroundColor: bg }]}>
+      <View style={[styles.orbBR, { backgroundColor: orbBg }]} />
 
       <Animated.View style={[styles.header, { opacity: fade }]}>
-        <Text style={styles.eyebrow}>PERMISSIONS</Text>
-        <Text style={styles.headline}>{"What we'll\nask for"}</Text>
-        <Text style={styles.subhead}>EcoVerse only requests what it needs. You stay in control.</Text>
+        <Text style={[styles.eyebrow, { color: headTextColor }]}>PERMISSIONS</Text>
+        <Text style={[styles.headline, { color: headline }]}>{"What we'll\nask for"}</Text>
+        <Text style={[styles.subhead, { color: subhead }]}>EcoVerse only requests what it needs. You stay in control.</Text>
       </Animated.View>
 
       <View style={styles.list}>
@@ -89,17 +73,15 @@ export default function OnboardingStep5() {
           const isHealth = perm.id === 'health';
           const granted  = perm.alwaysGranted || (isHealth && hcGranted);
           const notAvail = isHealth && hcUnavailable;
+          const cardBorderColor = granted ? perm.color + '40' : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(27,67,50,0.1)');
 
           return (
             <Animated.View
               key={perm.name}
               style={[
                 styles.permCard,
-                { borderColor: granted ? perm.color + '40' : 'rgba(255,255,255,0.1)' },
-                {
-                  opacity: anims[i],
-                  transform: [{ translateY: anims[i].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-                },
+                { backgroundColor: cardBg, borderColor: cardBorderColor },
+                { opacity: anims[i], transform: [{ translateY: anims[i].interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] },
               ]}
             >
               <View style={[styles.permIcon, { backgroundColor: perm.color + '20', borderColor: perm.color + '35' }]}>
@@ -107,7 +89,7 @@ export default function OnboardingStep5() {
               </View>
               <View style={styles.permText}>
                 <View style={styles.permNameRow}>
-                  <Text style={styles.permName}>{perm.name}</Text>
+                  <Text style={[styles.permName, { color: permName }]}>{perm.name}</Text>
                   {perm.comingSoon ? (
                     <View style={styles.soonBadge}><Text style={styles.soonText}>Soon</Text></View>
                   ) : granted ? (
@@ -116,8 +98,7 @@ export default function OnboardingStep5() {
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.permDesc}>{perm.desc}</Text>
-
+                <Text style={[styles.permDesc, { color: permDesc }]}>{perm.desc}</Text>
                 {isHealth && !granted && isAndroid && (
                   <Pressable
                     onPress={handleGrantHealth}
@@ -133,7 +114,7 @@ export default function OnboardingStep5() {
                   </Pressable>
                 )}
                 {isHealth && !isAndroid && (
-                  <Text style={styles.iosNote}>Available on Android only</Text>
+                  <Text style={[styles.iosNote, { color: permDesc }]}>Available on Android only</Text>
                 )}
               </View>
             </Animated.View>
@@ -141,8 +122,8 @@ export default function OnboardingStep5() {
         })}
       </View>
 
-      <Animated.View style={[styles.noteBox, { opacity: fade }]}>
-        <Text style={styles.noteText}>
+      <Animated.View style={[styles.noteBox, { opacity: fade, backgroundColor: noteBg, borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(27,67,50,0.1)' }]}>
+        <Text style={[styles.noteText, { color: noteText }]}>
           🔒 Your data is stored securely in Firebase. No ads, no third-party sharing, ever.
         </Text>
       </Animated.View>
@@ -151,27 +132,27 @@ export default function OnboardingStep5() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B1E14', paddingHorizontal: 28, paddingTop: 60, paddingBottom: 16 },
-  orbBR: { position: 'absolute', bottom: 60, right: -60, width: 200, height: 200, borderRadius: 100, backgroundColor: '#29B6F615' },
+  container: { flex: 1, paddingHorizontal: 28, paddingTop: 60, paddingBottom: 16 },
+  orbBR: { position: 'absolute', bottom: 60, right: -60, width: 200, height: 200, borderRadius: 100 },
   header: { marginBottom: 24, gap: 6 },
   eyebrow: { color: '#8BE94F', fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
-  headline: { fontSize: 32, fontWeight: '800', color: '#fff', lineHeight: 40, letterSpacing: -0.5 },
-  subhead: { fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 20, marginTop: 4 },
+  headline: { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+  subhead: { fontSize: 14, lineHeight: 20, marginTop: 4 },
   list: { gap: 12, marginBottom: 16, flex: 1 },
-  permCard: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: 14, borderWidth: 1 },
+  permCard: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', borderRadius: 14, padding: 14, borderWidth: 1 },
   permIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0 },
   permEmoji: { fontSize: 20 },
   permText: { flex: 1, gap: 4 },
   permNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  permName: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  permDesc: { fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 17 },
+  permName: { fontSize: 15, fontWeight: '700' },
+  permDesc: { fontSize: 12, lineHeight: 17 },
   soonBadge: { backgroundColor: 'rgba(255,179,0,0.15)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   soonText: { color: '#FFB300', fontSize: 11, fontWeight: '600' },
   grantedBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   grantedText: { fontSize: 11, fontWeight: '700' },
   grantBtn: { alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, minWidth: 80, alignItems: 'center' },
   grantBtnText: { fontSize: 13, fontWeight: '700' },
-  iosNote: { fontSize: 11, color: 'rgba(255,255,255,0.3)', marginTop: 4 },
-  noteBox: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' },
-  noteText: { fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 19, textAlign: 'center' },
+  iosNote: { fontSize: 11, marginTop: 4 },
+  noteBox: { borderRadius: 12, padding: 14, borderWidth: 1 },
+  noteText: { fontSize: 13, lineHeight: 19, textAlign: 'center' },
 });

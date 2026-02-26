@@ -35,7 +35,9 @@ export default function HomeScreen() {
   const activities = useActivityStore(s => s.activities);
   const userProfile = useActivityStore(s => s.userProfile);
 
-  const recentActivity = activities[0];
+  const recentActivity = activities.length > 0
+    ? [...activities].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+    : undefined;
 
   const now = new Date();
   const startOfWeek = new Date();

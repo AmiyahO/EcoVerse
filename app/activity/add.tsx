@@ -1,4 +1,4 @@
-// add.tsx
+// activity/add.tsx
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
@@ -12,7 +12,7 @@ import {
 import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import {
-  calculateFinalTokens, calculateStreak, calculateCarbonSaved,
+  calculateFinalTokens, calculateStreak, calculateCarbonSaved, calculateTokens,
   BASELINES, CATEGORY_COLORS,
 } from '@/src/utils/ecoLogic';
 import {
@@ -30,11 +30,20 @@ const ACTIVITY_CATEGORIES = [
   { key: 'water',       label: 'Water',       icon: 'droplet' },
 ] as const;
 
+// Narrow bill categories to the union OCRCandidatePicker expects
+type BillCategory = 'electricity' | 'water';
+function isBillCategory(c: ActivityCategory | null): c is BillCategory {
+  return c === 'electricity' || c === 'water';
+}
+
 export default function AddActivityScreen() {
   const { colors } = useAppTheme();
-  const activities = useActivityStore(s => s.activities);
-  const userRegion = useActivityStore(s => s.userRegion);
-  const streak     = calculateStreak(activities);
+  const activities    = useActivityStore(s => s.activities);
+  const userRegion    = useActivityStore(s => s.userRegion);
+  const userProfile   = useActivityStore(s => s.userProfile);
+  const setCelebrated = useActivityStore(s => s.setCelebrated);
+  const celebrated    = useActivityStore(s => s.celebrated);
+  const streak        = calculateStreak(activities);
 
   const [category, setCategory]       = useState<ActivityCategory | null>(null);
   const [steps, setSteps]             = useState('');
@@ -44,7 +53,8 @@ export default function AddActivityScreen() {
   const [lastBill, setLastBill]       = useState<BillReading | null>(null);
   const [loadingBill, setLoadingBill] = useState(false);
   const [saving, setSaving]           = useState(false);
-  const saveInProgress = useRef(false); // hard guard against double-save
+  const [hcAutoFilled, setHcAutoFilled] = useState(false);
+  const saveInProgress = useRef(false);
 
   // OCR state
   const [scanning, setScanning]           = useState(false);
@@ -52,7 +62,6 @@ export default function AddActivityScreen() {
   const [showPicker, setShowPicker]       = useState(false);
   const [showNoResult, setShowNoResult]   = useState(false);
 
-  // Track which utility category's bill was last fetched to avoid stale data
   const lastFetchedCategory = useRef<string | null>(null);
 
   const resetInputs = () => {
@@ -68,14 +77,11 @@ export default function AddActivityScreen() {
     setShowNoResult(false);
   };
 
-  // Fetch previous bill whenever a utility category is selected
-  // Using category as key ensures a fresh fetch even if user toggles electricity→water→electricity
   useEffect(() => {
-    if ((category === 'electricity' || category === 'water') &&
-        lastFetchedCategory.current !== category) {
+    if (isBillCategory(category) && lastFetchedCategory.current !== category) {
       lastFetchedCategory.current = category;
-      setLastBill(null); // clear stale data immediately
-      setBillReading(''); // clear any leftover reading
+      setLastBill(null);
+      setBillReading('');
       setLoadingBill(true);
       getLastBill(category)
         .then(bill => setLastBill(bill))
@@ -84,7 +90,7 @@ export default function AddActivityScreen() {
   }, [category]);
 
   const handleScan = async () => {
-    if (!category || (category !== 'electricity' && category !== 'water')) return;
+    if (!isBillCategory(category)) return;
     setScanning(true);
     const result = await scanBillFromCamera(category);
     setScanning(false);
@@ -114,13 +120,10 @@ export default function AddActivityScreen() {
   };
 
   const previewSaving = () => {
+    if (!isBillCategory(category)) return null;
     const reading = parseFloat(billReading);
     if (!billReading || isNaN(reading) || reading <= 0) return null;
-    return calculateSaving(
-      category as 'electricity' | 'water',
-      reading,
-      lastBill?.reading ?? null,
-    );
+    return calculateSaving(category, reading, lastBill?.reading ?? null);
   };
 
   const handleSave = async () => {
@@ -129,11 +132,12 @@ export default function AddActivityScreen() {
     setSaving(true);
 
     try {
-      if (category === 'electricity' || category === 'water') {
+      if (isBillCategory(category)) {
         const reading = parseFloat(billReading);
         if (isNaN(reading) || reading <= 0) {
           Alert.alert('Invalid reading', 'Please enter a valid meter reading greater than 0.');
           setSaving(false);
+          saveInProgress.current = false;
           return;
         }
 
@@ -155,8 +159,8 @@ export default function AddActivityScreen() {
               ? `Your usage this month (${reading.toLocaleString()}) is higher than or equal to your previous reading (${lastBill.reading.toLocaleString()}). Log anyway to track trends?`
               : `Your usage exceeds the average household baseline. Log anyway to track trends?`,
             [
-              { text: 'Cancel', style: 'cancel', onPress: () => setSaving(false) },
-              { text: 'Log anyway', onPress: async () => { await doSave(); setSaving(false); } },
+              { text: 'Cancel', style: 'cancel', onPress: () => { setSaving(false); saveInProgress.current = false; } },
+              { text: 'Log anyway', onPress: async () => { await doSave(); setSaving(false); saveInProgress.current = false; } },
             ]
           );
           return;
@@ -176,8 +180,14 @@ export default function AddActivityScreen() {
   };
 
   const commitActivity = async ({
-    kwhSaved, litersSaved, billId,
-  }: { kwhSaved?: number; litersSaved?: number; billId?: string }) => {
+    kwhSaved,
+    litersSaved,
+    billId,
+  }: {
+    kwhSaved?: number;
+    litersSaved?: number;
+    billId?: string;
+  }) => {
     if (!auth.currentUser || !category) return;
 
     const rawData = {
@@ -205,6 +215,21 @@ export default function AddActivityScreen() {
       totalCarbonSaved: increment(carbonSaved),
     });
 
+    if (!celebrated) {
+      const weeklyTarget = userProfile?.weeklyTarget ?? 500;
+      const now = new Date();
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const currentWeeklyTokens = activities
+        .filter((a: any) => new Date(a.date) >= startOfWeek)
+        .reduce((sum: number, a: any) => sum + calculateTokens(a), 0);
+
+      if (currentWeeklyTokens + tokensEarned >= weeklyTarget) {
+        setCelebrated(false);
+      }
+    }
+
     router.back();
   };
 
@@ -216,15 +241,11 @@ export default function AddActivityScreen() {
     (category === 'electricity' && !billReading) ||
     (category === 'water'       && !billReading);
 
-  // Walking: which input is "locked" based on what the user has typed
   const stepsLocked    = category === 'walking' && distance.length > 0;
   const distanceLocked = category === 'walking' && steps.length > 0;
 
-  const preview = (category === 'electricity' || category === 'water') ? previewSaving() : null;
+  const preview = isBillCategory(category) ? previewSaving() : null;
 
-  const [hcAutoFilled, setHcAutoFilled] = useState(false); // tracks if current values came from HC
-
-  // Called by the HealthConnectBanner when user taps "Use today's data" or a session
   const handleHCAutoFill = (data: { steps?: number; distance?: number; duration?: number }) => {
     if (data.steps    !== undefined) setSteps(String(data.steps));
     if (data.distance !== undefined) setDistance(String(data.distance));
@@ -232,8 +253,7 @@ export default function AddActivityScreen() {
     setHcAutoFilled(true);
   };
 
-  // Reset HC flag when user manually edits
-  const handleStepsChange = (v: string) => { setSteps(v); if (v !== steps) setHcAutoFilled(false); if (v) setDistance(''); };
+  const handleStepsChange    = (v: string) => { setSteps(v);    if (v !== steps)    setHcAutoFilled(false); if (v) setDistance(''); };
   const handleDistanceChange = (v: string) => { setDistance(v); if (v !== distance) setHcAutoFilled(false); if (category === 'walking' && v) setSteps(''); };
   const handleDurationChange = (v: string) => { setDuration(v); if (v !== duration) setHcAutoFilled(false); };
 
@@ -291,7 +311,7 @@ export default function AddActivityScreen() {
         <HealthConnectBanner category={category} onAutoFill={handleHCAutoFill} />
       )}
 
-      {/* ── Walking — mutually exclusive steps / distance ── */}
+      {/* ── Walking ── */}
       {category === 'walking' && (
         <>
           <View style={styles.field}>
@@ -312,13 +332,11 @@ export default function AddActivityScreen() {
               ]}
             />
           </View>
-
           <View style={styles.orDivider}>
             <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
             <ThemedText style={[styles.orText, { color: colors.text }]}>or</ThemedText>
             <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
           </View>
-
           <View style={styles.field}>
             <ThemedText type="defaultSemiBold" style={{ color: colors.text, opacity: distanceLocked ? 0.35 : 1 }}>
               Distance (km)
@@ -343,8 +361,8 @@ export default function AddActivityScreen() {
       {/* ── Running ── */}
       {category === 'running' && (
         <>
-          <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
-          <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25" colors={colors} />
+          <Input label="Distance (km)"      value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
+          <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25"  colors={colors} />
         </>
       )}
 
@@ -354,10 +372,9 @@ export default function AddActivityScreen() {
       )}
 
       {/* ── Bill reading (electricity / water) ── */}
-      {(category === 'electricity' || category === 'water') && (
+      {isBillCategory(category) && (
         <View style={styles.billSection}>
 
-          {/* Info box */}
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
             <FontAwesome6
               name={category === 'electricity' ? 'bolt' : 'droplet'}
@@ -371,13 +388,10 @@ export default function AddActivityScreen() {
             </ThemedText>
           </View>
 
-          {/* Previous reading context */}
           {loadingBill ? (
             <View style={styles.hintRow}>
               <ActivityIndicator size={12} color={colors.tint} />
-              <ThemedText style={[styles.hintText, { color: colors.text }]}>
-                Loading your previous reading…
-              </ThemedText>
+              <ThemedText style={[styles.hintText, { color: colors.text }]}>Loading your previous reading…</ThemedText>
             </View>
           ) : lastBill ? (
             <View style={styles.hintRow}>
@@ -398,13 +412,12 @@ export default function AddActivityScreen() {
               <ThemedText style={[styles.hintText, { color: colors.text }]}>
                 No previous reading — comparing against{' '}
                 {category === 'electricity'
-                  ? `avg household (~${BASELINES.electricity.kwhPerWeek * 4} kWh/month)`
-                  : `avg usage (~${(BASELINES.water.litresPerWeek * 4).toLocaleString()} L/month)`}
+                  ? `avg household (~${BASELINES.electricity.kwhPerMonth * 4} kWh/month)`
+                  : `avg usage (~${(BASELINES.water.litresPerMonth * 4).toLocaleString()} L/month)`}
               </ThemedText>
             </View>
           )}
 
-          {/* Input row with scan button */}
           <View style={styles.field}>
             <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
               {category === 'electricity' ? 'Meter reading (kWh)' : 'Usage this month (litres)'}
@@ -431,16 +444,13 @@ export default function AddActivityScreen() {
                 ) : (
                   <>
                     <FontAwesome6 name="camera" size={15} color={CATEGORY_COLORS[category]} />
-                    <ThemedText style={[styles.scanBtnText, { color: CATEGORY_COLORS[category] }]}>
-                      Scan
-                    </ThemedText>
+                    <ThemedText style={[styles.scanBtnText, { color: CATEGORY_COLORS[category] }]}>Scan</ThemedText>
                   </>
                 )}
               </Pressable>
             </View>
           </View>
 
-          {/* Live saving preview */}
           {preview !== null && (
             <View style={[
               styles.previewBox,
@@ -501,8 +511,8 @@ export default function AddActivityScreen() {
         )}
       </Pressable>
 
-      {/* ── OCR sheets ── */}
-      {(category === 'electricity' || category === 'water') && (
+      {/* ── OCR sheets — only rendered when category is narrowed ── */}
+      {isBillCategory(category) && (
         <>
           <OCRCandidatePicker
             visible={showPicker}
@@ -564,7 +574,6 @@ const styles = StyleSheet.create({
   inputFlex: { flex: 1 },
   inputRow:  { flexDirection: 'row', gap: 10, alignItems: 'center' },
 
-  // Walking or/divider
   orDivider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: -6 },
   orLine:    { flex: 1, height: 1 },
   orText:    { fontSize: 12, opacity: 0.4, fontWeight: '500' },

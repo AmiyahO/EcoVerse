@@ -167,18 +167,19 @@ export async function fetchAISuggestions(
 
   // 3. Call Gemini
   try {
+    console.log('🤖 Calling Gemini with key:', GEMINI_API_KEY ? 'SET' : 'MISSING');
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: buildPrompt(summary) }] }],
-          generationConfig: { temperature: 0.75, maxOutputTokens: 512 },
+          generationConfig: { temperature: 0.7, maxOutputTokens: 8192, responseMimeType: "application/json" },
         }),
       }
     );
-
+    
     if (response.status === 429) {
       await AsyncStorage.setItem(COOLDOWN_KEY, String(Date.now() + COOLDOWN_MS));
       const cachedTips = await getCachedTips();
@@ -192,6 +193,9 @@ export async function fetchAISuggestions(
 
     const data = await response.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+
+    console.log('📡 Gemini status:', response.status);
+console.log('📄 Gemini response:', JSON.stringify(data));
 
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']') + 1;
@@ -210,6 +214,7 @@ export async function fetchAISuggestions(
     return { tips, fromCache: false, rateLimited: false };
   } catch (e) {
     console.warn('AI fetch failed:', e);
+    console.log('❌ Full error:', JSON.stringify(e), String(e));
     return { tips: getPlaceholderTips(summary), fromCache: false, rateLimited: false };
   }
 }

@@ -1,6 +1,7 @@
 // onboarding/index.tsx
 import { useState } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import { useRouter } from 'expo-router';
 import { auth, db } from '@/src/firebase/config';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -15,6 +16,7 @@ import Step7 from './7';
 
 export default function Onboarding() {
   const router  = useRouter();
+  const { scheme } = useAppTheme();
   const [region, setRegion]         = useState('GLOBAL_AVG');
   const [isFinishing, setIsFinishing] = useState(false);
 
@@ -40,7 +42,7 @@ export default function Onboarding() {
 
   if (isFinishing) {
     return (
-      <View style={styles.loader}>
+      <View style={[styles.loader, { backgroundColor: scheme === 'light' ? '#F0F7F1' : '#0B1E14' }]}>
         <ActivityIndicator size="large" color="#4CAF50" />
       </View>
     );
@@ -60,5 +62,5 @@ export default function Onboarding() {
 }
 
 const styles = StyleSheet.create({
-  loader: { flex: 1, backgroundColor: '#0B1E14', justifyContent: 'center', alignItems: 'center' },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

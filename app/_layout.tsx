@@ -15,10 +15,14 @@ export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [authResolved, setAuthResolved] = useState(false); // has Firebase told us auth state?
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);
   const [userDocReady, setUserDocReady] = useState(false);
   const [activitiesReady, setActivitiesReady] = useState(false);
-  const loading = !userDocReady || !activitiesReady;
+  // freshLogin: true when user just signed in this session (skip skeleton, go straight to route)
+  const freshLogin = useRef(false);
+  // Only show data-loading skeleton when signed in AND it's not a fresh login/signup
+  const loading = !authResolved || (!!user && (!userDocReady || !activitiesReady) && !freshLogin.current);
 
   const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore();
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
@@ -37,8 +41,11 @@ export default function RootLayout() {
       clearActivities();
       initialLoadDone.current = false;
 
+      setAuthResolved(true);
+
       if (currentUser) {
         setUser(currentUser);
+        freshLogin.current = true; // skip skeleton — we just authenticated
 
         // ── User profile listener ──
         unsubscribeDoc = onSnapshot(
@@ -130,17 +137,35 @@ export default function RootLayout() {
   useEffect(() => { checkAndResetCelebration(); }, []);
 
   useEffect(() => {
-    if (!loading) {
-      if (!user)                          router.replace('/login');
-      else if (hasFinishedOnboarding === false) router.replace('/onboarding');
-      else if (hasFinishedOnboarding === true)  router.replace('/(tabs)');
+    if (!authResolved) return;
+    // For fresh logins, route as soon as we know onboarding status (don't wait for activities)
+    const readyToRoute = freshLogin.current
+      ? (userDocReady && hasFinishedOnboarding !== null)
+      : !loading;
+
+    if (readyToRoute) {
+      if (!user) {
+        freshLogin.current = false;
+        router.replace('/login');
+      } else if (hasFinishedOnboarding === false) {
+        freshLogin.current = false;
+        router.replace('/onboarding');
+      } else if (hasFinishedOnboarding === true) {
+        freshLogin.current = false;
+        router.replace('/(tabs)');
+      }
+      // null = doc not written yet (deleted account re-auth), wait
     }
-  }, [user, hasFinishedOnboarding, loading]);
+  }, [user, hasFinishedOnboarding, loading, authResolved, userDocReady]);
 
   if (loading) {
     const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
     const shimmer  = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
     const shimmer2 = scheme === 'dark' ? '#222'    : '#F3F4F6';
+    // If auth hasn't resolved yet, no user, or fresh login — show plain background, never skeleton
+    if (!authResolved || !user || freshLogin.current) {
+      return <View style={{ flex: 1, backgroundColor: bg }} />;
+    }
     return (
       <View style={{ flex: 1, backgroundColor: bg, padding: 20, paddingTop: 60 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 }}>
@@ -184,8 +209,6 @@ export default function RootLayout() {
             name="edit-profile"
             options={{ presentation: 'modal', animation: 'fade_from_bottom' }}
           />
-          <Stack.Screen name="health-connect-setup" />
-          <Stack.Screen name="health-connect-sync" />
         </Stack>
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />

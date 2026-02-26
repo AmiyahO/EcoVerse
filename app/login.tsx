@@ -1,8 +1,14 @@
 // login.tsx
+// NOTE: Google icon uses a PNG asset (assets/images/google-icon.png) instead of
+// react-native-svg to avoid the "Tried to register two views with the same name
+// RNSVGPath" Metro HMR duplicate registration error.
+// Download the official Google G PNG from:
+// https://developers.google.com/identity/branding-guidelines
+// Save as: assets/images/google-icon.png
 import {
   View, Text, Pressable, StyleSheet, Platform, TextInput,
   Alert, KeyboardAvoidingView, ActivityIndicator, Image,
-  Animated, Dimensions,
+  Animated,
 } from 'react-native';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { useState, useRef, useEffect } from 'react';
@@ -20,8 +26,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 GoogleSignin.configure({
   webClientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
 });
@@ -35,13 +39,15 @@ export default function LoginScreen() {
   const [password, setPassword]         = useState('');
   const [isSignUp, setIsSignUp]         = useState(false);
   const [loading, setLoading]           = useState(false);
+  const [authError, setAuthError]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passFocused, setPassFocused]   = useState(false);
 
-  // Fade-in on mount
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  const clearError = () => { if (authError) setAuthError(''); };
 
   useEffect(() => {
     Animated.parallel([
@@ -54,43 +60,34 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
-      const userInfo   = await GoogleSignin.signIn();
-      const idToken    = userInfo.data?.idToken;
+      const userInfo = await GoogleSignin.signIn();
+      const idToken  = userInfo.data?.idToken;
       if (!idToken) throw new Error('No ID token returned');
 
-      const credential    = GoogleAuthProvider.credential(idToken);
+      const credential     = GoogleAuthProvider.credential(idToken);
       const userCredential = await signInWithCredential(auth, credential);
-      const user          = userCredential.user;
-
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc    = await getDoc(userDocRef);
+      const user           = userCredential.user;
+      const userDocRef     = doc(db, 'users', user.uid);
+      const userDoc        = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
         await setDoc(userDocRef, {
-          email: user.email,
-          displayName: user.displayName,
+          email: user.email, displayName: user.displayName,
           photoURL: user.photoURL || null,
-          createdAt: serverTimestamp(),
-          lastLogin: serverTimestamp(),
-          tokens: 0,
-          totalCarbonSaved: 0,
-          hasFinishedOnboarding: false,
+          createdAt: serverTimestamp(), lastLogin: serverTimestamp(),
+          tokens: 0, totalCarbonSaved: 0, hasFinishedOnboarding: false,
         });
       } else {
-        await setDoc(userDocRef, {
-          lastLogin: serverTimestamp(),
-          photoURL: user.photoURL || null,
-        }, { merge: true });
+        await setDoc(userDocRef, { lastLogin: serverTimestamp(), photoURL: user.photoURL || null }, { merge: true });
       }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
-      if (error.code === statusCodes.IN_PROGRESS) {
+      if (error.code === statusCodes.IN_PROGRESS)
         Alert.alert('Sign-in already in progress');
-      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+      else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE)
         Alert.alert('Error', 'Google Play Services not available');
-      } else {
+      else
         Alert.alert('Sign-In Error', error.message);
-      }
     } finally {
       setLoading(false);
     }
@@ -102,23 +99,18 @@ export default function LoginScreen() {
       return;
     }
     if (isSignUp && password.length < 6) {
-      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      setAuthError('Password must be at least 6 characters.');
       return;
     }
-
     setLoading(true);
+    setAuthError('');
     try {
       if (isSignUp) {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await setDoc(doc(db, 'users', cred.user.uid), {
-          email: cred.user.email,
-          displayName: email.split('@')[0],
-          photoURL: null,
-          createdAt: serverTimestamp(),
-          lastLogin: serverTimestamp(),
-          tokens: 0,
-          totalCarbonSaved: 0,
-          hasFinishedOnboarding: false,
+          email: cred.user.email, displayName: email.split('@')[0],
+          photoURL: null, createdAt: serverTimestamp(), lastLogin: serverTimestamp(),
+          tokens: 0, totalCarbonSaved: 0, hasFinishedOnboarding: false,
         });
         setEmail(''); setPassword('');
       } else {
@@ -127,12 +119,19 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       const msg =
-        error.code === 'auth/user-not-found'  ? 'No account found with this email.' :
-        error.code === 'auth/wrong-password'  ? 'Incorrect password.' :
-        error.code === 'auth/invalid-email'   ? 'Please enter a valid email address.' :
-        error.code === 'auth/email-already-in-use' ? 'An account already exists with this email.' :
-        error.message;
-      Alert.alert('Error', msg);
+        error.code === 'auth/user-not-found'         ? 'No account found with this email.' :
+        error.code === 'auth/wrong-password'          ? 'Incorrect password. Please try again.' :
+        error.code === 'auth/invalid-credential'      ? 'Incorrect email or password.' :
+        error.code === 'auth/invalid-email'           ? 'Please enter a valid email address.' :
+        error.code === 'auth/email-already-in-use'    ? 'An account already exists with this email. Try signing in instead.' :
+        error.code === 'auth/weak-password'           ? 'Password must be at least 6 characters.' :
+        error.code === 'auth/password-does-not-meet-requirements' ? 'Password must be at least 6 characters.' :
+        error.code === 'auth/too-many-requests'       ? 'Too many attempts. Please wait a moment and try again.' :
+        error.code === 'auth/network-request-failed'  ? 'No internet connection. Check your network and try again.' :
+        error.code === 'auth/user-disabled'           ? 'This account has been disabled. Please contact support.' :
+        error.message?.toLowerCase().includes('password') ? 'Password must be at least 6 characters.' :
+        'Something went wrong. Please try again.';
+      setAuthError(msg);
     } finally {
       setLoading(false);
     }
@@ -143,91 +142,122 @@ export default function LoginScreen() {
       Alert.alert('Enter your email', 'Type your email above, then tap "Forgot password" to reset it.');
       return;
     }
-    Alert.alert(
-      'Reset password',
-      `Send a reset link to ${email.trim()}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Send',
-          onPress: async () => {
-            try {
-              await sendPasswordResetEmail(auth, email.trim());
-              Alert.alert('Sent!', 'Check your inbox for a password reset link.');
-            } catch {
-              Alert.alert('Error', 'Could not send reset email. Check the address and try again.');
-            }
-          },
+    Alert.alert('Reset password', `Send a reset link to ${email.trim()}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Send',
+        onPress: async () => {
+          try {
+            await sendPasswordResetEmail(auth, email.trim());
+            Alert.alert('Sent!', 'Check your inbox for a password reset link.');
+          } catch {
+            Alert.alert('Error', 'Could not send reset email. Check the address and try again.');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
+  // ── Dark: deep forest. Light: clean white/mint — clearly distinct ──────────
   const gradientColors = isDark
     ? ['#0B1E14', '#0D2A1A', '#0B1E14'] as const
-    : ['#0f3320', '#1B4D2E', '#2E7D32'] as const;
+    : ['#FFFFFF', '#F0F9F1', '#E4F5E7'] as const;
 
-  const inputBorderColor = (focused: boolean) =>
-    focused ? colors.tint + 'AA' : (isDark ? '#ffffff18' : '#00000018');
+  // ── Input border ───────────────────────────────────────────────────────────
+  const inputBorderFocused   = colors.tint + 'CC';
+  const inputBorderUnfocused = isDark ? 'rgba(255,255,255,0.12)' : '#D8D8D8';
+  const inputBg              = isDark ? 'rgba(255,255,255,0.05)' : '#F5F5F5';
+
+  // ── Card: NO shadow/elevation/border in dark mode — causes the "box" look ──
+  const cardStyle = isDark
+    ? {
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderColor: 'rgba(255,255,255,0.10)',
+        borderWidth: 1,
+        // No shadow props at all in dark mode
+      }
+    : {
+        backgroundColor: '#FFFFFF',
+        borderColor: 'rgba(0,0,0,0.06)',
+        borderWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.09,
+        shadowRadius: 14,
+        elevation: 5,
+      };
 
   return (
     <LinearGradient colors={gradientColors} style={styles.container}>
 
-      {/* Decorative orbs */}
-      <View style={[styles.orb, styles.orbTopRight, { backgroundColor: isDark ? colors.tint + '18' : 'rgba(0,0,0,0.12)' }]} />
-      <View style={[styles.orb, styles.orbBottomLeft, { backgroundColor: isDark ? '#34C9C922' : 'rgba(0,0,0,0.08)' }]} />
+      {/* Decorative orbs — stronger in light mode for visual interest */}
+      <View style={[styles.orb, styles.orbTopRight, {
+        backgroundColor: isDark ? colors.tint + '15' : '#B9E8BF',
+      }]} />
+      <View style={[styles.orb, styles.orbBottomLeft, {
+        backgroundColor: isDark ? '#34C9C918' : '#A5D6A7',
+      }]} />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.inner}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.inner}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
           {/* ── Logo ── */}
           <View style={styles.logoSection}>
+            {/* In light mode, add a subtle circular glow behind logo to make it pop */}
+            {!isDark && (
+              <View style={styles.logoGlow} />
+            )}
             <Image
               source={require('@/assets/images/logo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.tagline}>TRACK YOUR IMPACT</Text>
+            <Text style={[styles.tagline, {
+              // Darker green in light mode so it's clearly readable
+              color: isDark ? '#8BE94F' : '#1B5E20',
+            }]}>
+              TRACK YOUR IMPACT
+            </Text>
           </View>
 
           {/* ── Card ── */}
-          <View style={[
-            styles.card,
-            { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.92)' },
-          ]}>
+          <View style={[styles.card, cardStyle]}>
 
             {/* Mode toggle pill */}
-            <View style={[styles.modePill, { backgroundColor: isDark ? '#ffffff10' : '#00000010' }]}>
+            <View style={[styles.modePill, {
+              backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#EBEBEB',
+            }]}>
               <Pressable
                 style={[styles.modeBtn, !isSignUp && { backgroundColor: colors.tint }]}
-                onPress={() => { setIsSignUp(false); setEmail(''); setPassword(''); }}
+                onPress={() => { setIsSignUp(false); setEmail(''); setPassword(''); setAuthError(''); }}
               >
-                <Text style={[styles.modeBtnText, { color: !isSignUp ? '#fff' : (isDark ? '#ffffff88' : '#00000066') }]}>
-                  Sign In
-                </Text>
+                <Text style={[styles.modeBtnText, {
+                  color: !isSignUp ? '#fff' : (isDark ? 'rgba(255,255,255,0.5)' : '#777'),
+                }]}>Sign In</Text>
               </Pressable>
               <Pressable
                 style={[styles.modeBtn, isSignUp && { backgroundColor: colors.tint }]}
-                onPress={() => { setIsSignUp(true); setEmail(''); setPassword(''); }}
+                onPress={() => { setIsSignUp(true); setEmail(''); setPassword(''); setAuthError(''); }}
               >
-                <Text style={[styles.modeBtnText, { color: isSignUp ? '#fff' : (isDark ? '#ffffff88' : '#00000066') }]}>
-                  Sign Up
-                </Text>
+                <Text style={[styles.modeBtnText, {
+                  color: isSignUp ? '#fff' : (isDark ? 'rgba(255,255,255,0.5)' : '#777'),
+                }]}>Sign Up</Text>
               </Pressable>
             </View>
 
             {/* Email input */}
-            <View style={[styles.inputWrap, { borderColor: inputBorderColor(emailFocused), backgroundColor: isDark ? '#ffffff08' : '#00000006' }]}>
-              <Ionicons name="mail-outline" size={18} color={isDark ? '#ffffff55' : '#00000055'} style={styles.inputIcon} />
+            <View style={[styles.inputWrap, {
+              borderColor: emailFocused ? inputBorderFocused : inputBorderUnfocused,
+              backgroundColor: inputBg,
+            }]}>
+              <Ionicons name="mail-outline" size={18}
+                color={isDark ? 'rgba(255,255,255,0.35)' : '#AAAAAA'} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: isDark ? '#fff' : '#111' }]}
                 placeholder="Email address"
-                placeholderTextColor={isDark ? '#ffffff44' : '#00000044'}
+                placeholderTextColor={isDark ? 'rgba(255,255,255,0.28)' : '#C0C0C0'}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={v => { setEmail(v); clearError(); }}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 editable={!loading}
@@ -237,14 +267,18 @@ export default function LoginScreen() {
             </View>
 
             {/* Password input */}
-            <View style={[styles.inputWrap, { borderColor: inputBorderColor(passFocused), backgroundColor: isDark ? '#ffffff08' : '#00000006' }]}>
-              <Ionicons name="lock-closed-outline" size={18} color={isDark ? '#ffffff55' : '#00000055'} style={styles.inputIcon} />
+            <View style={[styles.inputWrap, {
+              borderColor: passFocused ? inputBorderFocused : inputBorderUnfocused,
+              backgroundColor: inputBg,
+            }]}>
+              <Ionicons name="lock-closed-outline" size={18}
+                color={isDark ? 'rgba(255,255,255,0.35)' : '#AAAAAA'} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: isDark ? '#fff' : '#111', flex: 1 }]}
                 placeholder="Password"
-                placeholderTextColor={isDark ? '#ffffff44' : '#00000044'}
+                placeholderTextColor={isDark ? 'rgba(255,255,255,0.28)' : '#C0C0C0'}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={v => { setPassword(v); clearError(); }}
                 secureTextEntry={!showPassword}
                 editable={!loading}
                 onFocus={() => setPassFocused(true)}
@@ -253,13 +287,20 @@ export default function LoginScreen() {
               <Pressable onPress={() => setShowPassword(v => !v)} style={styles.eyeBtn}>
                 <Ionicons
                   name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                  size={20}
-                  color={isDark ? '#ffffff55' : '#00000055'}
+                  size={20} color={isDark ? 'rgba(255,255,255,0.35)' : '#AAAAAA'}
                 />
               </Pressable>
             </View>
 
-            {/* Forgot password — only on sign in */}
+            {/* Inline error */}
+            {authError ? (
+              <View style={[styles.errorBox, { backgroundColor: '#FF525212' }]}>
+                <Ionicons name="alert-circle-outline" size={15} color="#FF5252" />
+                <Text style={styles.errorText}>{authError}</Text>
+              </View>
+            ) : null}
+
+            {/* Forgot password */}
             {!isSignUp && (
               <Pressable onPress={handleForgotPassword} style={styles.forgotBtn}>
                 <Text style={[styles.forgotText, { color: colors.tint }]}>Forgot password?</Text>
@@ -272,33 +313,34 @@ export default function LoginScreen() {
               onPress={handleEmailAuth}
               disabled={loading}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.primaryBtnText}>{isSignUp ? 'Create Account' : 'Sign In'}</Text>
-              )}
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.primaryBtnText}>{isSignUp ? 'Create Account' : 'Sign In'}</Text>
+              }
             </Pressable>
 
             {/* Divider */}
             <View style={styles.dividerRow}>
-              <View style={[styles.dividerLine, { backgroundColor: isDark ? '#ffffff18' : '#00000018' }]} />
-              <Text style={{ color: isDark ? '#ffffff44' : '#00000044', fontSize: 12, marginHorizontal: 12 }}>OR</Text>
-              <View style={[styles.dividerLine, { backgroundColor: isDark ? '#ffffff18' : '#00000018' }]} />
+              <View style={[styles.dividerLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E5E5' }]} />
+              <Text style={{ color: isDark ? 'rgba(255,255,255,0.3)' : '#CCCCCC', fontSize: 12, marginHorizontal: 12 }}>OR</Text>
+              <View style={[styles.dividerLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E5E5' }]} />
             </View>
 
-            {/* Google */}
+            {/* Google — PNG icon, no SVG to avoid duplicate registration error */}
             <Pressable
               style={[styles.googleBtn, {
-                backgroundColor: isDark ? '#ffffff10' : '#fff',
-                borderColor: isDark ? '#ffffff18' : '#00000015',
+                backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#FAFAFA',
+                borderColor:     isDark ? 'rgba(255,255,255,0.10)' : '#E0E0E0',
               }]}
               onPress={handleGoogleSignIn}
               disabled={loading}
             >
-              {/* Google G icon using text as proxy */}
-              <View style={styles.googleIconWrap}>
-                <Text style={styles.googleG}>G</Text>
-              </View>
+              {/* Place google-icon.png in assets/images/ */}
+              <Image
+                source={require('@/assets/images/google-icon.png')}
+                style={styles.googleIcon}
+                resizeMode="contain"
+              />
               <Text style={[styles.googleBtnText, { color: isDark ? '#fff' : '#333' }]}>
                 Continue with Google
               </Text>
@@ -307,7 +349,9 @@ export default function LoginScreen() {
           </View>
 
           {/* Terms note */}
-          <Text style={styles.termsNote}>
+          <Text style={[styles.termsNote, {
+            color: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+          }]}>
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </Text>
 
@@ -320,88 +364,62 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
-  // Decorative background orbs
   orb: { position: 'absolute', borderRadius: 999 },
-  orbTopRight:   { width: 280, height: 280, top: -80,  right: -80 },
-  orbBottomLeft: { width: 200, height: 200, bottom: 40, left: -60 },
+  orbTopRight:   { width: 260, height: 260, top: -70,  right: -70 },
+  orbBottomLeft: { width: 190, height: 190, bottom: 50, left: -55 },
 
   inner: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
 
-  // Logo
-  logoSection: { alignItems: 'center', marginBottom: 28 },
-  logo:        { width: 160, height: 160, marginBottom: 4 },
-  tagline:     { fontSize: 11, fontWeight: '700', letterSpacing: 3, color: '#8BE94F', opacity: 0.85, marginTop: 2 },
-
-  // Card
-  card: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    gap: 12,
+  logoSection: { alignItems: 'center', marginBottom: 20 },
+  // Soft circular glow behind logo in light mode — makes it pop off white bg
+  logoGlow: {
+    position: 'absolute',
+    width: 170, height: 170,
+    borderRadius: 85,
+    backgroundColor: '#C8E6C9',
+    top: 0,
   },
+  logo:    { width: 150, height: 150, marginBottom: -12 },
+  tagline: { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.9 },
 
-  // Mode toggle
+  card: { borderRadius: 24, padding: 24, gap: 12 },
+
   modePill:    { flexDirection: 'row', borderRadius: 12, padding: 3, marginBottom: 4 },
   modeBtn:     { flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center' },
   modeBtnText: { fontSize: 14, fontWeight: '600' },
 
-  // Inputs
   inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 52,
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.5, borderRadius: 14,
+    paddingHorizontal: 14, height: 52,
   },
   inputIcon: { marginRight: 10 },
   input:     { flex: 1, fontSize: 15, height: 52 },
   eyeBtn:    { padding: 4 },
 
-  // Forgot
   forgotBtn:  { alignSelf: 'flex-end', marginTop: -4 },
+  errorBox:   { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, marginTop: -4 },
+  errorText:  { color: '#FF5252', fontSize: 13, flex: 1, lineHeight: 18 },
   forgotText: { fontSize: 13, fontWeight: '500' },
 
-  // Primary button
   primaryBtn: {
-    height: 52,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
+    height: 52, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', marginTop: 4,
   },
   primaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 
-  // Divider
-  dividerRow: { flexDirection: 'row', alignItems: 'center' },
+  dividerRow:  { flexDirection: 'row', alignItems: 'center' },
   dividerLine: { flex: 1, height: 1 },
 
-  // Google
   googleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 52,
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    height: 52, borderRadius: 14, borderWidth: 1, gap: 10,
   },
-  googleIconWrap: {
-    width: 24, height: 24, borderRadius: 12,
-    backgroundColor: '#4285F4',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  googleG:       { color: '#fff', fontWeight: '800', fontSize: 13 },
+  googleIcon:    { width: 30, height: 30 },
   googleBtnText: { fontSize: 15, fontWeight: '600' },
 
-  // Footer
   termsNote: {
-    textAlign: 'center',
-    color: 'rgba(255,255,255,0.35)',
-    fontSize: 11,
-    marginTop: 16,
-    lineHeight: 16,
-    paddingHorizontal: 20,
+    textAlign: 'center', fontSize: 11,
+    marginTop: 16, lineHeight: 16, paddingHorizontal: 20,
   },
 });

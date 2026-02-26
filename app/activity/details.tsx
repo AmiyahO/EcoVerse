@@ -156,6 +156,14 @@ export default function ActivityDetailsScreen() {
           value={new Date(activity.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
           colors={colors}
         />
+        {(activity as any).source === 'health_connect' && (
+          <DetailRow
+            icon="heart-pulse"
+            label="Source"
+            value="Imported from Health Connect"
+            colors={colors}
+          />
+        )}
       </View>
 
       {/* ── Actions ── */}

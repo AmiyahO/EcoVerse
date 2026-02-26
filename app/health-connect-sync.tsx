@@ -3,7 +3,7 @@
 // select/deselect, shows estimated impact, then batch-imports on confirm.
 
 import {
-  View, Text, StyleSheet, Pressable, ScrollView,
+  View, StyleSheet, Pressable, ScrollView,
   ActivityIndicator, Alert, Animated,
 } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
@@ -43,21 +43,19 @@ export default function HealthConnectSyncScreen() {
   const activities  = useActivityStore(s => s.activities);
   const userRegion  = useActivityStore(s => s.userRegion);
 
-  const [loading,    setLoading]    = useState(true);
-  const [syncing,    setSyncing]    = useState(false);
-  const [sessions,   setSessions]   = useState<SyncSession[]>([]);
-  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [syncing,     setSyncing]     = useState(false);
+  const [sessions,    setSessions]    = useState<SyncSession[]>([]);
+  const [lastSynced,  setLastSynced]  = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<string[]>([]);
-  const [permOk,     setPermOk]     = useState(true);
+  const [permOk,      setPermOk]      = useState(true);
 
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const fadeAnim    = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
   const [showSuccess, setShowSuccess] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ imported: number; totalTokens: number; totalCarbon: number } | null>(null);
+  const [syncResult, setSyncResult]   = useState<{ imported: number; totalTokens: number; totalCarbon: number } | null>(null);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const load = async () => {
     setLoading(true);
@@ -88,17 +86,15 @@ export default function HealthConnectSyncScreen() {
     setSessions(prev => prev.map(s => ({ ...s, selected: !allSelected })));
   };
 
-  const selectedCount  = sessions.filter(s => s.selected).length;
-  const totalTokens    = sessions.filter(s => s.selected).reduce((sum, s) => sum + s.estimatedTokens, 0);
-  const totalCarbon    = sessions.filter(s => s.selected).reduce((sum, s) => sum + s.estimatedCarbon, 0);
+  const selectedCount = sessions.filter(s => s.selected).length;
+  const totalTokens   = sessions.filter(s => s.selected).reduce((sum, s) => sum + s.estimatedTokens, 0);
+  const totalCarbon   = sessions.filter(s => s.selected).reduce((sum, s) => sum + s.estimatedCarbon, 0);
 
   const handleSync = async () => {
     if (selectedCount === 0) return;
-
     setSyncing(true);
     try {
       const result = await commitSync(sessions, userRegion, activities, importedIds);
-
       setSyncResult(result);
       setShowSuccess(true);
       Animated.timing(successAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -116,11 +112,9 @@ export default function HealthConnectSyncScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <Animated.View style={[styles.successScreen, { opacity: successAnim }]}>
           <View style={styles.successIcon}>
-            <Text style={styles.successEmoji}>🎉</Text>
+            <FontAwesome6 name="circle-check" size={64} color={colors.tint} />
           </View>
-          <ThemedText style={[styles.successTitle, { color: colors.text }]}>
-            Sync complete!
-          </ThemedText>
+          <ThemedText style={[styles.successTitle, { color: colors.text }]}>Sync complete!</ThemedText>
           <ThemedText style={[styles.successSub, { color: colors.text }]}>
             {syncResult.imported} {syncResult.imported === 1 ? 'activity' : 'activities'} imported
           </ThemedText>
@@ -164,7 +158,7 @@ export default function HealthConnectSyncScreen() {
           <ThemedText style={[styles.headerTitle, { color: colors.text }]}>Sync Activities</ThemedText>
         </View>
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🔒</Text>
+          <FontAwesome6 name="lock" size={52} color={colors.text} style={{ opacity: 0.3, marginBottom: 4 }} />
           <ThemedText style={[styles.emptyTitle, { color: colors.text }]}>Health Connect not connected</ThemedText>
           <ThemedText style={[styles.emptySub, { color: colors.text }]}>
             Grant Health Connect access first to sync your activities.
@@ -203,15 +197,12 @@ export default function HealthConnectSyncScreen() {
       {loading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={colors.tint} />
-          <ThemedText style={[styles.loadingText, { color: colors.text }]}>
-            Checking Health Connect…
-          </ThemedText>
+          <ThemedText style={[styles.loadingText, { color: colors.text }]}>Checking Health Connect…</ThemedText>
         </View>
       ) : sessions.length === 0 ? (
 
-        /* Empty state */
         <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>✅</Text>
+          <FontAwesome6 name="circle-check" size={52} color={colors.tint} style={{ marginBottom: 4 }} />
           <ThemedText style={[styles.emptyTitle, { color: colors.text }]}>All caught up!</ThemedText>
           <ThemedText style={[styles.emptySub, { color: colors.text }]}>
             No new activities found since your last sync.{'\n'}
@@ -221,7 +212,6 @@ export default function HealthConnectSyncScreen() {
 
       ) : (
 
-        /* Sessions list */
         <Animated.View style={[{ flex: 1 }, { opacity: fadeAnim }]}>
 
           {/* Summary bar */}
@@ -243,15 +233,12 @@ export default function HealthConnectSyncScreen() {
             </Pressable>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.scroll}
-            showsVerticalScrollIndicator={false}
-          >
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
             {sessions.map((session, i) => {
-              const hca     = session.hcActivity;
-              const color   = CATEGORY_COLOR[hca.type];
-              const icon    = CATEGORY_ICON[hca.type];
-              const source  = formatSource(hca.source);
+              const hca    = session.hcActivity;
+              const color  = CATEGORY_COLOR[hca.type];
+              const icon   = CATEGORY_ICON[hca.type];
+              const source = formatSource(hca.source);
 
               return (
                 <Pressable
@@ -260,18 +247,12 @@ export default function HealthConnectSyncScreen() {
                   style={[
                     styles.sessionCard,
                     { backgroundColor: colors.surface },
-                    session.selected && {
-                      borderColor: color + '55',
-                      borderWidth: 1.5,
-                    },
-                    !session.selected && {
-                      borderColor: colors.surfaceMuted,
-                      borderWidth: 1,
-                      opacity: 0.6,
-                    },
+                    session.selected
+                      ? { borderColor: color + '55', borderWidth: 1.5 }
+                      : { borderColor: colors.surfaceMuted, borderWidth: 1, opacity: 0.6 },
                   ]}
                 >
-                  {/* Left: icon */}
+                  {/* Left: category icon */}
                   <View style={[styles.sessionIconWrap, { backgroundColor: color + '20' }]}>
                     <FontAwesome6 name={icon as any} size={18} color={color} />
                   </View>
@@ -286,15 +267,13 @@ export default function HealthConnectSyncScreen() {
                         {formatActivityDate(hca.startTime)}
                       </ThemedText>
                     </View>
-
                     <ThemedText style={[styles.sessionMeta, { color: colors.text }]}>
                       {[
                         hca.steps    ? `${hca.steps.toLocaleString()} steps` : null,
-                        hca.distance ? `${hca.distance} km` : null,
-                        hca.duration ? formatActivityDuration(hca.duration) : null,
+                        hca.distance ? `${hca.distance} km`                  : null,
+                        hca.duration ? formatActivityDuration(hca.duration)  : null,
                       ].filter(Boolean).join(' · ')}
                     </ThemedText>
-
                     <ThemedText style={[styles.sessionSource, { color: colors.text }]}>
                       via {source}
                     </ThemedText>
@@ -303,9 +282,13 @@ export default function HealthConnectSyncScreen() {
                   {/* Right: impact + checkbox */}
                   <View style={styles.sessionRight}>
                     <View style={styles.sessionImpact}>
-                      <ThemedText style={[styles.impactTokens, { color: session.selected ? colors.tint : colors.text }]}>
-                        +{session.estimatedTokens}🪙
-                      </ThemedText>
+                      {/* Leaf icon instead of coin emoji */}
+                      <View style={styles.tokenRow}>
+                        <FontAwesome6 name="leaf" size={11} color={session.selected ? colors.tint : colors.text} />
+                        <ThemedText style={[styles.impactTokens, { color: session.selected ? colors.tint : colors.text }]}>
+                          +{session.estimatedTokens}
+                        </ThemedText>
+                      </View>
                       <ThemedText style={[styles.impactCarbon, { color: colors.text }]}>
                         {session.estimatedCarbon.toFixed(2)}kg
                       </ThemedText>
@@ -316,9 +299,7 @@ export default function HealthConnectSyncScreen() {
                         ? { backgroundColor: color, borderColor: color }
                         : { backgroundColor: 'transparent', borderColor: colors.surfaceMuted },
                     ]}>
-                      {session.selected && (
-                        <Ionicons name="checkmark" size={12} color="#fff" />
-                      )}
+                      {session.selected && <Ionicons name="checkmark" size={12} color="#fff" />}
                     </View>
                   </View>
                 </Pressable>
@@ -383,13 +364,11 @@ const styles = StyleSheet.create({
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 40, gap: 12,
   },
-  emptyIcon:  { fontSize: 52, marginBottom: 4 },
   emptyTitle: { fontSize: 20, fontWeight: '700', textAlign: 'center' },
   emptySub:   { fontSize: 14, opacity: 0.5, textAlign: 'center', lineHeight: 21 },
   setupBtn:   { marginTop: 8, paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12 },
   setupBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  // Summary bar
   summaryBar: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: 16, marginTop: 4, marginBottom: 8,
@@ -402,15 +381,13 @@ const styles = StyleSheet.create({
 
   scroll: { paddingHorizontal: 16, paddingBottom: 16, gap: 10 },
 
-  // Session card
   sessionCard: {
     flexDirection: 'row', alignItems: 'center',
     borderRadius: 14, padding: 13, gap: 12,
   },
   sessionIconWrap: {
     width: 42, height: 42, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   sessionTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   sessionType:   { fontSize: 14, fontWeight: '700' },
@@ -418,18 +395,17 @@ const styles = StyleSheet.create({
   sessionMeta:   { fontSize: 13, opacity: 0.65, marginTop: 2 },
   sessionSource: { fontSize: 11, opacity: 0.35, marginTop: 2 },
 
-  sessionRight: { alignItems: 'flex-end', gap: 8, flexShrink: 0 },
+  sessionRight:  { alignItems: 'flex-end', gap: 8, flexShrink: 0 },
   sessionImpact: { alignItems: 'flex-end' },
+  tokenRow:      { flexDirection: 'row', alignItems: 'center', gap: 4 },
   impactTokens:  { fontSize: 13, fontWeight: '700' },
   impactCarbon:  { fontSize: 11, opacity: 0.45, marginTop: 1 },
 
   checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 1.5,
+    width: 22, height: 22, borderRadius: 6, borderWidth: 1.5,
     alignItems: 'center', justifyContent: 'center',
   },
 
-  // Bottom bar
   bottomBar: {
     padding: 16, paddingBottom: 28, gap: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -441,19 +417,16 @@ const styles = StyleSheet.create({
   syncBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   syncNote:    { textAlign: 'center', fontSize: 12, opacity: 0.45 },
 
-  // Success
   successScreen: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
     paddingHorizontal: 32, gap: 12,
   },
   successIcon:      { marginBottom: 8 },
-  successEmoji:     { fontSize: 64 },
   successTitle:     { fontSize: 28, fontWeight: '800', textAlign: 'center' },
   successSub:       { fontSize: 16, opacity: 0.6, textAlign: 'center' },
   successStats:     { flexDirection: 'row', gap: 12, marginVertical: 12, width: '100%' },
   successStat: {
-    flex: 1, borderRadius: 14, padding: 16,
-    alignItems: 'center', gap: 6,
+    flex: 1, borderRadius: 14, padding: 16, alignItems: 'center', gap: 6,
   },
   successStatValue: { fontSize: 26, fontWeight: '800' },
   successStatLabel: { fontSize: 12, opacity: 0.5, textAlign: 'center' },
