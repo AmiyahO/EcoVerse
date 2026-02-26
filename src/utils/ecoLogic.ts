@@ -24,9 +24,9 @@ export const REGIONAL_INTENSITY: Record<string, number> = {
 //   expose billingMonths so the UI can scale the comparison to the actual period.
 export const BASELINES = {
   electricity: {
-    kwhPerMonth:    877,   // avg US residential; ~290 kWh/month in EU/UK
+    kwhPerMonth:    290,   // avg EU/UK residential; ~877 kWh/month in US, but we use the more conservative EU figure as a global default
     billingMonths:  1,     // default; user may receive bill every 2 months
-    label: 'avg household uses ~877 kWh/month (US) or ~290 kWh/month (EU/UK)',
+    label: 'avg household uses ~290 kWh/month (EU/UK) or ~877 kWh/month (US)',
   },
   water: {
     litresPerMonth: 11000, // avg 2.5-person household; WHO ~150 L/person/day
@@ -131,9 +131,9 @@ export function calculateCarbonSaved(
 // ── EcoScore zone ─────────────────────────────────────────────────────────────
 export function getEcoZone(score: number) {
   if (score < 50)
-    return { label: 'Red',    message: 'Try logging more eco-friendly activities this week 🌱' };
+    return { label: 'Red',    message: 'Try logging more eco-friendly activities this week' };
   if (score < 75)
-    return { label: 'Yellow', message: 'You\'re doing well — keep your streak going 💛' };
+    return { label: 'Yellow', message: 'You\'re doing well — keep your streak going' };
   return   { label: 'Green',  message: 'Amazing! You\'re making a real impact 🌍' };
 }
 

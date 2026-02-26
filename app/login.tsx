@@ -71,12 +71,17 @@ export default function LoginScreen() {
       const userDoc        = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        await setDoc(userDocRef, {
-          email: user.email, displayName: user.displayName,
+        const newUser = {
+          email: user.email, 
+          displayName: user.displayName,
           photoURL: user.photoURL || null,
-          createdAt: serverTimestamp(), lastLogin: serverTimestamp(),
-          tokens: 0, totalCarbonSaved: 0, hasFinishedOnboarding: false,
-        });
+          createdAt: serverTimestamp(), 
+          lastLogin: serverTimestamp(),
+          tokens: 0, 
+          totalCarbonSaved: 0, 
+          hasFinishedOnboarding: false,
+        };
+        await setDoc(userDocRef, newUser);
       } else {
         await setDoc(userDocRef, { lastLogin: serverTimestamp(), photoURL: user.photoURL || null }, { merge: true });
       }
@@ -115,7 +120,22 @@ export default function LoginScreen() {
         setEmail(''); setPassword('');
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+
+        // 1. Fetch the user document immediately
+        const userDocRef = doc(db, 'users', cred.user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        // 2. Update last login
         await setDoc(doc(db, 'users', cred.user.uid), { lastLogin: serverTimestamp() }, { merge: true });
+
+        const userData = userDoc.data();
+
+        // 3. Explicitly route based on the onboarding flag
+        if (userData?.hasFinishedOnboarding === true) {
+          router.replace('/(tabs)');
+        } else {
+          router.replace('/onboarding');
+        }
       }
     } catch (error: any) {
       const msg =
@@ -125,7 +145,7 @@ export default function LoginScreen() {
         error.code === 'auth/invalid-email'           ? 'Please enter a valid email address.' :
         error.code === 'auth/email-already-in-use'    ? 'An account already exists with this email. Try signing in instead.' :
         error.code === 'auth/weak-password'           ? 'Password must be at least 6 characters.' :
-        error.code === 'auth/password-does-not-meet-requirements' ? 'Password must be at least 6 characters.' :
+        error.code === 'auth/password-does-not-meet-requirements' ? 'Password must be at least 6 characters, combining uppercase/lowercase letters, numbers, and symbols.' :
         error.code === 'auth/too-many-requests'       ? 'Too many attempts. Please wait a moment and try again.' :
         error.code === 'auth/network-request-failed'  ? 'No internet connection. Check your network and try again.' :
         error.code === 'auth/user-disabled'           ? 'This account has been disabled. Please contact support.' :

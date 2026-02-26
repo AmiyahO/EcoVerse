@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
+import { isToday, isThisWeek } from '@/src/utils/dateUtils';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -45,21 +46,9 @@ function getActivityMetric(activity: any) {
 
 // ── Weekly grouping ───────────────────────────────────────────────────────────
 function groupActivities(activities: any[]) {
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(now.getDate() - now.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
-
-  const thisWeek: any[] = [];
-  const earlier: any[] = [];
-
-  activities.forEach(a => {
-    if (new Date(a.date) >= startOfWeek) {
-      thisWeek.push(a);
-    } else {
-      earlier.push(a);
-    }
-  });
+  // Split into two arrays without mutating or duplicating entries
+  const thisWeek = activities.filter(a => isThisWeek(a.date));
+  const earlier = activities.filter(a => !isThisWeek(a.date));
 
   const sections = [];
   if (thisWeek.length > 0) sections.push({ title: 'This Week', data: thisWeek });

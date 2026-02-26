@@ -146,7 +146,7 @@ export default function AddActivityScreen() {
         );
 
         const doSave = async () => {
-          const savedBill = await saveBillReading(category, reading, savedAmount, basedOnPrevious);
+          const savedBill   = await saveBillReading(category, reading, savedAmount, basedOnPrevious);
           const kwhSaved    = category === 'electricity' ? savedAmount : undefined;
           const litersSaved = category === 'water'       ? savedAmount : undefined;
           await commitActivity({ kwhSaved, litersSaved, billId: savedBill?.id });
@@ -258,281 +258,284 @@ export default function AddActivityScreen() {
   const handleDurationChange = (v: string) => { setDuration(v); if (v !== duration) setHcAutoFilled(false); };
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
-    >
-      {/* ── Category selection ── */}
-      <View style={styles.section}>
-        <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Category</ThemedText>
-        <View style={styles.grid}>
-          {ACTIVITY_CATEGORIES.map(item => {
-            const selected = category === item.key;
-            return (
-              <Pressable
-                key={item.key}
-                onPress={() => { setCategory(item.key); resetInputs(); }}
-                style={[
-                  styles.categoryCard,
-                  {
-                    backgroundColor: selected
-                      ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '22'
-                      : colors.surface,
-                    borderWidth: selected ? 1 : 0,
-                    borderColor: selected
-                      ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '66'
-                      : 'transparent',
-                  },
-                ]}
-              >
-                <FontAwesome6
-                  name={item.icon as any}
-                  size={26}
-                  color={selected ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') : colors.icon}
-                />
-                <ThemedText
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ── Category selection ── */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Category</ThemedText>
+          <View style={styles.grid}>
+            {ACTIVITY_CATEGORIES.map(item => {
+              const selected = category === item.key;
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => { setCategory(item.key); resetInputs(); }}
                   style={[
-                    styles.categoryLabel,
-                    selected && styles.categoryLabelActive,
-                    { color: colors.icon },
+                    styles.categoryCard,
+                    {
+                      backgroundColor: selected
+                        ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '22'
+                        : colors.surface,
+                      borderWidth: selected ? 1 : 0,
+                      borderColor: selected
+                        ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') + '66'
+                        : 'transparent',
+                    },
                   ]}
                 >
-                  {item.label}
-                </ThemedText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* ── Health Connect banner ── */}
-      {(category === 'walking' || category === 'running' || category === 'cycling') && (
-        <HealthConnectBanner category={category} onAutoFill={handleHCAutoFill} />
-      )}
-
-      {/* ── Walking ── */}
-      {category === 'walking' && (
-        <>
-          <View style={styles.field}>
-            <ThemedText type="defaultSemiBold" style={{ color: colors.text, opacity: stepsLocked ? 0.35 : 1 }}>
-              Steps
-            </ThemedText>
-            <TextInput
-              value={steps}
-              onChangeText={handleStepsChange}
-              keyboardType="numeric"
-              placeholder="e.g. 4500"
-              placeholderTextColor={colors.text + '55'}
-              editable={!stepsLocked}
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text },
-                stepsLocked && { opacity: 0.35 },
-              ]}
-            />
-          </View>
-          <View style={styles.orDivider}>
-            <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
-            <ThemedText style={[styles.orText, { color: colors.text }]}>or</ThemedText>
-            <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
-          </View>
-          <View style={styles.field}>
-            <ThemedText type="defaultSemiBold" style={{ color: colors.text, opacity: distanceLocked ? 0.35 : 1 }}>
-              Distance (km)
-            </ThemedText>
-            <TextInput
-              value={distance}
-              onChangeText={handleDistanceChange}
-              keyboardType="numeric"
-              placeholder="e.g. 3.2"
-              placeholderTextColor={colors.text + '55'}
-              editable={!distanceLocked}
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text },
-                distanceLocked && { opacity: 0.35 },
-              ]}
-            />
-          </View>
-        </>
-      )}
-
-      {/* ── Running ── */}
-      {category === 'running' && (
-        <>
-          <Input label="Distance (km)"      value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
-          <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25"  colors={colors} />
-        </>
-      )}
-
-      {/* ── Cycling ── */}
-      {category === 'cycling' && (
-        <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 5" colors={colors} />
-      )}
-
-      {/* ── Bill reading (electricity / water) ── */}
-      {isBillCategory(category) && (
-        <View style={styles.billSection}>
-
-          <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
-            <FontAwesome6
-              name={category === 'electricity' ? 'bolt' : 'droplet'}
-              size={13}
-              color={CATEGORY_COLORS[category]}
-            />
-            <ThemedText style={[styles.infoText, { color: colors.text }]}>
-              {category === 'electricity'
-                ? 'Enter your meter reading or total kWh from your electricity bill this month.'
-                : 'Enter your total water usage in litres from your bill or meter this month.'}
-            </ThemedText>
-          </View>
-
-          {loadingBill ? (
-            <View style={styles.hintRow}>
-              <ActivityIndicator size={12} color={colors.tint} />
-              <ThemedText style={[styles.hintText, { color: colors.text }]}>Loading your previous reading…</ThemedText>
-            </View>
-          ) : lastBill ? (
-            <View style={styles.hintRow}>
-              <FontAwesome6 name="clock-rotate-left" size={11} color={colors.tint} />
-              <ThemedText style={[styles.hintText, { color: colors.text }]}>
-                Last reading:{' '}
-                <ThemedText style={{ fontWeight: '700', color: colors.text }}>
-                  {lastBill.reading.toLocaleString()}
-                  {category === 'electricity' ? ' kWh' : ' L'}
-                </ThemedText>
-                {' · '}
-                {new Date(lastBill.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-              </ThemedText>
-            </View>
-          ) : (
-            <View style={styles.hintRow}>
-              <FontAwesome6 name="circle-info" size={11} color={colors.text} style={{ opacity: 0.4 }} />
-              <ThemedText style={[styles.hintText, { color: colors.text }]}>
-                No previous reading — comparing against{' '}
-                {category === 'electricity'
-                  ? `avg household (~${BASELINES.electricity.kwhPerMonth * 4} kWh/month)`
-                  : `avg usage (~${(BASELINES.water.litresPerMonth * 4).toLocaleString()} L/month)`}
-              </ThemedText>
-            </View>
-          )}
-
-          <View style={styles.field}>
-            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
-              {category === 'electricity' ? 'Meter reading (kWh)' : 'Usage this month (litres)'}
-            </ThemedText>
-            <View style={styles.inputRow}>
-              <TextInput
-                value={billReading}
-                onChangeText={setBillReading}
-                keyboardType="numeric"
-                placeholder={category === 'electricity' ? 'e.g. 320' : 'e.g. 4800'}
-                placeholderTextColor={colors.text + '55'}
-                style={[styles.input, styles.inputFlex, { backgroundColor: colors.surface, color: colors.text }]}
-              />
-              <Pressable
-                onPress={handleScan}
-                disabled={scanning}
-                style={({ pressed }) => [
-                  styles.scanBtn,
-                  { backgroundColor: CATEGORY_COLORS[category] + '22', opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                {scanning ? (
-                  <ActivityIndicator size={16} color={CATEGORY_COLORS[category]} />
-                ) : (
-                  <>
-                    <FontAwesome6 name="camera" size={15} color={CATEGORY_COLORS[category]} />
-                    <ThemedText style={[styles.scanBtnText, { color: CATEGORY_COLORS[category] }]}>Scan</ThemedText>
-                  </>
-                )}
-              </Pressable>
-            </View>
-          </View>
-
-          {preview !== null && (
-            <View style={[
-              styles.previewBox,
-              { backgroundColor: preview.savedAmount > 0 ? colors.tint + '15' : colors.surfaceMuted },
-            ]}>
-              <FontAwesome6
-                name={preview.savedAmount > 0 ? 'circle-check' : 'circle-exclamation'}
-                size={13}
-                color={preview.savedAmount > 0 ? colors.tint : colors.text}
-                style={{ opacity: preview.savedAmount > 0 ? 1 : 0.5 }}
-              />
-              <View style={{ flex: 1 }}>
-                {preview.savedAmount > 0 ? (
-                  <>
-                    <ThemedText style={[styles.previewMain, { color: colors.tint }]}>
-                      {preview.savedAmount.toFixed(1)}
-                      {category === 'electricity' ? ' kWh saved' : ' litres saved'}
-                    </ThemedText>
-                    <ThemedText style={[styles.previewSub, { color: colors.text }]}>
-                      {preview.basedOnPrevious
-                        ? `vs your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'})`
-                        : 'vs average household usage'}
-                    </ThemedText>
-                  </>
-                ) : (
-                  <ThemedText style={[styles.previewSub, { color: colors.text }]}>
-                    {preview.basedOnPrevious
-                      ? `Usage is higher than your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) — no saving this period.`
-                      : 'Usage exceeds the average — no saving detected, but logging helps track trends.'}
+                  <FontAwesome6
+                    name={item.icon as any}
+                    size={26}
+                    color={selected ? (CATEGORY_COLORS[item.key] ?? '#2E7D32') : colors.icon}
+                  />
+                  <ThemedText
+                    style={[
+                      styles.categoryLabel,
+                      selected && styles.categoryLabelActive,
+                      { color: colors.icon },
+                    ]}
+                  >
+                    {item.label}
                   </ThemedText>
-                )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* ── Health Connect banner ── */}
+        {(category === 'walking' || category === 'running' || category === 'cycling') && (
+          <HealthConnectBanner category={category} onAutoFill={handleHCAutoFill} />
+        )}
+
+        {/* ── Walking ── */}
+        {category === 'walking' && (
+          <>
+            <View style={styles.field}>
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text, opacity: stepsLocked ? 0.35 : 1 }}>
+                Steps
+              </ThemedText>
+              <TextInput
+                value={steps}
+                onChangeText={handleStepsChange}
+                keyboardType="numeric"
+                placeholder="e.g. 4500"
+                placeholderTextColor={colors.text + '55'}
+                editable={!stepsLocked}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.text },
+                  stepsLocked && { opacity: 0.35 },
+                ]}
+              />
+            </View>
+            <View style={styles.orDivider}>
+              <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
+              <ThemedText style={[styles.orText, { color: colors.text }]}>or</ThemedText>
+              <View style={[styles.orLine, { backgroundColor: colors.surfaceMuted }]} />
+            </View>
+            <View style={styles.field}>
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text, opacity: distanceLocked ? 0.35 : 1 }}>
+                Distance (km)
+              </ThemedText>
+              <TextInput
+                value={distance}
+                onChangeText={handleDistanceChange}
+                keyboardType="numeric"
+                placeholder="e.g. 3.2"
+                placeholderTextColor={colors.text + '55'}
+                editable={!distanceLocked}
+                style={[
+                  styles.input,
+                  { backgroundColor: colors.surface, color: colors.text },
+                  distanceLocked && { opacity: 0.35 },
+                ]}
+              />
+            </View>
+          </>
+        )}
+
+        {/* ── Running ── */}
+        {category === 'running' && (
+          <>
+            <Input label="Distance (km)"      value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
+            <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25"  colors={colors} />
+          </>
+        )}
+
+        {/* ── Cycling ── */}
+        {category === 'cycling' && (
+          <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 5" colors={colors} />
+        )}
+
+        {/* ── Bill reading (electricity / water) ── */}
+        {isBillCategory(category) && (
+          <View style={styles.billSection}>
+
+            <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
+              <FontAwesome6
+                name={category === 'electricity' ? 'bolt' : 'droplet'}
+                size={13}
+                color={CATEGORY_COLORS[category]}
+              />
+              <ThemedText style={[styles.infoText, { color: colors.text }]}>
+                {category === 'electricity'
+                  ? 'Enter your meter reading or total kWh from your electricity bill this month.'
+                  : 'Enter your total water usage in litres from your bill or meter this month.'}
+              </ThemedText>
+            </View>
+
+            {loadingBill ? (
+              <View style={styles.hintRow}>
+                <ActivityIndicator size={12} color={colors.tint} />
+                <ThemedText style={[styles.hintText, { color: colors.text }]}>Loading your previous reading…</ThemedText>
+              </View>
+            ) : lastBill ? (
+              <View style={styles.hintRow}>
+                <FontAwesome6 name="clock-rotate-left" size={11} color={colors.tint} />
+                <ThemedText style={[styles.hintText, { color: colors.text }]}>
+                  Last reading:{' '}
+                  <ThemedText style={{ fontWeight: '700', color: colors.text }}>
+                    {lastBill.reading.toLocaleString()}
+                    {category === 'electricity' ? ' kWh' : ' L'}
+                  </ThemedText>
+                  {' · '}
+                  {new Date(lastBill.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={styles.hintRow}>
+                <FontAwesome6 name="circle-info" size={11} color={colors.text} style={{ opacity: 0.4 }} />
+                <ThemedText style={[styles.hintText, { color: colors.text }]}>
+                  {/* ✅ Fixed: removed * 4 multiplier — baselines are already per-month */}
+                  No previous reading — comparing against{' '}
+                  {category === 'electricity'
+                    ? `avg household (~${BASELINES.electricity.kwhPerMonth} kWh/month)`
+                    : `avg usage (~${BASELINES.water.litresPerMonth.toLocaleString()} L/month)`}
+                </ThemedText>
+              </View>
+            )}
+
+            <View style={styles.field}>
+              <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>
+                {category === 'electricity' ? 'Meter reading (kWh)' : 'Usage this month (litres)'}
+              </ThemedText>
+              <View style={styles.inputRow}>
+                <TextInput
+                  value={billReading}
+                  onChangeText={setBillReading}
+                  keyboardType="numeric"
+                  placeholder={category === 'electricity' ? 'e.g. 320' : 'e.g. 4800'}
+                  placeholderTextColor={colors.text + '55'}
+                  style={[styles.input, styles.inputFlex, { backgroundColor: colors.surface, color: colors.text }]}
+                />
+                <Pressable
+                  onPress={handleScan}
+                  disabled={scanning}
+                  style={({ pressed }) => [
+                    styles.scanBtn,
+                    { backgroundColor: CATEGORY_COLORS[category] + '22', opacity: pressed ? 0.7 : 1 },
+                  ]}
+                >
+                  {scanning ? (
+                    <ActivityIndicator size={16} color={CATEGORY_COLORS[category]} />
+                  ) : (
+                    <>
+                      <FontAwesome6 name="camera" size={15} color={CATEGORY_COLORS[category]} />
+                      <ThemedText style={[styles.scanBtnText, { color: CATEGORY_COLORS[category] }]}>Scan</ThemedText>
+                    </>
+                  )}
+                </Pressable>
               </View>
             </View>
-          )}
 
-          {category === 'water' && (
-            <ThemedText style={[styles.hintText, { color: colors.text, fontStyle: 'italic', opacity: 0.4 }]}>
-              💧 Water savings generate tokens. CO₂ impact is small by nature.
-            </ThemedText>
-          )}
-        </View>
-      )}
+            {preview !== null && (
+              <View style={[
+                styles.previewBox,
+                { backgroundColor: preview.savedAmount > 0 ? colors.tint + '15' : colors.surfaceMuted },
+              ]}>
+                <FontAwesome6
+                  name={preview.savedAmount > 0 ? 'circle-check' : 'circle-exclamation'}
+                  size={13}
+                  color={preview.savedAmount > 0 ? colors.tint : colors.text}
+                  style={{ opacity: preview.savedAmount > 0 ? 1 : 0.5 }}
+                />
+                <View style={{ flex: 1 }}>
+                  {preview.savedAmount > 0 ? (
+                    <>
+                      <ThemedText style={[styles.previewMain, { color: colors.tint }]}>
+                        {preview.savedAmount.toFixed(1)}
+                        {category === 'electricity' ? ' kWh saved' : ' litres saved'}
+                      </ThemedText>
+                      <ThemedText style={[styles.previewSub, { color: colors.text }]}>
+                        {preview.basedOnPrevious
+                          ? `vs your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'})`
+                          : 'vs average household usage'}
+                      </ThemedText>
+                    </>
+                  ) : (
+                    <ThemedText style={[styles.previewSub, { color: colors.text }]}>
+                      {preview.basedOnPrevious
+                        ? `Usage is higher than your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) — no saving this period.`
+                        : 'Usage exceeds the average — no saving detected, but logging helps track trends.'}
+                    </ThemedText>
+                  )}
+                </View>
+              </View>
+            )}
 
-      {/* ── Save button ── */}
-      <Pressable
-        style={[
-          styles.saveButton,
-          { backgroundColor: colors.tint },
-          isSaveDisabled && { opacity: 0.4 },
-        ]}
-        onPress={handleSave}
-        disabled={isSaveDisabled}
-      >
-        {saving ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>Save Activity</ThemedText>
+            {category === 'water' && (
+              <ThemedText style={[styles.hintText, { color: colors.text, fontStyle: 'italic', opacity: 0.4 }]}>
+                💧 Water savings generate tokens. CO₂ impact is small by nature.
+              </ThemedText>
+            )}
+          </View>
         )}
-      </Pressable>
 
-      {/* ── OCR sheets — only rendered when category is narrowed ── */}
-      {isBillCategory(category) && (
-        <>
-          <OCRCandidatePicker
-            visible={showPicker}
-            type={category}
-            candidates={ocrCandidates}
-            onSelect={handleOCRSelect}
-            onManual={() => setShowPicker(false)}
-            onRetry={() => { setShowPicker(false); handleScan(); }}
-            onClose={() => setShowPicker(false)}
-          />
-          <OCRNoResultSheet
-            visible={showNoResult}
-            allText=""
-            onRetry={() => { setShowNoResult(false); handleScan(); }}
-            onManual={() => setShowNoResult(false)}
-            onClose={() => setShowNoResult(false)}
-          />
-        </>
-      )}
-    </ScrollView>
+        {/* ── Save button ── */}
+        <Pressable
+          style={[
+            styles.saveButton,
+            { backgroundColor: colors.tint },
+            isSaveDisabled && { opacity: 0.4 },
+          ]}
+          onPress={handleSave}
+          disabled={isSaveDisabled}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <ThemedText type="defaultSemiBold" style={{ color: '#fff' }}>Save Activity</ThemedText>
+          )}
+        </Pressable>
+
+        {/* ── OCR sheets — only rendered when category is narrowed ── */}
+        {isBillCategory(category) && (
+          <>
+            <OCRCandidatePicker
+              visible={showPicker}
+              type={category}
+              candidates={ocrCandidates}
+              onSelect={handleOCRSelect}
+              onManual={() => setShowPicker(false)}
+              onRetry={() => { setShowPicker(false); handleScan(); }}
+              onClose={() => setShowPicker(false)}
+            />
+            <OCRNoResultSheet
+              visible={showNoResult}
+              allText=""
+              onRetry={() => { setShowNoResult(false); handleScan(); }}
+              onManual={() => setShowNoResult(false)}
+              onClose={() => setShowNoResult(false)}
+            />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 

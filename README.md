@@ -108,7 +108,7 @@ firebase/
 | Activity | Rate |
 |----------|------|
 | Walking | 1 token per 100 steps (estimated from distance if steps unavailable) |
-| Running | 25 tokens per km |
+| Running | 15 tokens per km |
 | Cycling | 10 tokens per km |
 | Electricity | 5 tokens per kWh saved |
 | Water | 1 token per 10 L saved |
@@ -123,12 +123,12 @@ firebase/
 |----------|--------|
 | Walking | 0.192 kg CO₂ per km |
 | Running | 0.192 kg CO₂ per km |
-| Cycling | 0.25 kg CO₂ per km |
+| Cycling | 0.186 kg CO₂ per km |
 | Electricity | Regional grid intensity × kWh saved |
 | Water | 0.003 kg CO₂ per litre saved |
 
 **Regional electricity intensity (kg CO₂ per kWh):**
-US 0.385 · UK 0.193 · EU 0.230 · India 0.710 · China 0.550 · Global avg 0.475
+US 0.386 · UK 0.193 · EU 0.276 · India 0.713 · China 0.581 · Global avg 0.475
 
 ### EcoScore
 

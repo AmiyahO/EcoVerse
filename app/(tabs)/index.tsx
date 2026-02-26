@@ -12,6 +12,7 @@ import {
   getWeekCarbonComparison, CATEGORY_COLORS, calculateStreak,
 } from '@/src/utils/ecoLogic';
 import AISuggestionsCard from '@/components/ai-suggestions-card';
+import Svg, { Circle } from 'react-native-svg';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -20,6 +21,16 @@ const CATEGORY_ICON: Record<string, string> = {
   electricity: 'bolt',
   water:       'droplet',
 };
+
+const RING_RADIUS = 72;   // sits just outside the 130px circle (65 + border + gap)
+const RING_STROKE = 5;
+const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function getZoneColor(score: number) {
+  if (score < 50) return '#EF5350';
+  if (score < 75) return '#FFC107';
+  return '#4CAF50';
+}
 
 function getRecentActivityLabel(activity: any) {
   if (activity.steps)       return `${activity.steps.toLocaleString()} steps`;
@@ -62,6 +73,8 @@ export default function HomeScreen() {
   const consistencyBonus = (activeDays / 7) * 20;
   const varietyBonus     = (uniqueCategories / 3) * 10;
   const ecoScore         = Math.round(baseScore + consistencyBonus + varietyBonus);
+  const zoneColor        = getZoneColor(ecoScore);
+  const strokeDashoffset = CIRCUMFERENCE * (1 - ecoScore / 100);
 
   const streak     = calculateStreak(activities);
   const zone       = getEcoZone(ecoScore);
@@ -100,10 +113,25 @@ export default function HomeScreen() {
           style={styles.heroCard}
         >
           <View style={styles.scoreWrapper}>
-            <View style={[styles.scoreCircle, { borderColor: colors.tint + '55', backgroundColor: colors.tint + '18' }]}>
-              <ThemedText style={[styles.scoreLabel, { color: colors.text }]}>EcoScore</ThemedText>
-              <ThemedText style={[styles.scoreNumber, { color: colors.tint }]}>{ecoScore}</ThemedText>
-              <ThemedText style={[styles.scoreMax, { color: colors.text }]}>/100</ThemedText>
+            <View style={{ width: 154, height: 154, alignItems: 'center', justifyContent: 'center' }}>
+              {/* SVG ring — absolutely positioned around the circle */}
+              <Svg width={154} height={154} style={StyleSheet.absoluteFill}>
+                <Circle cx={77} cy={77} r={RING_RADIUS} stroke={zoneColor + '28'} strokeWidth={RING_STROKE} fill="none" />
+                <Circle
+                  cx={77} cy={77} r={RING_RADIUS}
+                  stroke={zoneColor} strokeWidth={RING_STROKE} fill="none"
+                  strokeDasharray={`${CIRCUMFERENCE}`}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  rotation="-90" origin="77, 77"
+                />
+              </Svg>
+              {/* Your existing circle, completely unchanged */}
+              <View style={[styles.scoreCircle, { borderColor: colors.tint + '55', backgroundColor: colors.tint + '18' }]}>
+                <ThemedText style={[styles.scoreLabel, { color: colors.text }]}>EcoScore</ThemedText>
+                <ThemedText style={[styles.scoreNumber, { color: colors.tint }]}>{ecoScore}</ThemedText>
+                <ThemedText style={[styles.scoreMax, { color: colors.text }]}>/100</ThemedText>
+              </View>
             </View>
             <View style={styles.heroRight}>
               <ThemedText style={[styles.zoneMessage, { color: colors.text }]}>{zone.message}</ThemedText>

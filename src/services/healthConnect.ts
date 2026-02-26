@@ -19,6 +19,7 @@ import {
   RecordType,
 } from 'react-native-health-connect';
 import { Platform } from 'react-native';
+import { localMidnightToday } from '@/src/utils/dateUtils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,16 +106,13 @@ export async function checkHealthPermissions(): Promise<PermissionStatus> {
     // permission changes made while the app was in the background
     const isAvailable = await initialize();
     if (!isAvailable) {
-      console.log('[HC] initialize() returned false — HC not available');
       return 'unavailable';
     }
 
     const granted = await getGrantedPermissions();
-    console.log('[HC] getGrantedPermissions returned:', JSON.stringify(granted));
     const hasSteps = granted.some((p: any) => p.recordType === 'Steps');
     return hasSteps ? 'granted' : 'not_asked';
   } catch (e) {
-    console.log('[HC] checkHealthPermissions error:', e);
     return 'not_asked';
   }
 }
@@ -122,13 +120,14 @@ export async function checkHealthPermissions(): Promise<PermissionStatus> {
 // ── Data fetching ────────────────────────────────────────────────────────────
 
 /**
- * Returns the date range for "today" or "last N days"
+ * Returns a date range for the last N days (used for recent sessions).
+ * Always uses local midnight, not UTC.
  */
-function getDateRange(daysBack = 1): { startTime: string; endTime: string } {
+function getDateRange(daysBack = 7): { startTime: string; endTime: string } {
   const end   = new Date();
   const start = new Date();
   start.setDate(end.getDate() - daysBack);
-  start.setHours(0, 0, 0, 0);
+  start.setHours(0, 0, 0, 0); // local midnight
   return {
     startTime: start.toISOString(),
     endTime:   end.toISOString(),
@@ -136,15 +135,18 @@ function getDateRange(daysBack = 1): { startTime: string; endTime: string } {
 }
 
 /**
- * Fetch today's step count and distance from Health Connect.
- * Used to pre-fill the walking log form.
+ * Fetch TODAY's step count and distance from Health Connect.
+ * Uses local midnight so devices in UTC+1 or later don't bleed
+ * yesterday's evening sessions into today's count.
  */
 export async function fetchTodaySteps(): Promise<{ steps: number; distance: number } | null> {
   try {
-    const { startTime, endTime } = getDateRange(1);
+    // ✅ Local midnight → now (not the last 24h from getDateRange(1))
+    const startTime = localMidnightToday().toISOString();
+    const endTime   = new Date().toISOString();
 
     const [stepsResult, distanceResult] = await Promise.all([
-      readRecords('Steps', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
+      readRecords('Steps',    { timeRangeFilter: { operator: 'between', startTime, endTime } }),
       readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
     ]);
 
@@ -193,8 +195,8 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
 
       if (!type) continue; // skip gym, yoga, etc.
 
-      const startMs  = new Date(session.startTime).getTime();
-      const endMs    = new Date(session.endTime).getTime();
+      const startMs     = new Date(session.startTime).getTime();
+      const endMs       = new Date(session.endTime).getTime();
       const durationMin = Math.round((endMs - startMs) / 60000);
 
       // Try to get distance for this session's time window
@@ -264,21 +266,30 @@ export function formatActivityDuration(minutes: number): string {
 export function formatActivityDate(isoString: string): string {
   const d = new Date(isoString);
   const now = new Date();
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  // Compare local dates, not UTC
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth()    === b.getMonth()    &&
+    a.getDate()     === b.getDate();
 
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
+  if (sameDay(d, now)) return 'Today';
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameDay(d, yesterday)) return 'Yesterday';
+
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 /** Friendly source name from package origin */
 export function formatSource(origin?: string): string {
   if (!origin) return 'Health Connect';
-  if (origin.includes('google.android.apps.fitness')) return 'Google Fit';
-  if (origin.includes('com.samsung.health'))           return 'Samsung Health';
-  if (origin.includes('com.strava'))                   return 'Strava';
-  if (origin.includes('com.garmin'))                   return 'Garmin';
-  if (origin.includes('com.polar'))                    return 'Polar';
+  if (origin.includes('com.google.android.apps.fitness')) return 'Google Fit';
+  if (origin.includes('com.sec.android.app.shealth')) return 'Samsung Health';
+  if (origin.includes('com.strava'))                  return 'Strava';
+  if (origin.includes('com.garmin.android.apps.connectmobile'))                  return 'Garmin';
+  if (origin.includes('com.polar.flow'))                   return 'Polar';
+  if (origin.includes('com.fitbit.FitbitMobile'))                  return 'Fitbit';
   // Fallback: capitalize last segment of package name
   const parts = origin.split('.');
   const last  = parts[parts.length - 1];

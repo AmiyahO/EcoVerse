@@ -81,120 +81,121 @@ export default function ActivityDetailsScreen() {
   };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.container}
-    >
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={[styles.headerIcon, { backgroundColor: categoryColor + '20' }]}>
-          <FontAwesome6
-            name={CATEGORY_ICON[activity.category] ?? 'leaf'}
-            size={26}
-            color={categoryColor}
-          />
-        </View>
-        <View>
-          <ThemedText style={[styles.categoryName, { color: colors.text }]}>
-            {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
-          </ThemedText>
-          <ThemedText style={[styles.dateText, { color: colors.text }]}>
-            {new Date(activity.date).toLocaleDateString('en-US', {
-              weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
-            })}
-          </ThemedText>
-        </View>
-      </View>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ScrollView contentContainerStyle={styles.container}>
 
-      {/* ── Impact summary ── */}
-      <View style={styles.impactRow}>
-        <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
-          <FontAwesome6 name="leaf" size={14} color={colors.tint} />
-          <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
-            {tokens}
-          </ThemedText>
-          <ThemedText style={[styles.impactLabel, { color: colors.text }]}>tokens</ThemedText>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View style={[styles.headerIcon, { backgroundColor: categoryColor + '20' }]}>
+            <FontAwesome6
+              name={CATEGORY_ICON[activity.category] ?? 'leaf'}
+              size={26}
+              color={categoryColor}
+            />
+          </View>
+          <View>
+            <ThemedText style={[styles.categoryName, { color: colors.text }]}>
+              {activity.category.charAt(0).toUpperCase() + activity.category.slice(1)}
+            </ThemedText>
+            <ThemedText style={[styles.dateText, { color: colors.text }]}>
+              {new Date(activity.date).toLocaleDateString('en-US', {
+                weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+              })}
+            </ThemedText>
+          </View>
         </View>
-        <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
-          <FontAwesome6 name="cloud" size={14} color={colors.tint} />
-          <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
-            {carbon.toFixed(2)}
-          </ThemedText>
-          <ThemedText style={[styles.impactLabel, { color: colors.text }]}>kg CO₂ saved</ThemedText>
+
+        {/* ── Impact summary ── */}
+        <View style={styles.impactRow}>
+          <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
+            <FontAwesome6 name="leaf" size={14} color={colors.tint} />
+            <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
+              {tokens}
+            </ThemedText>
+            <ThemedText style={[styles.impactLabel, { color: colors.text }]}>tokens</ThemedText>
+          </View>
+          <View style={[styles.impactCard, { backgroundColor: colors.surface }]}>
+            <FontAwesome6 name="cloud" size={14} color={colors.tint} />
+            <ThemedText style={[styles.impactValue, { color: colors.tint }]}>
+              {carbon.toFixed(2)}
+            </ThemedText>
+            <ThemedText style={[styles.impactLabel, { color: colors.text }]}>kg CO₂ saved</ThemedText>
+          </View>
         </View>
-      </View>
 
-      {/* ── Details card ── */}
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        {activity.category === 'walking' && (
-          <>
-            {activity.steps    !== undefined && <DetailRow icon="shoe-prints" label="Steps"    value={`${activity.steps.toLocaleString()} steps`} colors={colors} />}
-            {activity.distance !== undefined && <DetailRow icon="route"       label="Distance" value={`${activity.distance} km`}                  colors={colors} />}
-          </>
-        )}
-        {activity.category === 'running' && (
-          <>
-            <DetailRow icon="route"        label="Distance" value={`${activity.distance} km`}  colors={colors} />
-            <DetailRow icon="clock"        label="Duration" value={`${activity.duration} min`} colors={colors} />
-          </>
-        )}
-        {activity.category === 'cycling' && (
-          <DetailRow icon="route" label="Distance" value={`${activity.distance} km`} colors={colors} />
-        )}
-        {activity.category === 'electricity' && (
-          <DetailRow icon="bolt" label="Energy saved" value={`${activity.kwhSaved} kWh`} colors={colors} />
-        )}
-        {activity.category === 'water' && (
-          <DetailRow icon="droplet" label="Water saved" value={`${activity.litersSaved?.toLocaleString()} L`} colors={colors} />
-        )}
+        {/* ── Details card ── */}
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {activity.category === 'walking' && (
+            <>
+              {activity.steps    !== undefined && <DetailRow icon="shoe-prints" label="Steps"    value={`${activity.steps.toLocaleString()} steps`} colors={colors} />}
+              {activity.distance !== undefined && <DetailRow icon="route"       label="Distance" value={`${activity.distance} km`}                  colors={colors} />}
+            </>
+          )}
+          {activity.category === 'running' && (
+            <>
+              <DetailRow icon="route"        label="Distance" value={`${activity.distance} km`}  colors={colors} />
+              <DetailRow icon="clock"        label="Duration" value={`${activity.duration} min`} colors={colors} />
+            </>
+          )}
+          {activity.category === 'cycling' && (
+            <DetailRow icon="route" label="Distance" value={`${activity.distance} km`} colors={colors} />
+          )}
+          {activity.category === 'electricity' && (
+            <DetailRow icon="bolt" label="Energy saved" value={`${activity.kwhSaved} kWh`} colors={colors} />
+          )}
+          {activity.category === 'water' && (
+            <DetailRow icon="droplet" label="Water saved" value={`${activity.litersSaved?.toLocaleString()} L`} colors={colors} />
+          )}
 
-        <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+          <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
 
-        <DetailRow
-          icon="calendar"
-          label="Logged at"
-          value={new Date(activity.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-          colors={colors}
-        />
-        {(activity as any).source === 'health_connect' && (
           <DetailRow
-            icon="heart-pulse"
-            label="Source"
-            value="Imported from Health Connect"
+            icon="calendar"
+            label="Logged at"
+            value={new Date(activity.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             colors={colors}
           />
-        )}
-      </View>
+          {(activity as any).source === 'health_connect' && (
+            <DetailRow
+              icon="heart-pulse"
+              label="Source"
+              value="Imported from Health Connect"
+              colors={colors}
+            />
+          )}
+        </View>
 
-      {/* ── Actions ── */}
-      <View style={styles.actions}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.actionBtn,
-            { backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1 },
-          ]}
-          onPress={() => router.push({ pathname: '/activity/edit', params: { id: activity.id } })}
-        >
-          <FontAwesome6 name="pen" size={14} color={colors.text} style={{ opacity: 0.6 }} />
-          <ThemedText style={{ color: colors.text, fontWeight: '600' }}>Edit</ThemedText>
-        </Pressable>
+        {/* ── Actions ── */}
+        <View style={styles.actions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionBtn,
+              { backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1 },
+            ]}
+            onPress={() => router.push({ pathname: '/activity/edit', params: { id: activity.id } })}
+          >
+            <FontAwesome6 name="pen" size={14} color={colors.text} style={{ opacity: 0.6 }} />
+            <ThemedText style={{ color: colors.text, fontWeight: '600' }}>Edit</ThemedText>
+          </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.actionBtn,
-            styles.deleteBtn,
-            { opacity: pressed || isDeleting ? 0.7 : 1 },
-          ]}
-          onPress={confirmDelete}
-          disabled={isDeleting}
-        >
-          <FontAwesome6 name="trash" size={14} color="#fff" />
-          <ThemedText style={{ color: '#fff', fontWeight: '600' }}>
-            {isDeleting ? 'Deleting…' : 'Delete'}
-          </ThemedText>
-        </Pressable>
-      </View>
-    </ScrollView>
+          <Pressable
+            style={({ pressed }) => [
+              styles.actionBtn,
+              styles.deleteBtn,
+              { opacity: pressed || isDeleting ? 0.7 : 1 },
+            ]}
+            onPress={confirmDelete}
+            disabled={isDeleting}
+          >
+            <FontAwesome6 name="trash" size={14} color="#fff" />
+            <ThemedText style={{ color: '#fff', fontWeight: '600' }}>
+              {isDeleting ? 'Deleting…' : 'Delete'}
+            </ThemedText>
+          </Pressable>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 

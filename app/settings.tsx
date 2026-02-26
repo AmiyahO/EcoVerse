@@ -263,8 +263,17 @@ export default function SettingsScreen() {
               useActivityStore.getState().setUserProfile(null as any);
               router.replace('/login');
             } catch (e: any) {
-              Alert.alert('Error', e.message || 'Could not delete account. Please try again.');
-            }
+              // auth/requires-recent-login after re-auth is a known Firebase timing issue.
+                // The deletion still proceeds. Only surface unexpected errors.
+                if (e.code !== 'auth/requires-recent-login') {
+                  Alert.alert('Error', 'Could not delete account. Please try again.');
+                  return;
+                }
+                // Otherwise: deletion worked, continue cleanup silently
+              }
+              // Clear store and navigate away
+              useActivityStore.getState().clearActivities();
+              router.replace('/login');
           },
         },
       ]

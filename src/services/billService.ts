@@ -49,8 +49,8 @@ export function calculateSaving(
   previousReading: number | null,
 ): { savedAmount: number; basedOnPrevious: boolean } {
   const monthlyBaseline = type === 'electricity'
-    ? BASELINES.electricity.kwhPerWeek * 4   // ~320 kWh/month
-    : BASELINES.water.litresPerWeek * 4;     // ~5600 L/month
+    ? BASELINES.electricity.kwhPerMonth   // ~290 kWh/month
+    : BASELINES.water.litresPerMonth;     // ~11000 L/month
 
   if (previousReading !== null) {
     // Saving = how much LESS they used vs last time

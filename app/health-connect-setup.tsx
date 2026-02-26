@@ -3,73 +3,103 @@
 // Shows app-specific instructions for Google Fit, Samsung Health, Strava etc.
 // Accessible from the add activity screen banner and from onboarding.
 
-import {
-  View, Text, StyleSheet, Pressable, ScrollView,
-  Linking, Alert, ActivityIndicator, Animated,
-} from 'react-native';
-import { useState, useEffect, useRef } from 'react';
-import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
-import { useAppTheme } from '@/hooks/useAppTheme';
 import { ThemedText } from '@/components/themed-text';
+import { useAppTheme } from '@/hooks/useAppTheme';
 import {
-  requestHealthPermissions,
   checkHealthPermissions,
   openHCSettings,
   PermissionStatus,
+  requestHealthPermissions,
 } from '@/src/services/healthConnect';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 
 // ── Supported apps ───────────────────────────────────────────────────────────
 const SUPPORTED_APPS = [
   {
     name: 'Google Fit',
-    icon: '🏃',
+    icon: <Image source={require('@/assets/images/google-fit.png')} style={{ width: 20, height: 20 }} />,
     color: '#4285F4',
     packageId: 'com.google.android.apps.fitness',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.google.android.apps.fitness',
     steps: [
-      'Open Google Fit',
-      'Tap Profile → Settings',
-      'Tap "Manage connected apps"',
-      'Enable Health Connect sync',
+      'Open Google Fit → Profile tab',
+      'Settings (gear icon) → Connected apps',
+      'Find Health Connect and turn on "Sync Fit with Health Connect"',
     ],
   },
   {
     name: 'Samsung Health',
-    icon: '💙',
+    icon: <Image source={require('@/assets/images/samsung-health.png')} style={{ width: 20, height: 20 }} />,
     color: '#4F6FD4',
     packageId: 'com.sec.android.app.shealth',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.sec.android.app.shealth',
     steps: [
-      'Open Samsung Health',
-      'Tap Menu (≡) → Settings',
-      'Tap "Connected services"',
-      'Enable "Health Connect"',
-    ],
-  },
-  {
-    name: 'Strava',
-    icon: '🟠',
-    color: '#FC4C02',
-    packageId: 'com.strava',
-    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.strava',
-    steps: [
-      'Open Strava',
-      'Tap You → Settings → Apps & Devices',
-      'Find "Health Connect" and enable it',
+      'Open Samsung Health → tap ⋮ (Menu)',
+      'Settings → Connected Services → Health Connect',
+      'Toggle on, grant permissions',
     ],
   },
   {
     name: 'Garmin Connect',
-    icon: '⌚',
+    icon: <Image source={require('@/assets/images/garmin-connect.png')} style={{ width: 20, height: 20 }} />,
     color: '#007CC3',
     packageId: 'com.garmin.android.apps.connectmobile',
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.garmin.android.apps.connectmobile',
     steps: [
-      'Open Garmin Connect',
-      'Tap More → Settings → Health Connect',
-      'Enable data sharing',
+      'Open Garmin Connect → More tab (bottom right)',
+      'Settings → Third Party Apps → Health Connect',
+      'Tap Connect → grant permissions',
+    ],
+  },
+  {
+    name: 'Polar Flow',
+    icon: <Image source={require('@/assets/images/polar-flow.png')} style={{ width: 20, height: 20 }} />,
+    color: '#FF3366',
+    packageId: 'com.polar.flow',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=fi.polar.polarflow',
+    steps: [
+      'Open Polar Flow → Open Menu (top left)',
+      'General Settings → Third Party Apps → Health Connect',
+      'Tap Connect → grant permissions',
+    ],
+  },
+  {
+    name: 'Fitbit',
+    icon: <Image source={require('@/assets/images/fitbit.png')} style={{ width: 20, height: 20 }} />,
+    color: '#00B0B9',
+    packageId: 'com.fitbit.FitbitMobile',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.fitbit.FitbitMobile',
+    steps: [
+      'Open Fitbit → Today tab',
+      'Tap devices icon → Add Connections Section → Health Connect',
+      'Toggle on, grant permissions',
+    ],
+  },
+  {
+    name: 'Strava',
+    icon: <Image source={require('@/assets/images/strava.png')} style={{ width: 20, height: 20 }} />,
+    color: '#FC4C02',
+    packageId: 'com.strava',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.strava',
+    steps: [
+      'Open Strava → You tab (bottom right)',
+      'Settings (gear) → Applications, Services, and Devices',
+      'Find "Health Connect" → grant permissions',
     ],
   },
 ];
@@ -81,7 +111,7 @@ const HC_PACKAGE    = 'com.google.android.apps.healthdata';
 const SETUP_STEPS = [
   {
     num: '1',
-    icon: 'cloud-download-outline',
+    icon: <Image source={require('@/assets/images/health-connect.png')} style={{ width: 20, height: 20 }} />,
     color: '#4CAF50',
     title: 'Install Health Connect',
     desc: 'Health Connect is Google\'s health data hub. On Android 14+ it\'s built in. On older devices, install it from the Play Store.',
@@ -194,7 +224,7 @@ export default function HealthConnectSetupScreen() {
 
         {/* Hero */}
         <View style={[styles.hero, { backgroundColor: colors.surface }]}>
-          <Text style={styles.heroIcon}>🏃‍♀️</Text>
+          <Image source={require('@/assets/images/health-connect.png')} style={{ width: 48, height: 48 }} />
           <ThemedText style={[styles.heroTitle, { color: colors.text }]}>
             {isGranted ? 'Health Connect active' : 'Auto-sync your workouts'}
           </ThemedText>
@@ -249,7 +279,11 @@ export default function HealthConnectSetupScreen() {
               {SETUP_STEPS.map((step, i) => (
                 <View key={step.num} style={styles.setupStep}>
                   <View style={[styles.stepNumCircle, { backgroundColor: step.color + '20', borderColor: step.color + '40' }]}>
-                    <Ionicons name={step.icon as any} size={18} color={step.color} />
+                    {typeof step.icon === 'string' ? (
+                      <Ionicons name={step.icon as any} size={18} color={step.color} />
+                    ) : (
+                      step.icon
+                    )}
                   </View>
                   <View style={{ flex: 1, gap: 4 }}>
                     <ThemedText style={[styles.stepTitle, { color: colors.text }]}>{step.title}</ThemedText>
@@ -287,7 +321,11 @@ export default function HealthConnectSetupScreen() {
                     style={styles.appHeader}
                   >
                     <View style={[styles.appIconBadge, { backgroundColor: app.color + '25', borderColor: app.color + '40', borderWidth: 1 }]}>
-                      <Text style={[styles.appIconText, { color: app.color }]}>{app.icon}</Text>
+                      {typeof app.icon === 'string' ? (
+                        <Text style={[styles.appIconText, { color: app.color }]}>{app.icon}</Text>
+                      ) : (
+                        app.icon
+                      )}
                     </View>
                     <ThemedText style={[styles.appName, { color: colors.text }]}>{app.name}</ThemedText>
                     <Ionicons

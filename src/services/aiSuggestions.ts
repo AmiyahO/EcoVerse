@@ -96,6 +96,10 @@ function buildPrompt(s: ActivitySummary): string {
 
   const topIcon = ICON_FOR_CATEGORY[s.topCategory] ?? 'leaf';
 
+  const topCategoryLine = s.topCategory === 'none'
+  ? '- User has not logged any activities yet'
+  : `- Most logged activity: ${s.topCategory} (${s.topCategoryCount} sessions total — this is a past count, NOT a target)`;
+
   return `You are a friendly eco-coach inside EcoVerse, a sustainability tracking app. Write exactly 3 personalised eco tips for this user.
 
 USER STATS
@@ -161,7 +165,8 @@ export async function fetchAISuggestions(
     } catch { /* ignore */ }
   }
 
-  if (!GEMINI_API_KEY) {
+  // 3. If no API key or no activities, return placeholder tips (cache miss but no point calling API)
+  if (!GEMINI_API_KEY || summary.totalActivities === 0) {
     return { tips: getPlaceholderTips(summary), fromCache: false, rateLimited: false };
   }
 
@@ -195,7 +200,7 @@ export async function fetchAISuggestions(
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
 
     console.log('📡 Gemini status:', response.status);
-console.log('📄 Gemini response:', JSON.stringify(data));
+    console.log('📄 Gemini response:', JSON.stringify(data));
 
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']') + 1;
@@ -285,6 +290,18 @@ function getPlaceholderTips(s: ActivitySummary): AISuggestion[] {
       icon: 'bicycle',
       title: 'One cycle trip matters',
       body: 'Cycling just once a week instead of driving can save over 5kg CO₂ per month — one of the easiest swaps available.',
+    }); 
+  } else if (s.missingCategories.includes('walking')) {
+    tips.push({
+      icon: 'person-walking',
+      title: 'Small steps, big impact',
+      body: 'Replacing short car trips with a walk is the most effective way to cut local emissions and improve urban air quality.',
+    });
+  } else if (s.missingCategories.includes('running')) {
+    tips.push({
+      icon: 'person-running',
+      title: 'Zero-emission cardio',
+      body: 'Running isn’t just great for your heart—it’s a high-impact workout with a zero-carbon footprint. Every km logged is a win for you and the planet.',
     });
   } else {
     tips.push({
@@ -297,12 +314,14 @@ function getPlaceholderTips(s: ActivitySummary): AISuggestion[] {
   }
 
   // Tip 3 — broader, rotates weekly so it never feels stale
-  const weekIndex = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000)) % 4;
+  const weekIndex = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000)) % 5;
   const broader: AISuggestion[] = [
-    { icon: 'house', title: 'Standby power adds up', body: 'Devices on standby can account for 10% of home electricity. Unplugging idle chargers and screens is a consistent small saving.' },
+    { icon: 'plug-circle-xmark', title: 'Standby power adds up', body: 'Devices on standby can account for 10% of home electricity. Unplugging idle chargers and screens is a consistent small saving.' },
     { icon: 'recycle', title: 'Food waste emits CO₂', body: 'Around a third of all food produced is wasted, generating methane in landfill. Meal planning is one of the highest-impact household habits.' },
     { icon: 'sun', title: 'Use daylight first', body: 'Keeping blinds open and relying on natural light before switching on artificial lighting is a free, daily saving.' },
     { icon: 'house', title: 'Draught-proof your home', body: 'Sealing gaps around doors and windows can cut heating bills by up to 10%, reducing both cost and CO₂ year-round.' },
+    { icon: 'shirt', title: 'Wash cold, save energy', body: 'About 90% of a washing machine’s energy goes toward heating water. Switching to 30°C can significantly lower your laundry’s carbon footprint.' },
+
   ];
   tips.push(broader[weekIndex]);
 
