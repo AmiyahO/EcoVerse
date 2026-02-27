@@ -1,10 +1,4 @@
 // login.tsx
-// NOTE: Google icon uses a PNG asset (assets/images/google-icon.png) instead of
-// react-native-svg to avoid the "Tried to register two views with the same name
-// RNSVGPath" Metro HMR duplicate registration error.
-// Download the official Google G PNG from:
-// https://developers.google.com/identity/branding-guidelines
-// Save as: assets/images/google-icon.png
 import {
   View, Text, Pressable, StyleSheet, Platform, TextInput,
   Alert, KeyboardAvoidingView, ActivityIndicator, Image,

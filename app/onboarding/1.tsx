@@ -2,6 +2,7 @@
 import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { FontAwesome6 } from '@expo/vector-icons';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -16,7 +17,6 @@ export default function OnboardingStep1() {
   const pillLabel = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.5)';
   const orbColor1 = isDark ? '#2E7D3222' : '#2E7D3215';
   const orbColor2 = isDark ? '#34C9C915' : '#66BB6A15';
-  // Darker motto in light mode — was too faint at #8BE94F on white
   const mottoColor = isDark ? '#8BE94F' : '#1B5E20';
 
   const fade   = useRef(new Animated.Value(0)).current;
@@ -54,21 +54,21 @@ export default function OnboardingStep1() {
       </Animated.View>
 
       <Animated.View style={[styles.pills, { opacity: fade }]}>
-        <StatPill emoji="🌍" value="~4.7t" label="avg CO₂/year" pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
-        <StatPill emoji="🚶" value="300+" label="kg saveable"   pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
-        <StatPill emoji="⚡" value="40%"  label="from energy"   pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
+        <StatPill icon="earth-americas" iconColor="#4CAF50" value="~4.7t" label="avg CO₂/year" pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
+        <StatPill icon="person-walking"  iconColor="#29B6F6" value="300+" label="kg saveable"  pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
+        <StatPill icon="bolt"            iconColor="#FFC107" value="40%"  label="from energy"  pillBg={pillBg} pillValue={pillValue} pillLabel={pillLabel} />
       </Animated.View>
     </View>
   );
 }
 
-function StatPill({ emoji, value, label, pillBg, pillValue, pillLabel }: {
-  emoji: string; value: string; label: string;
+function StatPill({ icon, iconColor, value, label, pillBg, pillValue, pillLabel }: {
+  icon: string; iconColor: string; value: string; label: string;
   pillBg: string; pillValue: string; pillLabel: string;
 }) {
   return (
     <View style={[styles.pill, { backgroundColor: pillBg }]}>
-      <Text style={styles.pillEmoji}>{emoji}</Text>
+      <FontAwesome6 name={icon as any} size={18} color={iconColor} />
       <Text style={[styles.pillValueText, { color: pillValue }]}>{value}</Text>
       <Text style={[styles.pillLabelText, { color: pillLabel }]}>{label}</Text>
     </View>
@@ -92,8 +92,7 @@ const styles = StyleSheet.create({
   bodyText:     { fontSize: 15, lineHeight: 23 },
 
   pills: { flexDirection: 'row', gap: 10 },
-  pill:  { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', gap: 3, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' },
-  pillEmoji:     { fontSize: 20 },
+  pill:  { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' },
   pillValueText: { fontSize: 17, fontWeight: '800' },
   pillLabelText: { fontSize: 11, textAlign: 'center' },
 });

@@ -113,9 +113,9 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
 const styles = StyleSheet.create({
   bottomBar: {
     paddingHorizontal: 24,
-    paddingBottom: 30,   // ← increased from 40 to push buttons lower toward nav bar
-    paddingTop: 14,
-    gap: 14,
+    paddingBottom: 20,
+    paddingTop: 10,
+    gap: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, alignItems: 'center' },

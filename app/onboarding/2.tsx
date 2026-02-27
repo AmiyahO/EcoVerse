@@ -2,20 +2,21 @@
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { FontAwesome6 } from '@expo/vector-icons';
 
 const STEPS = [
-  { icon: '📋', color: '#4CAF50', title: 'Log an activity',         desc: 'Record walking, cycling, electricity savings, reduced water usage, and more.' },
-  { icon: '🧮', color: '#29B6F6', title: 'We calculate your impact', desc: 'EcoVerse converts your activity into kg of CO₂ saved using region-specific emission factors.' },
-  { icon: '🪙', color: '#FFB300', title: 'Earn eco tokens',          desc: 'Every saving earns tokens. Build streaks to multiply your earnings. Hit weekly goals.' },
-  { icon: '📈', color: '#FF7043', title: 'Track & improve',          desc: 'See your trends, compare weeks, and discover which habits have the most impact.' },
+  { icon: 'circle-plus',    iconColor: '#4CAF50', title: 'Log an activity',          desc: 'Record walking, cycling, electricity savings, reduced water usage, and more.' },
+  { icon: 'calculator',     iconColor: '#29B6F6', title: 'We calculate your impact',  desc: 'EcoVerse converts your activity into kg of CO₂ saved using region-specific emission factors.' },
+  { icon: 'leaf',           iconColor: '#FFB300', title: 'Earn eco tokens',           desc: 'Every saving earns tokens. Build streaks to multiply your earnings. Hit weekly goals.' },
+  { icon: 'chart-line',     iconColor: '#FF7043', title: 'Track & improve',           desc: 'See your trends, compare weeks, and discover which habits have the most impact.' },
 ];
 
 export default function OnboardingStep2() {
   const { scheme } = useAppTheme();
   const isDark = scheme !== 'light';
 
-  const bg       = isDark ? '#0B1E14' : '#F0F7F1';
-  const headline = isDark ? '#fff' : '#1B4332';
+  const bg        = isDark ? '#0B1E14' : '#F0F7F1';
+  const headline  = isDark ? '#fff' : '#1B4332';
   const stepTitle = isDark ? '#fff' : '#1B4332';
   const stepDesc  = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(27,67,50,0.6)';
   const orbBg     = isDark ? '#34C9C914' : '#34C9C920';
@@ -51,11 +52,11 @@ export default function OnboardingStep2() {
             style={[styles.stepCard, { opacity: anims[i].fade, transform: [{ translateX: anims[i].slideX }] }]}
           >
             <View style={styles.stepLeft}>
-              <View style={[styles.iconCircle, { backgroundColor: step.color + '22', borderColor: step.color + '44' }]}>
-                <Text style={styles.stepIcon}>{step.icon}</Text>
+              <View style={[styles.iconCircle, { backgroundColor: step.iconColor + '22', borderColor: step.iconColor + '44' }]}>
+                <FontAwesome6 name={step.icon as any} size={18} color={step.iconColor} />
               </View>
               {i < STEPS.length - 1 && (
-                <View style={[styles.connector, { backgroundColor: step.color + '30' }]} />
+                <View style={[styles.connector, { backgroundColor: step.iconColor + '30' }]} />
               )}
             </View>
             <View style={styles.stepRight}>
@@ -71,15 +72,14 @@ export default function OnboardingStep2() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 28, paddingTop: 60, paddingBottom: 16 },
-  orbTop: { position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: 90 },
-  header:   { marginBottom: 32, gap: 8 },
-  eyebrow:  { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
-  headline: { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+  orbTop:    { position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: 90 },
+  header:    { marginBottom: 32, gap: 8 },
+  eyebrow:   { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
+  headline:  { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
   stepsList: { gap: 0 },
   stepCard:  { flexDirection: 'row', gap: 16 },
   stepLeft:  { alignItems: 'center', width: 44 },
   iconCircle: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
-  stepIcon:   { fontSize: 20 },
   connector:  { width: 2, flex: 1, minHeight: 16, marginVertical: 4 },
   stepRight:  { flex: 1, paddingBottom: 20, paddingTop: 10 },
   stepTitle:  { fontSize: 16, fontWeight: '700', marginBottom: 4 },
