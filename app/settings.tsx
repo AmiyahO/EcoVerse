@@ -23,9 +23,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
 import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
 
-// ── Feedback form URL — replace with your actual Google Form / Typeform link ──
-// To create: go to forms.google.com → New form → share link → paste here
-const FEEDBACK_FORM_URL = 'https://forms.google.com'; // TODO: replace with your form URL
+const FEEDBACK_FORM_URL = 'https://forms.google.com';
 
 const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
   { key: 'US',         label: 'United States',  flag: '🇺🇸' },
@@ -110,7 +108,6 @@ function Row({
   );
 }
 
-// ── Reusable doc modal ────────────────────────────────────────────────────────
 function DocModal({
   visible, title, content, onClose,
 }: {
@@ -126,20 +123,14 @@ function DocModal({
           </Pressable>
           <ThemedText style={[styles.headerTitle, { color: colors.text }]}>{title}</ThemedText>
         </View>
-        <ScrollView
-          contentContainerStyle={styles.docScroll}
-          showsVerticalScrollIndicator={false}
-        >
-          <ThemedText style={[styles.docText, { color: colors.text }]}>
-            {content}
-          </ThemedText>
+        <ScrollView contentContainerStyle={styles.docScroll} showsVerticalScrollIndicator={false}>
+          <ThemedText style={[styles.docText, { color: colors.text }]}>{content}</ThemedText>
         </ScrollView>
       </SafeAreaView>
     </Modal>
   );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
 export default function SettingsScreen() {
   const { scheme, colors } = useAppTheme();
   const isDark = scheme === 'dark';
@@ -155,9 +146,6 @@ export default function SettingsScreen() {
   const [hcStatus,   setHcStatus]     = useState<PermissionStatus>('not_asked');
   const [lastSynced, setLastSynced]   = useState<string | null>(null);
 
-  // ── Real cloud sync state ─────────────────────────────────────────────────
-  // We use a Firestore onSnapshot listener on the user doc.
-  // When it fires, we know data is live-synced — show the current time.
   const [cloudSyncTime,   setCloudSyncTime]   = useState<string>('Syncing…');
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
   const unsubCloudSync = useRef<(() => void) | null>(null);
@@ -167,30 +155,18 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     const unsub = auth.onAuthStateChanged(user => {
-      // Clean up previous listener
       if (unsubCloudSync.current) {
         unsubCloudSync.current();
         unsubCloudSync.current = null;
       }
-
       if (!user) return;
-
-      // Read region from Firestore once
       const userDocRef = doc(db, 'users', user.uid);
-
-      // Real-time listener — every time this fires, Firestore is synced
       unsubCloudSync.current = onSnapshot(
         userDocRef,
         (snap) => {
-          if (snap.exists()) {
-            setRegion(snap.data().region || 'GLOBAL_AVG');
-          }
-          // Update "last synced" to now — this callback only fires when
-          // Firestore has confirmed the latest data
+          if (snap.exists()) setRegion(snap.data().region || 'GLOBAL_AVG');
           const now = new Date();
-          setCloudSyncTime(
-            now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          );
+          setCloudSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
           setCloudSyncStatus('synced');
         },
         (error) => {
@@ -200,7 +176,6 @@ export default function SettingsScreen() {
         }
       );
     });
-
     return () => {
       unsub();
       if (unsubCloudSync.current) unsubCloudSync.current();
@@ -248,7 +223,9 @@ export default function SettingsScreen() {
           onPress: async () => {
             const user = auth.currentUser;
             if (!user) return;
+
             try {
+              // ── Step 1: Re-authenticate (required for sensitive operations) ──
               const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
               if (isGoogle) {
                 await GoogleSignin.hasPlayServices();
@@ -257,23 +234,38 @@ export default function SettingsScreen() {
                 if (!token) throw new Error('No ID token');
                 await reauthenticateWithCredential(user, GoogleAuthProvider.credential(token));
               }
-              await deleteDoc(doc(db, 'users', user.uid));
-              await deleteUser(user);
+
+              // ── Step 2: Clear Zustand store BEFORE deleting Auth ──
+              // Do this first so the auth listener in _layout sees a clean store
+              // when it fires and routes to /login.
               useActivityStore.getState().clearActivities();
               useActivityStore.getState().setUserProfile(null as any);
-              router.replace('/login');
+
+              // ── Step 3: Delete Firebase Auth account ──
+              // This triggers onAuthStateChanged(null) in _layout.tsx,
+              // which calls router.replace('/login') via the hasNavigated guard.
+              // DO NOT call router.replace() here — that causes the double navigation.
+              await deleteUser(user);
+
+              // ── Step 4: Best-effort Firestore cleanup ──
+              // Auth is already gone; orphaned doc is harmless if this fails.
+              try {
+                await deleteDoc(doc(db, 'users', user.uid));
+              } catch { /* best-effort */ }
+
+              // ✅ Navigation is handled entirely by onAuthStateChanged in _layout.tsx
+
             } catch (e: any) {
-              // auth/requires-recent-login after re-auth is a known Firebase timing issue.
-                // The deletion still proceeds. Only surface unexpected errors.
-                if (e.code !== 'auth/requires-recent-login') {
-                  Alert.alert('Error', 'Could not delete account. Please try again.');
-                  return;
-                }
-                // Otherwise: deletion worked, continue cleanup silently
-              }
-              // Clear store and navigate away
-              useActivityStore.getState().clearActivities();
-              router.replace('/login');
+              // Auth deletion failed — user is still signed in. Show error only.
+              const msg =
+                e.code === 'auth/requires-recent-login'
+                  ? 'Please sign out and sign back in, then try deleting your account again.'
+                  : e.code === 'auth/network-request-failed'
+                  ? 'No internet connection. Please try again.'
+                  : 'Could not delete account. Please try again.';
+
+              Alert.alert('Deletion Failed', msg);
+            }
           },
         },
       ]
@@ -301,7 +293,6 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
 
-      {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.surface }]}>
           <Ionicons name="arrow-back" size={20} color={colors.text} />
@@ -311,7 +302,6 @@ export default function SettingsScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Profile card */}
         <Pressable
           style={[styles.profileCard, { backgroundColor: colors.surface }]}
           onPress={() => router.push('/edit-profile')}
@@ -332,7 +322,6 @@ export default function SettingsScreen() {
           <Ionicons name="chevron-forward" size={16} color={colors.text + '40'} />
         </Pressable>
 
-        {/* Account */}
         <Section title="Account">
           <Row icon="globe-outline"  iconColor="#29B6F6" label="Region"
             value={getRegionLabel(region)} onPress={() => setRegionModal(true)} separator={true} />
@@ -340,13 +329,11 @@ export default function SettingsScreen() {
             value={auth.currentUser?.email ?? '—'} chevron={false} separator={false} />
         </Section>
 
-        {/* Appearance */}
         <Section title="Appearance">
           <Row icon={currentTheme.icon} iconColor={currentTheme.color} label="Theme"
             value={currentTheme.label} onPress={() => setThemeModal(true)} separator={false} />
         </Section>
 
-        {/* Notifications */}
         <Section title="Notifications">
           <Row icon="notifications-outline" iconColor="#FFC107" label="Activity reminders"
             badge="Soon" chevron={false} separator={true} />
@@ -354,7 +341,6 @@ export default function SettingsScreen() {
             badge="Soon" chevron={false} separator={false} />
         </Section>
 
-        {/* Data & Privacy */}
         <Section title="Data & Privacy">
           <Row icon="fitness-outline" iconColor="#66BB6A" label="Health Connect"
             value={hcStatus === 'granted' ? 'Connected' : hcStatus === 'unavailable' ? 'Unavailable' : 'Not connected'}
@@ -379,16 +365,13 @@ export default function SettingsScreen() {
             onPress={() => setShowTerms(true)} separator={false} />
         </Section>
 
-        {/* About */}
         <Section title="About">
           <Row icon="leaf-outline" iconColor="#4CAF50" label="Version"
             value="1.0.1 Beta" chevron={false} separator={true} />
-          {/* Opens your Google Form / Typeform — testers tap this to leave feedback */}
           <Row icon="chatbubble-ellipses-outline" iconColor="#29B6F6" label="Send feedback"
             onPress={handleFeedback} separator={false} />
         </Section>
 
-        {/* Account Actions */}
         <Section title="Account Actions">
           <Row icon="log-out-outline" iconColor="#EF5350" label="Sign Out"
             destructive chevron={false} onPress={handleSignOut} separator={true} />
@@ -473,21 +456,8 @@ export default function SettingsScreen() {
         </Pressable>
       </Modal>
 
-      {/* Privacy Policy */}
-      <DocModal
-        visible={showPrivacy}
-        title="Privacy Policy"
-        content={PRIVACY_POLICY}
-        onClose={() => setShowPrivacy(false)}
-      />
-
-      {/* Terms of Service */}
-      <DocModal
-        visible={showTerms}
-        title="Terms of Service"
-        content={TERMS_OF_SERVICE}
-        onClose={() => setShowTerms(false)}
-      />
+      <DocModal visible={showPrivacy} title="Privacy Policy"   content={PRIVACY_POLICY}    onClose={() => setShowPrivacy(false)} />
+      <DocModal visible={showTerms}   title="Terms of Service" content={TERMS_OF_SERVICE}   onClose={() => setShowTerms(false)} />
 
     </SafeAreaView>
   );
@@ -495,42 +465,19 @@ export default function SettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 10, gap: 12,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 10,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 22, fontWeight: '700' },
-
   scroll: { paddingHorizontal: 16, paddingBottom: 40, gap: 4 },
-
-  profileCard: {
-    flexDirection: 'row', alignItems: 'center',
-    padding: 16, borderRadius: 16, gap: 14, marginBottom: 8,
-  },
-  profileAvatar: {
-    width: 48, height: 48, borderRadius: 24,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  profileCard: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, gap: 14, marginBottom: 8 },
+  profileAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   profileInitial: { fontSize: 20, fontWeight: '700' },
   profileName:    { fontSize: 16, fontWeight: '600' },
   profileEmail:   { fontSize: 13, opacity: 0.5, marginTop: 1 },
-
   sectionBlock: { gap: 6, marginTop: 10 },
-  sectionTitle: {
-    fontSize: 11, fontWeight: '700', opacity: 0.5,
-    textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 4,
-  },
-  sectionCard: { borderRadius: 14, overflow: 'hidden' },
-
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 13, gap: 12,
-  },
+  sectionTitle: { fontSize: 11, fontWeight: '700', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: 4 },
+  sectionCard:  { borderRadius: 14, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13, gap: 12 },
   rowIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   rowLabel:    { flex: 1, fontSize: 15 },
   rowRight:    { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -538,26 +485,15 @@ const styles = StyleSheet.create({
   sep:         { height: StyleSheet.hairlineWidth },
   badge:       { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   badgeText:   { fontSize: 11, fontWeight: '600' },
-
-  footerText: { textAlign: 'center', fontSize: 12, opacity: 0.25, marginTop: 20 },
-
-  docScroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
-  docText:   { fontSize: 14, lineHeight: 22, opacity: 0.85 },
-
+  footerText:  { textAlign: 'center', fontSize: 12, opacity: 0.25, marginTop: 20 },
+  docScroll:   { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 },
+  docText:     { fontSize: 14, lineHeight: 22, opacity: 0.85 },
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingTop: 12, paddingBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.2, shadowRadius: 20, elevation: 24,
-  },
-  sheetHandle:   { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
-  sheetTitle:    { fontSize: 17, fontWeight: '700', paddingHorizontal: 20, marginBottom: 4 },
-  sheetSubtitle: { fontSize: 13, opacity: 0.45, paddingHorizontal: 20, marginBottom: 8 },
-  sheetOption: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 15, gap: 12,
-  },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 12, paddingBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.2, shadowRadius: 20, elevation: 24 },
+  sheetHandle:      { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 16 },
+  sheetTitle:       { fontSize: 17, fontWeight: '700', paddingHorizontal: 20, marginBottom: 4 },
+  sheetSubtitle:    { fontSize: 13, opacity: 0.45, paddingHorizontal: 20, marginBottom: 8 },
+  sheetOption:      { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 15, gap: 12 },
   sheetOptionFlag:  { fontSize: 22 },
   sheetOptionLabel: { flex: 1, fontSize: 15 },
   radioCircle:      { width: 20, height: 20, borderRadius: 10, borderWidth: 1.5 },

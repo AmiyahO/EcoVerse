@@ -1,4 +1,4 @@
-// _layout.tsx
+// app/_layout.tsx
 import { View } from 'react-native';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
@@ -15,19 +15,23 @@ export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [authResolved, setAuthResolved] = useState(false); // has Firebase told us auth state?
+  const [authResolved, setAuthResolved] = useState(false);
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);
   const [userDocReady, setUserDocReady] = useState(false);
   const [activitiesReady, setActivitiesReady] = useState(false);
-  // freshLogin: true when user just signed in this session (skip skeleton, go straight to route)
+
   const freshLogin = useRef(false);
-  // Only show data-loading skeleton when signed in AND it's not a fresh login/signup
+  // ── Prevents double-navigation: once _layout routes somewhere, it won't
+  //    re-route until auth state actually changes again (e.g. a new sign-in).
+  //    Without this, router.replace('/login') in settings AND the onAuthStateChanged
+  //    null callback both call router.replace('/login'), causing the login screen
+  //    to animate in twice after account deletion.
+  const hasNavigated = useRef(false);
+
   const loading = !authResolved || (!!user && (!userDocReady || !activitiesReady) && !freshLogin.current);
 
   const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore();
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
-
-  // Tracks whether we've done the initial full load yet
   const initialLoadDone = useRef(false);
 
   useEffect(() => {
@@ -42,12 +46,13 @@ export default function RootLayout() {
       initialLoadDone.current = false;
 
       setAuthResolved(true);
+      // Reset nav guard on every auth state change so the new state can route
+      hasNavigated.current = false;
 
       if (currentUser) {
         setUser(currentUser);
-        freshLogin.current = true; // skip skeleton — we just authenticated
+        freshLogin.current = true;
 
-        // ── User profile listener ──
         unsubscribeDoc = onSnapshot(
           doc(db, 'users', currentUser.uid),
           (docSnap) => {
@@ -67,7 +72,6 @@ export default function RootLayout() {
           (error) => { console.error(error); setUserDocReady(true); }
         );
 
-        // ── Activities listener ──
         const q = query(
           collection(db, 'users', currentUser.uid, 'activities'),
           orderBy('date', 'desc')
@@ -78,8 +82,6 @@ export default function RootLayout() {
           { includeMetadataChanges: false },
           (snapshot) => {
             if (!initialLoadDone.current) {
-              // First snapshot: full replace from server data
-              // Filter out soft-deleted activities
               const firebaseData = snapshot.docs
                 .map(d => ({ id: d.id, ...d.data() }))
                 .filter((d: any) => !d.deleted) as any[];
@@ -89,26 +91,17 @@ export default function RootLayout() {
               return;
             }
 
-            // Subsequent snapshots: apply only what changed.
-            // This is the key fix — we never call setActivities again after initial load,
-            // so a deleted doc can't get written back into the store.
             const store = useActivityStore.getState();
             snapshot.docChanges().forEach(change => {
               if (change.type === 'added') {
                 const data = change.doc.data();
-                if (data.deleted) return; // skip soft-deleted
+                if (data.deleted) return;
                 const exists = store.activities.some(a => a.id === change.doc.id);
-                if (!exists) {
-                  store.addActivity({ id: change.doc.id, ...data } as any);
-                }
+                if (!exists) store.addActivity({ id: change.doc.id, ...data } as any);
               } else if (change.type === 'modified') {
                 const data = change.doc.data();
-                if (data.deleted) {
-                  // Soft-deleted — remove from local store
-                  store.removeActivity(change.doc.id);
-                } else {
-                  store.updateActivity(change.doc.id, { id: change.doc.id, ...data });
-                }
+                if (data.deleted) store.removeActivity(change.doc.id);
+                else store.updateActivity(change.doc.id, { id: change.doc.id, ...data });
               } else if (change.type === 'removed') {
                 store.removeActivity(change.doc.id);
               }
@@ -138,23 +131,27 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!authResolved) return;
-    // For fresh logins, route as soon as we know onboarding status (don't wait for activities)
+    if (hasNavigated.current) return; // ← guard: only route once per auth state
+
     const readyToRoute = freshLogin.current
       ? (userDocReady && hasFinishedOnboarding !== null)
       : !loading;
 
     if (readyToRoute) {
       if (!user) {
+        hasNavigated.current = true;
         freshLogin.current = false;
         router.replace('/login');
       } else if (hasFinishedOnboarding === false) {
+        hasNavigated.current = true;
         freshLogin.current = false;
         router.replace('/onboarding');
       } else if (hasFinishedOnboarding === true) {
+        hasNavigated.current = true;
         freshLogin.current = false;
         router.replace('/(tabs)');
       }
-      // null = doc not written yet (deleted account re-auth), wait
+      // null = doc not written yet, wait
     }
   }, [user, hasFinishedOnboarding, loading, authResolved, userDocReady]);
 
@@ -162,7 +159,6 @@ export default function RootLayout() {
     const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
     const shimmer  = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
     const shimmer2 = scheme === 'dark' ? '#222'    : '#F3F4F6';
-    // If auth hasn't resolved yet, no user, or fresh login — show plain background, never skeleton
     if (!authResolved || !user || freshLogin.current) {
       return <View style={{ flex: 1, backgroundColor: bg }} />;
     }

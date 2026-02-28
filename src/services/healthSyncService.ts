@@ -3,8 +3,8 @@
 //
 // Responsibilities:
 //   - Store/retrieve lastSyncedAt in Firestore (persists across devices)
-//   - Fetch HC sessions since last sync
-//   - Deduplicate against already-imported HC session IDs
+//   - Fetch HC sessions + daily pedometer summaries since last sync
+//   - Deduplicate against already-imported IDs and existing activities
 //   - Batch-write selected activities to Firestore
 //   - Update user tokens/carbon totals atomically
 
@@ -15,8 +15,10 @@ import {
 import { db, auth } from '@/src/firebase/config';
 import {
   fetchRecentActivities,
+  fetchDailyStepSummaries,
   checkHealthPermissions,
   HCActivity,
+  HCDailySteps,
 } from './healthConnect';
 import {
   calculateFinalTokens,
@@ -35,6 +37,8 @@ export interface SyncSession {
   estimatedCarbon: number;
   /** Whether to include in the sync — toggled by user on review screen */
   selected: boolean;
+  /** True when this came from daily pedometer aggregation, not a session */
+  isPedometerDay?: boolean;
 }
 
 export interface SyncResult {
@@ -45,7 +49,7 @@ export interface SyncResult {
 
 export interface SyncState {
   lastSyncedAt: string | null;   // ISO string
-  importedIds: string[];         // HC session IDs already imported
+  importedIds: string[];         // HC session IDs + pedometer day IDs already imported
 }
 
 // ── Firestore path helpers ───────────────────────────────────────────────────
@@ -83,15 +87,31 @@ async function updateSyncState(newIds: string[]) {
   }, { merge: false });            // replace entirely so array stays clean
 }
 
+// ── Local date helper ────────────────────────────────────────────────────────
+
+/** Extract YYYY-MM-DD from any ISO string using LOCAL date, not UTC */
+function localDateKey(iso: string): string {
+  const d = new Date(iso);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 // ── Fetch sessions ready to sync ─────────────────────────────────────────────
 
 /**
  * Returns sessions from Health Connect that:
  *   1. Are newer than lastSyncedAt (or last 30 days if never synced)
  *   2. Haven't already been imported (not in importedIds)
+ *   3. Don't overlap with manually-logged activities (within ±2h, same type)
  *
- * Each session comes pre-loaded with estimated tokens/carbon so the
- * review screen can show the user what they'll earn.
+ * Merges two sources:
+ *   A. ExerciseSession records — from Strava, Samsung Health, Google Fit etc.
+ *   B. Daily pedometer summaries — raw Steps records from the phone's built-in
+ *      step counter, aggregated per local calendar day. These have NO
+ *      corresponding ExerciseSession, so source A misses them entirely.
+ *      Any day already covered by a walking session (source A) is suppressed.
  */
 export async function fetchSyncCandidates(
   currentActivities: Activity[],
@@ -109,15 +129,18 @@ export async function fetchSyncCandidates(
       )
     : 30;
 
+  const importedSet = new Set(syncState.importedIds);
+  const streak = calculateStreak(currentActivities);
+
+  // ── A. Exercise sessions ──────────────────────────────────────────────────
   const hcActivities = await fetchRecentActivities(daysBack);
 
   // Filter out already-imported sessions
-  const importedSet = new Set(syncState.importedIds);
   const newActivities = hcActivities.filter(a => !importedSet.has(a.id));
 
   // Also filter out sessions that overlap with manually-logged activities
   // (within 2 hours of the same type on the same day)
-  const filtered = newActivities.filter(hca => {
+  const filteredSessions = newActivities.filter(hca => {
     const hcDate = new Date(hca.startTime);
     return !currentActivities.some(existing => {
       if (existing.category !== hca.type) return false;
@@ -127,10 +150,14 @@ export async function fetchSyncCandidates(
     });
   });
 
-  // Calculate estimated impact for each
-  const streak = calculateStreak(currentActivities);
+  // Track which local dates are covered by a walking session
+  // so we don't double-count with pedometer summaries below
+  const sessionCoveredDates = new Set<string>();
+  for (const hca of filteredSessions) {
+    if (hca.type === 'walking') sessionCoveredDates.add(localDateKey(hca.startTime));
+  }
 
-  const sessions: SyncSession[] = filtered.map(hca => {
+  const sessionCandidates: SyncSession[] = filteredSessions.map(hca => {
     const activityLike = {
       category: hca.type,
       steps:    hca.steps,
@@ -138,16 +165,67 @@ export async function fetchSyncCandidates(
       duration: hca.duration,
       date:     hca.startTime,
     };
-    const estimatedTokens = calculateFinalTokens(activityLike as any, streak);
-    const estimatedCarbon = calculateCarbonSaved(activityLike as any, userRegion);
-
     return {
       hcActivity:      hca,
-      estimatedTokens,
-      estimatedCarbon,
-      selected:        true, // default all selected
+      estimatedTokens: calculateFinalTokens(activityLike as any, streak),
+      estimatedCarbon: calculateCarbonSaved(activityLike as any, userRegion),
+      selected:        true,
     };
   });
+
+  // ── B. Daily pedometer summaries ──────────────────────────────────────────
+  // fetchDailyStepSummaries aggregates raw Steps records from the device's
+  // built-in step counter — one entry per local calendar day. Users who walk
+  // with just their phone (no Strava session etc.) generate steps here only.
+  const pedometerDays = await fetchDailyStepSummaries(daysBack);
+
+  const pedometerCandidates: SyncSession[] = [];
+
+  for (const day of pedometerDays) {
+    // Already imported (pedometer IDs are "steps-YYYY-MM-DD")
+    if (importedSet.has(day.id)) continue;
+    // A walking exercise session already covers this date
+    if (sessionCoveredDates.has(day.date)) continue;
+    // A manually-logged walking activity exists on this local date
+    const manualExists = currentActivities.some(
+      a => a.category === 'walking' && localDateKey(a.date) === day.date
+    );
+    if (manualExists) continue;
+
+    // Convert HCDailySteps → HCActivity so the sync screen renders it
+    // identically to a session card with zero screen changes needed
+    const syntheticActivity: HCActivity = {
+      id:        day.id,
+      type:      'walking',
+      startTime: day.startTime,
+      endTime:   day.endTime,
+      steps:     day.steps,
+      distance:  day.distance > 0 ? day.distance : undefined,
+      source:    'pedometer',
+    };
+
+    const activityLike = {
+      category: 'walking' as const,
+      steps:    day.steps,
+      distance: day.distance > 0 ? day.distance : undefined,
+      date:     day.startTime,
+    };
+
+    pedometerCandidates.push({
+      hcActivity:      syntheticActivity,
+      estimatedTokens: calculateFinalTokens(activityLike as any, streak),
+      estimatedCarbon: calculateCarbonSaved(activityLike as any, userRegion),
+      selected:        true,
+      isPedometerDay:  true,
+    });
+  }
+
+  // ── Merge and sort newest first ───────────────────────────────────────────
+  const sessions = [...sessionCandidates, ...pedometerCandidates].sort(
+    (a, b) =>
+      new Date(b.hcActivity.startTime).getTime() -
+      new Date(a.hcActivity.startTime).getTime()
+  );
 
   return { sessions, syncState };
 }

@@ -1,12 +1,6 @@
 // src/services/healthConnect.ts
 // Health Connect integration for Android.
 // Uses expo-health-connect (Expo config plugin wrapper around react-native-health-connect).
-//
-// Install: npm install expo-health-connect
-// Add to app.json plugins: ["expo-health-connect"]
-// Add android.permissions in app.json (see HEALTH_CONNECT_SETUP.md)
-// Then rebuild: npx expo run:android
-//
 // Health Connect requires Android 8+ (API 26). On Android 14+ it's built into the OS.
 
 import {
@@ -35,6 +29,24 @@ export interface HCActivity {
   duration?: number;    // minutes
   calories?: number;
   source?: string;      // e.g. "Google Fit", "Samsung Health"
+}
+
+/**
+ * A day's worth of steps from the phone pedometer (no exercise session).
+ * Surfaces in the sync screen as an importable walking entry.
+ */
+export interface HCDailySteps {
+  /** Unique ID — "steps-YYYY-MM-DD" */
+  id: string;
+  /** ISO date string for the LOCAL day, e.g. "2026-02-27" */
+  date: string;
+  /** Local midnight for the day */
+  startTime: string;
+  /** Local end-of-day for the day */
+  endTime: string;
+  steps: number;
+  distance: number; // km, may be 0 if no distance data
+  source: string;
 }
 
 export interface HCSummary {
@@ -117,13 +129,15 @@ export async function checkHealthPermissions(): Promise<PermissionStatus> {
   }
 }
 
-// ── Data fetching ────────────────────────────────────────────────────────────
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
 /**
- * Returns a date range for the last N days (used for recent sessions).
- * Always uses local midnight, not UTC.
+ * Local-midnight-aware date range for N days back.
+ * All HC queries must use local midnight — NOT UTC midnight —
+ * to avoid bleeding the previous day's evening into the wrong day
+ * on devices in UTC+1 or later (e.g. Cyprus is UTC+2/+3).
  */
-function getDateRange(daysBack = 7): { startTime: string; endTime: string } {
+function getDateRange(daysBack: number): { startTime: string; endTime: string } {
   const end   = new Date();
   const start = new Date();
   start.setDate(end.getDate() - daysBack);
@@ -133,6 +147,16 @@ function getDateRange(daysBack = 7): { startTime: string; endTime: string } {
     endTime:   end.toISOString(),
   };
 }
+
+/** Returns the local ISO date string (YYYY-MM-DD) for a given Date */
+function toLocalISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ── Today's steps (banner auto-fill) ─────────────────────────────────────────
 
 /**
  * Fetch TODAY's step count and distance from Health Connect.
@@ -238,6 +262,72 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
     );
   } catch (e) {
     console.error('fetchRecentActivities error:', e);
+    return [];
+  }
+}
+
+// ── Daily pedometer step summaries ────────────────────────────────────────────
+//
+// The phone's built-in pedometer writes Steps records throughout the day with
+// NO corresponding ExerciseSession. fetchRecentActivities() misses these entirely.
+//
+// This function aggregates HC Steps + Distance records day by day and returns
+// one HCDailySteps entry per day that has steps > 0. The caller (healthSyncService)
+// is responsible for filtering out days that already have a walking activity logged,
+// and for skipping days covered by an exercise session from fetchRecentActivities().
+
+export async function fetchDailyStepSummaries(daysBack = 30): Promise<HCDailySteps[]> {
+  if (Platform.OS !== 'android') return [];
+
+  try {
+    const { startTime, endTime } = getDateRange(daysBack);
+
+    const [stepsResult, distanceResult] = await Promise.all([
+      readRecords('Steps',    { timeRangeFilter: { operator: 'between', startTime, endTime } }),
+      readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
+    ]);
+
+    // Bucket steps by local date
+    const stepsByDay: Record<string, number> = {};
+    for (const r of stepsResult.records as any[]) {
+      const dayKey = toLocalISODate(new Date(r.startTime));
+      stepsByDay[dayKey] = (stepsByDay[dayKey] ?? 0) + (r.count ?? 0);
+    }
+
+    // Bucket distance by local date
+    const distByDay: Record<string, number> = {};
+    for (const r of distanceResult.records as any[]) {
+      const dayKey = toLocalISODate(new Date(r.startTime));
+      distByDay[dayKey] = (distByDay[dayKey] ?? 0) + (r.distance?.inMeters ?? 0);
+    }
+
+    const summaries: HCDailySteps[] = [];
+
+    for (const [dateKey, totalSteps] of Object.entries(stepsByDay)) {
+      if (totalSteps < 100) continue; // ignore noise / brief movement
+
+      const [y, mo, d] = dateKey.split('-').map(Number);
+      const dayStart = new Date(y, mo - 1, d, 0, 0, 0, 0);
+      const dayEnd   = new Date(y, mo - 1, d, 23, 59, 59, 999);
+
+      const totalDistMeters = distByDay[dateKey] ?? 0;
+      const distKm = Math.round((totalDistMeters / 1000) * 100) / 100;
+
+      summaries.push({
+        id:        `steps-${dateKey}`,
+        date:      dateKey,
+        startTime: dayStart.toISOString(),
+        endTime:   dayEnd.toISOString(),
+        steps:     Math.round(totalSteps),
+        distance:  distKm,
+        source:    'pedometer',
+      });
+    }
+
+    // Sort newest first
+    return summaries.sort((a, b) => b.date.localeCompare(a.date));
+  } catch (e) {
+    console.error('fetchDailyStepSummaries error:', e);
     return [];
   }
 }

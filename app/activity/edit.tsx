@@ -1,5 +1,8 @@
 // activity/edit.tsx
-import { View, StyleSheet, Pressable, TextInput, Alert, ScrollView, ActivityIndicator } from 'react-native';
+
+import {
+  View, StyleSheet, Pressable, TextInput, Alert, ScrollView, ActivityIndicator, Platform,
+} from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { doc, updateDoc, increment } from 'firebase/firestore';
@@ -8,22 +11,57 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function parseActivityDate(iso: string): Date {
+  // Handles 'YYYY-MM-DD' and full ISO strings without timezone shift
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  return new Date(iso);
+}
+
+function toISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function EditActivityScreen() {
-  const { colors } = useAppTheme();
+  const { scheme, colors } = useAppTheme();
+  const isDark = scheme === 'dark';
   const { id } = useLocalSearchParams();
 
   const activity       = useActivityStore(s => s.getActivityById(id as string));
   const userRegion     = useActivityStore(s => s.userRegion);
   const updateActivity = useActivityStore(s => s.updateActivity);
 
-  const [steps, setSteps]             = useState('');
-  const [distance, setDistance]       = useState('');
-  const [duration, setDuration]       = useState('');
-  const [kwhSaved, setKwhSaved]       = useState('');
+  const [steps,       setSteps]       = useState('');
+  const [distance,    setDistance]    = useState('');
+  const [duration,    setDuration]    = useState('');
+  const [kwhSaved,    setKwhSaved]    = useState('');
   const [litersSaved, setLitersSaved] = useState('');
-  const [isSaving, setIsSaving]       = useState(false);
+  const [isSaving,    setIsSaving]    = useState(false);
+
+  // Date state
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showPicker,   setShowPicker]   = useState(false);
 
   useEffect(() => {
     if (activity) {
@@ -32,6 +70,7 @@ export default function EditActivityScreen() {
       setDuration(activity.duration?.toString() ?? '');
       setKwhSaved(activity.kwhSaved?.toString() ?? '');
       setLitersSaved(activity.litersSaved?.toString() ?? '');
+      setSelectedDate(parseActivityDate(activity.date));
     }
   }, [activity]);
 
@@ -40,21 +79,30 @@ export default function EditActivityScreen() {
   const isUtility     = activity.category === 'electricity' || activity.category === 'water';
   const categoryColor = CATEGORY_COLORS[activity.category] ?? colors.tint;
 
+  const onDateChange = (_: DateTimePickerEvent, date?: Date) => {
+    // On Android the picker dismisses itself — hide our state flag
+    setShowPicker(Platform.OS === 'ios');
+    if (date) {
+      // Clamp to today — no future dates
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      setSelectedDate(date > today ? today : date);
+    }
+  };
+
   const handleUpdate = async () => {
     if (!auth.currentUser || isSaving) return;
     setIsSaving(true);
-
     try {
       const userRef     = doc(db, 'users', auth.currentUser.uid);
       const activityRef = doc(db, 'users', auth.currentUser.uid, 'activities', activity.id);
 
-      // Old impact
       const oldTokens = calculateTokens(activity);
       const oldCarbon = calculateCarbonSaved(activity, userRegion);
 
-      // Build updated data
       const updatedData = {
         ...activity,
+        date:        toISODate(selectedDate),
         steps:       steps       ? Number(steps)       : undefined,
         distance:    distance    ? Number(distance)    : undefined,
         duration:    duration    ? Number(duration)    : undefined,
@@ -62,27 +110,19 @@ export default function EditActivityScreen() {
         litersSaved: litersSaved ? Number(litersSaved) : undefined,
       };
 
-      // New impact
       const newTokens = calculateTokens(updatedData);
       const newCarbon = calculateCarbonSaved(updatedData, userRegion);
 
-      // Strip undefined before writing to Firestore
       const firestoreData = Object.fromEntries(
         Object.entries(updatedData).filter(([, v]) => v !== undefined)
       );
 
       await updateDoc(activityRef, firestoreData);
-
-      // Update user totals with the diff only
-      const tokenDiff  = newTokens - oldTokens;
-      const carbonDiff = newCarbon - oldCarbon;
-
       await updateDoc(userRef, {
-        tokens:           increment(tokenDiff),
-        totalCarbonSaved: increment(carbonDiff),
+        tokens:           increment(newTokens - oldTokens),
+        totalCarbonSaved: increment(newCarbon - oldCarbon),
       });
 
-      // Update local store so UI reflects immediately
       updateActivity(activity.id, updatedData);
 
       Alert.alert('Updated', 'Activity updated successfully.', [
@@ -110,8 +150,7 @@ export default function EditActivityScreen() {
                 activity.category === 'cycling'     ? 'bicycle' :
                 activity.category === 'electricity' ? 'bolt' : 'droplet'
               }
-              size={20}
-              color={categoryColor}
+              size={20} color={categoryColor}
             />
           </View>
           <ThemedText type="title" style={{ color: colors.text, fontSize: 22 }}>
@@ -122,7 +161,8 @@ export default function EditActivityScreen() {
         {/* Utility note */}
         {isUtility && (
           <View style={[styles.infoBox, { backgroundColor: colors.surface }]}>
-            <FontAwesome6 name="circle-info" size={12} color={colors.text} style={{ opacity: 0.4, marginTop: 1 }} />
+            <FontAwesome6 name="circle-info" size={12} color={colors.text}
+              style={{ opacity: 0.4, marginTop: 1 }} />
             <ThemedText style={[styles.infoText, { color: colors.text }]}>
               Editing the saved amount directly. To log a new monthly reading, use the main log screen instead.
             </ThemedText>
@@ -130,14 +170,48 @@ export default function EditActivityScreen() {
         )}
 
         <View style={styles.form}>
+
+          {/* ── Date field ── */}
+          <View style={styles.field}>
+            <ThemedText style={[styles.label, { color: colors.text }]}>Date</ThemedText>
+            <Pressable
+              onPress={() => setShowPicker(true)}
+              style={({ pressed }) => [
+                styles.dateBtn,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.tint + '30',
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="calendar-outline" size={18} color={colors.tint} />
+              <ThemedText style={[styles.dateText, { color: colors.text }]}>
+                {formatDisplayDate(selectedDate)}
+              </ThemedText>
+              <Ionicons name="chevron-down" size={16} color={colors.text + '55'}
+                style={{ marginLeft: 'auto' }} />
+            </Pressable>
+          </View>
+
+          {/* Native date picker — Android shows a dialog, iOS shows inline */}
+          {showPicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              maximumDate={new Date()}
+              onChange={onDateChange}
+              // Respect the app's dark/light theme on iOS
+              themeVariant={isDark ? 'dark' : 'light'}
+            />
+          )}
+
+          {/* ── Metric inputs ── */}
           {activity.category === 'walking' && (
             <>
-              {activity.steps !== undefined && (
-                <EditInput label="Steps" value={steps} onChange={setSteps} colors={colors} />
-              )}
-              {activity.distance !== undefined && (
-                <EditInput label="Distance (km)" value={distance} onChange={setDistance} colors={colors} />
-              )}
+              {activity.steps    !== undefined && <EditInput label="Steps" value={steps} onChange={setSteps} colors={colors} />}
+              {activity.distance !== undefined && <EditInput label="Distance (km)" value={distance} onChange={setDistance} colors={colors} />}
             </>
           )}
           {activity.category === 'running' && (
@@ -157,30 +231,27 @@ export default function EditActivityScreen() {
           )}
 
           <Pressable
-            style={[styles.saveButton, { backgroundColor: colors.tint }, isSaving && { opacity: 0.6 }]}
+            style={[styles.saveBtn, { backgroundColor: colors.tint }, isSaving && { opacity: 0.6 }]}
             onPress={handleUpdate}
             disabled={isSaving}
           >
-            {isSaving ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <ThemedText style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-                Update Activity
-              </ThemedText>
-            )}
+            {isSaving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <ThemedText style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+                  Update Activity
+                </ThemedText>
+            }
           </Pressable>
         </View>
-
       </ScrollView>
     </View>
   );
 }
 
-function EditInput({
-  label, value, onChange, colors,
-}: {
-  label: string; value: string;
-  onChange: (v: string) => void; colors: any;
+// ─── Shared input ─────────────────────────────────────────────────────────────
+
+function EditInput({ label, value, onChange, colors }: {
+  label: string; value: string; onChange: (v: string) => void; colors: any;
 }) {
   return (
     <View style={styles.field}>
@@ -196,21 +267,22 @@ function EditInput({
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { padding: 20, gap: 20, paddingBottom: 40 },
-  header:    { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  headerIcon: {
-    width: 44, height: 44, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoBox: {
-    flexDirection: 'row', alignItems: 'flex-start',
-    gap: 8, padding: 12, borderRadius: 10,
-  },
+  container:  { padding: 20, gap: 20, paddingBottom: 40 },
+  header:     { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  headerIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  infoBox:    { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 10 },
   infoText:   { fontSize: 13, opacity: 0.6, flex: 1, lineHeight: 18 },
   form:       { gap: 16 },
   field:      { gap: 8 },
   label:      { fontSize: 14, opacity: 0.7, fontWeight: '500' },
   input:      { padding: 15, borderRadius: 12, fontSize: 16 },
-  saveButton: { padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  saveBtn:    { padding: 18, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  dateBtn:    {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 10, padding: 15, borderRadius: 12, borderWidth: 1.5,
+  },
+  dateText:   { fontSize: 16, flex: 1 },
 });

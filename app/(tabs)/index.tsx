@@ -11,6 +11,7 @@ import {
   calculateTokens, calculateCarbonSaved, getEcoZone,
   getWeekCarbonComparison, CATEGORY_COLORS, calculateStreak,
 } from '@/src/utils/ecoLogic';
+import { getCO2Equivalent } from '@/src/utils/co2Equivalents';
 import AISuggestionsCard from '@/components/ai-suggestions-card';
 import Svg, { Circle, G } from 'react-native-svg';
 
@@ -26,7 +27,7 @@ const RING_RADIUS = 64;
 const RING_STROKE = 5;
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const SIZE = 138;
-const CENTER = SIZE / 2; // 69
+const CENTER = SIZE / 2;
 
 function getZoneColor(score: number) {
   if (score < 50) return '#EF5350';
@@ -81,6 +82,9 @@ export default function HomeScreen() {
   const zone       = getEcoZone(ecoScore);
   const comparison = getWeekCarbonComparison(activities, userRegion);
 
+  const totalCarbonSaved = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+  const co2Equivalent    = getCO2Equivalent(totalCarbonSaved);
+
   const comparisonColor =
     comparison.direction === 'up'   ? '#4CAF50' :
     comparison.direction === 'down' ? '#EF5350' : colors.text;
@@ -97,7 +101,7 @@ export default function HomeScreen() {
         <View style={styles.greeting}>
           <View>
             <ThemedText style={[styles.greetingSmall, { color: colors.text }]}>Good to see you,</ThemedText>
-            <ThemedText style={[styles.greetingName, { color: colors.text }]}>{firstName} 🌱</ThemedText>
+            <ThemedText style={[styles.greetingName,  { color: colors.text }]}>{firstName} 🌱</ThemedText>
           </View>
           <Pressable
             style={[styles.addBtn, { backgroundColor: colors.tint }]}
@@ -114,18 +118,16 @@ export default function HomeScreen() {
           style={styles.heroCard}
         >
           <View style={styles.scoreWrapper}>
-            {/* Outer container sized to SVG */}
+
+            {/* Left: ring + score */}
             <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
-              {/* SVG ring — rotation via transform prop on G, not deprecated rotation/origin props */}
               <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
-                {/* Track (faint) */}
                 <Circle
                   cx={CENTER} cy={CENTER} r={RING_RADIUS}
                   stroke={zoneColor + '28'}
                   strokeWidth={RING_STROKE}
                   fill="none"
                 />
-                {/* Progress arc — rotated -90° so it starts at top */}
                 <G transform={`rotate(-90, ${CENTER}, ${CENTER})`}>
                   <Circle
                     cx={CENTER} cy={CENTER} r={RING_RADIUS}
@@ -138,18 +140,18 @@ export default function HomeScreen() {
                   />
                 </G>
               </Svg>
-
-              {/* Inner circle — unchanged */}
+              {/* Circle border + bg now match zoneColor so they reinforce the ring */}
               <View style={[styles.scoreCircle, {
-                borderColor: colors.tint + '55',
-                backgroundColor: colors.tint + '18',
+                borderColor: zoneColor + '40',
+                backgroundColor: zoneColor + '12',
               }]}>
                 <ThemedText style={[styles.scoreLabel,  { color: colors.text }]}>EcoScore</ThemedText>
-                <ThemedText style={[styles.scoreNumber, { color: colors.tint }]}>{ecoScore}</ThemedText>
+                <ThemedText style={[styles.scoreNumber, { color: zoneColor }]}>{ecoScore}</ThemedText>
                 <ThemedText style={[styles.scoreMax,    { color: colors.text }]}>/100</ThemedText>
               </View>
             </View>
 
+            {/* Right: zone message, token pill, progress — original sizes */}
             <View style={styles.heroRight}>
               <ThemedText style={[styles.zoneMessage, { color: colors.text }]}>{zone.message}</ThemedText>
               <View style={[styles.tokenPill, { backgroundColor: colors.tint + '22' }]}>
@@ -158,13 +160,19 @@ export default function HomeScreen() {
               </View>
               <View style={{ width: '100%', gap: 4 }}>
                 <View style={[styles.progressBg, { backgroundColor: colors.tint + '22' }]}>
-                  <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: colors.tint }]} />
+                  <View style={[styles.progressFill, {
+                    width: `${progress * 100}%`,
+                    backgroundColor: progress >= 1 ? '#4CAF50' : colors.tint,
+                  }]} />
                 </View>
                 <ThemedText style={[styles.progressLabel, { color: colors.text }]}>
-                  {Math.round(progress * 100)}% of weekly goal
+                  {progress >= 1
+                    ? '🎉 Weekly goal reached!'
+                    : `${Math.round(progress * 100)}% of weekly goal`}
                 </ThemedText>
               </View>
             </View>
+
           </View>
         </LinearGradient>
 
@@ -186,6 +194,16 @@ export default function HomeScreen() {
               </ThemedText>
             </View>
           </View>
+
+          {/* Real-world equivalent — hidden until ≥ 0.05 kg */}
+          {co2Equivalent && totalCarbonSaved >= 0.05 && (
+            <View style={[styles.equivalentRow, { backgroundColor: colors.tint + '0E' }]}>
+              <FontAwesome6 name={co2Equivalent.icon as any} size={11} color={colors.tint} />
+              <ThemedText style={[styles.equivalentText, { color: colors.text }]}>
+                All-time — {co2Equivalent.phrase}
+              </ThemedText>
+            </View>
+          )}
         </View>
 
         {/* ── Quick stats ── */}
@@ -219,7 +237,6 @@ export default function HomeScreen() {
           </View>
 
           {recentActivity ? (
-            // ── Real activity row — NO border, just a tinted background ──
             <Pressable
               style={[styles.recentRow, { backgroundColor: (CATEGORY_COLORS[recentActivity.category] ?? colors.tint) + '10' }]}
               onPress={() => router.push(`/activity/details?id=${recentActivity.id}`)}
@@ -244,7 +261,6 @@ export default function HomeScreen() {
               </ThemedText>
             </Pressable>
           ) : (
-            // ── Empty state — dashed border is intentional here only ──
             <Pressable
               style={[styles.emptyActivity, { borderColor: colors.tint + '33', backgroundColor: colors.tint + '0A' }]}
               onPress={() => router.push('/activity/add')}
@@ -279,12 +295,21 @@ const styles = StyleSheet.create({
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 14 },
 
+  // ── Hero ──
   heroCard:     { borderRadius: 20, padding: 20 },
   scoreWrapper: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  scoreCircle:  { width: 120, height: 120, borderRadius: 60, borderWidth: 2, justifyContent: 'center', alignItems: 'center', gap: 2 },
+
+  // Score circle — border/bg now use zoneColor to reinforce ring colour
+  scoreCircle: {
+    width: 120, height: 120, borderRadius: 60,
+    borderWidth: 1.5,
+    justifyContent: 'center', alignItems: 'center', gap: 2,
+  },
   scoreLabel:   { fontSize: 12, opacity: 0.6, fontWeight: '500' },
   scoreNumber:  { fontSize: 44, fontWeight: '800', lineHeight: 48 },
   scoreMax:     { fontSize: 12, opacity: 0.45 },
+
+  // Right side — original sizes, no streak chip
   heroRight:    { flex: 1, gap: 10, alignItems: 'flex-start' },
   zoneMessage:  { fontSize: 13, opacity: 0.75, lineHeight: 18 },
   tokenPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
@@ -293,6 +318,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 3 },
   progressLabel:{ fontSize: 11, opacity: 0.5 },
 
+  // ── CO₂ card ──
   card:         { padding: 16, borderRadius: 16, gap: 12 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 
@@ -303,15 +329,21 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontWeight: '700', textAlign: 'center' },
   statUnit:  { fontSize: 14, fontWeight: '400', opacity: 0.6 },
 
+  equivalentRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 7,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    marginTop: -4,
+  },
+  equivalentText: { fontSize: 12, opacity: 0.65, flexShrink: 1 },
+
+  // ── Quick stats ──
   quickRow:   { flexDirection: 'row', gap: 10 },
   quickCard:  { flex: 1, padding: 14, borderRadius: 14, alignItems: 'center', gap: 6 },
   quickValue: { fontSize: 22, fontWeight: '700', lineHeight: 26 },
   quickLabel: { fontSize: 11, opacity: 0.5, textAlign: 'center' },
 
-  // ── No borderWidth here — removes the solid/dashed border from real activity cards ──
-  recentRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12 },
-  recentIcon: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-
-  // Dashed border ONLY on empty state
+  // ── Recent activity ──
+  recentRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12 },
+  recentIcon:    { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   emptyActivity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
 });

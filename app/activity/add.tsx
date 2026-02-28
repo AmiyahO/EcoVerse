@@ -2,13 +2,14 @@
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import {
   Pressable, StyleSheet, TextInput, View,
-  Alert, ActivityIndicator, ScrollView,
+  Alert, ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import {
@@ -30,14 +31,43 @@ const ACTIVITY_CATEGORIES = [
   { key: 'water',       label: 'Water',       icon: 'droplet' },
 ] as const;
 
-// Narrow bill categories to the union OCRCandidatePicker expects
 type BillCategory = 'electricity' | 'water';
 function isBillCategory(c: ActivityCategory | null): c is BillCategory {
   return c === 'electricity' || c === 'water';
 }
 
+// ── Date helpers (same as edit.tsx — no separate dateUtils needed) ────────────
+
+function toISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDisplayDate(date: Date): string {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  if (isSameDay(date, today))     return 'Today';
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short', day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AddActivityScreen() {
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
   const activities    = useActivityStore(s => s.activities);
   const userRegion    = useActivityStore(s => s.userRegion);
   const userProfile   = useActivityStore(s => s.userProfile);
@@ -55,6 +85,10 @@ export default function AddActivityScreen() {
   const [saving, setSaving]           = useState(false);
   const [hcAutoFilled, setHcAutoFilled] = useState(false);
   const saveInProgress = useRef(false);
+
+  // Date state — defaults to today, user can back-date
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // OCR state
   const [scanning, setScanning]           = useState(false);
@@ -88,6 +122,16 @@ export default function AddActivityScreen() {
         .finally(() => setLoadingBill(false));
     }
   }, [category]);
+
+  const onDateChange = (_: DateTimePickerEvent, date?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (date) {
+      // Clamp to today — no future dates
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      setSelectedDate(date > today ? today : date);
+    }
+  };
 
   const handleScan = async () => {
     if (!isBillCategory(category)) return;
@@ -199,7 +243,8 @@ export default function AddActivityScreen() {
       litersSaved,
       billId,
       source: hcAutoFilled ? 'health_connect' : 'manual',
-      date: new Date().toISOString(),
+      // Use the selected date (YYYY-MM-DD) so backdated entries land on the right day
+      date: toISODate(selectedDate),
     };
 
     const newActivityData = Object.fromEntries(
@@ -264,6 +309,7 @@ export default function AddActivityScreen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
+
         {/* ── Category selection ── */}
         <View style={styles.section}>
           <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Category</ThemedText>
@@ -305,6 +351,39 @@ export default function AddActivityScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* ── Date picker — below category so user picks what first, then when ── */}
+        <View style={styles.section}>
+          <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Date</ThemedText>
+          <Pressable
+            onPress={() => setShowDatePicker(true)}
+            style={({ pressed }) => [
+              styles.dateBtn,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.tint + '30',
+                opacity: pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Ionicons name="calendar-outline" size={18} color={colors.tint} />
+            <ThemedText style={[styles.dateBtnText, { color: colors.text }]}>
+              {formatDisplayDate(selectedDate)}
+            </ThemedText>
+            <Ionicons name="chevron-down" size={15} color={colors.text + '55'} style={{ marginLeft: 'auto' }} />
+          </Pressable>
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              maximumDate={new Date()}
+              onChange={onDateChange}
+              themeVariant={isDark ? 'dark' : 'light'}
+            />
+          )}
         </View>
 
         {/* ── Health Connect banner ── */}
@@ -411,7 +490,6 @@ export default function AddActivityScreen() {
               <View style={styles.hintRow}>
                 <FontAwesome6 name="circle-info" size={11} color={colors.text} style={{ opacity: 0.4 }} />
                 <ThemedText style={[styles.hintText, { color: colors.text }]}>
-                  {/* ✅ Fixed: removed * 4 multiplier — baselines are already per-month */}
                   No previous reading — comparing against{' '}
                   {category === 'electricity'
                     ? `avg household (~${BASELINES.electricity.kwhPerMonth} kWh/month)`
@@ -513,7 +591,7 @@ export default function AddActivityScreen() {
           )}
         </Pressable>
 
-        {/* ── OCR sheets — only rendered when category is narrowed ── */}
+        {/* ── OCR sheets ── */}
         {isBillCategory(category) && (
           <>
             <OCRCandidatePicker
@@ -564,6 +642,13 @@ const styles = StyleSheet.create({
   container:  { padding: 16, gap: 20, paddingBottom: 40 },
   section:    { gap: 10 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
+  // Date picker button — matches edit.tsx style
+  dateBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    gap: 10, padding: 14, borderRadius: 12, borderWidth: 1.5,
+  },
+  dateBtnText: { fontSize: 15, flex: 1 },
 
   categoryCard: {
     width: '48%', paddingVertical: 18, borderRadius: 14,
