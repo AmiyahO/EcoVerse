@@ -287,20 +287,40 @@ export async function fetchDailyStepSummaries(daysBack = 30): Promise<HCDailySte
       readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
     ]);
 
-    // Bucket steps by local date
-    const stepsByDay: Record<string, number> = {};
+    // ── Steps: bucket by (dayKey, dataOrigin), then take max per day ─────────
+    //
+    // stepsByOrigin[dayKey][origin] = total steps from that origin on that day
+    const stepsByOrigin: Record<string, Record<string, number>> = {};
+
     for (const r of stepsResult.records as any[]) {
       const dayKey = toLocalISODate(new Date(r.startTime));
-      stepsByDay[dayKey] = (stepsByDay[dayKey] ?? 0) + (r.count ?? 0);
+      const origin = r.metadata?.dataOrigin ?? 'unknown';
+      if (!stepsByOrigin[dayKey]) stepsByOrigin[dayKey] = {};
+      stepsByOrigin[dayKey][origin] = (stepsByOrigin[dayKey][origin] ?? 0) + (r.count ?? 0);
     }
 
-    // Bucket distance by local date
-    const distByDay: Record<string, number> = {};
+    // For each day, the best step count is the maximum across all origins
+    const stepsByDay: Record<string, number> = {};
+    for (const [dayKey, origins] of Object.entries(stepsByOrigin)) {
+      stepsByDay[dayKey] = Math.max(...Object.values(origins));
+    }
+
+    // ── Distance: same deduplication ─────────────────────────────────────────
+    const distByOrigin: Record<string, Record<string, number>> = {};
+
     for (const r of distanceResult.records as any[]) {
       const dayKey = toLocalISODate(new Date(r.startTime));
-      distByDay[dayKey] = (distByDay[dayKey] ?? 0) + (r.distance?.inMeters ?? 0);
+      const origin = r.metadata?.dataOrigin ?? 'unknown';
+      if (!distByOrigin[dayKey]) distByOrigin[dayKey] = {};
+      distByOrigin[dayKey][origin] = (distByOrigin[dayKey][origin] ?? 0) + (r.distance?.inMeters ?? 0);
     }
 
+    const distByDay: Record<string, number> = {};
+    for (const [dayKey, origins] of Object.entries(distByOrigin)) {
+      distByDay[dayKey] = Math.max(...Object.values(origins));
+    }
+
+    // ── Build one summary per day ─────────────────────────────────────────────
     const summaries: HCDailySteps[] = [];
 
     for (const [dateKey, totalSteps] of Object.entries(stepsByDay)) {

@@ -108,10 +108,11 @@ function localDateKey(iso: string): string {
  *
  * Merges two sources:
  *   A. ExerciseSession records — from Strava, Samsung Health, Google Fit etc.
- *   B. Daily pedometer summaries — raw Steps records from the phone's built-in
- *      step counter, aggregated per local calendar day. These have NO
- *      corresponding ExerciseSession, so source A misses them entirely.
- *      Any day already covered by a walking session (source A) is suppressed.
+ *      Saved with hcSource field (original app package name) so details.tsx
+ *      can display "via Strava" rather than the generic "Health Connect".
+ *   B. Daily step summaries — all Steps records written to HC by any app,
+ *      aggregated per local calendar day. Suppressed for any date that has a
+ *      HC walking session (new or previously imported) to prevent double-counting.
  */
 export async function fetchSyncCandidates(
   currentActivities: Activity[],
@@ -150,11 +151,22 @@ export async function fetchSyncCandidates(
     });
   });
 
-  // Track which local dates are covered by a walking session
-  // so we don't double-count with pedometer summaries below
+  // Track which local dates are covered by a walking session so we don't
+  // double-count with pedometer summaries below.
+  //
+  // Include BOTH:
+  //   a) new unimported walking sessions (filteredSessions)
+  //   b) previously-imported HC walking activities already in Firestore
+  //      Without (b), a pedometer day would re-appear on every subsequent sync
+  //      for any date where a walking session was imported on a prior sync.
   const sessionCoveredDates = new Set<string>();
   for (const hca of filteredSessions) {
     if (hca.type === 'walking') sessionCoveredDates.add(localDateKey(hca.startTime));
+  }
+  for (const existing of currentActivities) {
+    if (existing.category === 'walking' && (existing as any).source === 'health_connect') {
+      sessionCoveredDates.add(localDateKey(existing.date));
+    }
   }
 
   const sessionCandidates: SyncSession[] = filteredSessions.map(hca => {
@@ -173,10 +185,19 @@ export async function fetchSyncCandidates(
     };
   });
 
-  // ── B. Daily pedometer summaries ──────────────────────────────────────────
-  // fetchDailyStepSummaries aggregates raw Steps records from the device's
-  // built-in step counter — one entry per local calendar day. Users who walk
-  // with just their phone (no Strava session etc.) generate steps here only.
+  // ── B. Daily step summaries ───────────────────────────────────────────────
+  // fetchDailyStepSummaries() reads ALL Steps records written to HC by any app —
+  // Samsung Health's background step counter, Google Fit, the phone's built-in
+  // OS pedometer, etc. — and aggregates them per local calendar day.
+  //
+  // Important caveats:
+  //   1. A fitness app's HC step count may be lower than its own UI shows because
+  //      each app applies its own sensor-fusion algorithm on top of raw HC records.
+  //      Samsung Health's own algorithm (visible in-app) is typically more accurate
+  //      than the raw Steps records it writes to HC. This is a platform limitation,
+  //      not a bug in EcoVerse.
+  //   2. Days where a HC walking ExerciseSession is already present (new or
+  //      previously imported) are suppressed to avoid double-counting.
   const pedometerDays = await fetchDailyStepSummaries(daysBack);
 
   const pedometerCandidates: SyncSession[] = [];
@@ -186,9 +207,13 @@ export async function fetchSyncCandidates(
     if (importedSet.has(day.id)) continue;
     // A walking exercise session already covers this date
     if (sessionCoveredDates.has(day.date)) continue;
-    // A manually-logged walking activity exists on this local date
+    // Any walking activity (manual or previously-imported HC) exists on this date
+    // Note: HC walking sessions are already handled by sessionCoveredDates above;
+    // this catches manually-logged walking entries on the same date.
     const manualExists = currentActivities.some(
-      a => a.category === 'walking' && localDateKey(a.date) === day.date
+      a => a.category === 'walking' &&
+           (a as any).source !== 'health_connect' &&
+           localDateKey(a.date) === day.date
     );
     if (manualExists) continue;
 
@@ -263,7 +288,10 @@ export async function commitSync(
       category:  hca.type,
       date:      hca.startTime,
       source:    'health_connect',
-      hcId:      hca.id,           // store so we can detect future duplicates
+      hcId:      hca.id,           // stored so future syncs can detect duplicates
+      // Preserve the originating app package name so details.tsx can show
+      // "via Strava", "via Samsung Health" etc. instead of generic "Health Connect"
+      hcSource:  hca.source ?? null,
     };
 
     if (hca.steps    !== undefined) activityData.steps    = hca.steps;

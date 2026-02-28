@@ -53,7 +53,7 @@ app/
 ├── activity/
     ├── _layout.tsx      # Activity screens navigator
 │   ├── add.tsx          # Add activity — category grid, date picker (backdating), Health Connect auto-fill banner, OCR
-│   ├── details.tsx      # Activity details — shows source (manual vs Health Connect)
+│   ├── details.tsx      # Activity details — shows source (manual / app name via hcSource / Health Connect)
 │   └── edit.tsx         # Edit activity — recalculates impact diff, preserves source field, date picker
 │
 ├── onboarding/
@@ -204,7 +204,9 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
     ├── lastLogin
     ├── activities/{activityId}
     │     ├── category, date, source ('manual' | 'health_connect')
-    │     └── steps / distance / duration / kwhSaved / litersSaved / billId / hcSessionId
+    │     ├── hcId (HC session ID or 'steps-YYYY-MM-DD' for pedometer days — prevents re-import)
+    │     ├── hcSource (original app package name, e.g. 'com.strava' — enables "via Strava" display)
+    │     └── steps / distance / duration / kwhSaved / litersSaved / billId
     └── meta/healthSync
           ├── lastSyncedAt (ISO timestamp)
           └── importedIds   (array of HC session IDs + pedometer day IDs to prevent re-import)
@@ -239,18 +241,21 @@ EcoVerse integrates with Android Health Connect to import steps, distance, and e
 
 - Accessible from Settings → Sync Activities. Merges **two data sources** that HC exposes separately:
 
-**1. Exercise Sessions** — recorded by Strava, Samsung Health, Google Fit etc. These are structured workout records with start/end times, exercise type, and linked step/distance data.
+**1. Exercise Sessions** — recorded by Strava, Samsung Health, Google Fit etc. These are structured workout records with start/end times, exercise type, and linked step/distance data. The originating app's package name (`hca.source`) is saved to Firestore as `hcSource`, so `details.tsx` can display "via Strava" or "via Samsung Health" rather than the generic "Health Connect".
 
-**2. Daily Pedometer Summaries** — the phone's built-in step counter writes raw `Steps` records throughout the day with no corresponding session. Users who walk with just their phone (no fitness app running) generate steps that exercise-session-only sync would miss entirely. `fetchDailyStepSummaries()` aggregates these into one importable walking entry per day.
+**2. Daily Step Summaries** — all `Steps` records written to HC by any app (Samsung Health, Google Fit, the phone's OS step counter) are aggregated per local calendar day. This captures steps from users who walk with their phone but don't start a tracked workout. `fetchDailyStepSummaries()` produces one importable walking entry per day.
+
+> **Note on step counts:** The step total shown in HC may be lower than what Samsung Health's own app displays. Samsung Health applies its own sensor-fusion algorithm on top of the raw HC records; what it writes to HC is the raw count from the OS step counter, which is typically lower. This is a platform limitation — EcoVerse reads whatever Samsung Health has written to HC and cannot access the higher internal count.
 
 **Deduplication logic:**
-- Exercise sessions: filtered by `importedIds` (session ID) + ±2h temporal cross-check against existing manual activities
-- Pedometer days: filtered by `importedIds` (keyed `steps-YYYY-MM-DD`) + same-date cross-check + skipped if a walking session already covers that day
+- Exercise sessions: filtered by `importedIds` (session ID) + ±2h temporal cross-check against existing manual activities of the same type
+- Step summary days: filtered by `importedIds` (keyed `steps-YYYY-MM-DD`) + skipped if any HC walking session (new **or previously imported**) covers the same date — this prevents the day from re-appearing on every subsequent sync after the session was imported
+- Manual walking entries on the same date also suppress the step summary day
 - `importedIds` in `meta/healthSync` stores both session IDs and pedometer day IDs
 
 **Import flow:**
-- Review screen shows a selectable checklist of unsynced sessions and pedometer days, labelled by source
-- `commitSync()` uses a Firestore `writeBatch` to atomically write all selected activities, update user totals, and update sync state
+- Review screen shows a selectable checklist of sessions and step-summary days, labelled by source ("via Strava", "via Samsung Health", "via Health Connect")
+- `commitSync()` uses a Firestore `writeBatch` to atomically write all selected activities (including `hcSource` field), update user totals, and update sync state
 
 ---
 
