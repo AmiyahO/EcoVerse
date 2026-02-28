@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkLevelUp } from '@/src/utils/levelSystem';
 
 export type ActivityCategory =
   | 'walking'
@@ -50,8 +51,12 @@ type ActivityState = {
     email: string;
     photoURL: string | null;
     weeklyTarget: number;
+    tokens: number;
+    totalCarbonSaved: number;
   } | null;
   _hasHydrated: boolean;
+  levelUpPending: boolean;   // true → LevelUpModal should show
+  pendingLevel: number;      // the new level to display in the modal
 
   setActivities: (activities: Activity[]) => void;
   addActivity: (activity: Activity) => void;
@@ -62,8 +67,10 @@ type ActivityState = {
   setCelebrated: (val: boolean) => void;
   checkAndResetCelebration: () => void;
   setUserRegion: (region: string) => void;
-  setUserProfile: (profile: { displayName: string; email: string; photoURL: string | null; weeklyTarget: number }) => void;
+  setUserProfile: (profile: { displayName: string; email: string; photoURL: string | null; weeklyTarget: number; tokens: number; totalCarbonSaved: number }) => void;
   setHasHydrated: () => void;
+  triggerLevelUp: (newLevel: number) => void;
+  clearLevelUp: () => void;
 };
 
 export const useActivityStore = create<ActivityState>()(
@@ -75,6 +82,8 @@ export const useActivityStore = create<ActivityState>()(
       userRegion:     'GLOBAL_AVG',
       userProfile:    null,
       _hasHydrated:   false,
+      levelUpPending: false,
+      pendingLevel:   0,
 
       setActivities: (activities) => set({ activities }),
 
@@ -106,8 +115,31 @@ export const useActivityStore = create<ActivityState>()(
       },
 
       setUserRegion:  (region)  => set({ userRegion: region }),
-      setUserProfile: (profile) => set({ userProfile: profile }),
-      setHasHydrated: ()        => set({ _hasHydrated: true }),
+
+      setUserProfile: (profile) =>
+        set((state) => {
+          const prevTokens = state.userProfile?.tokens ?? 0;
+          const newTokens  = profile?.tokens ?? 0;
+
+          // Only check for level-up when tokens genuinely increased this session
+          // and the store has already hydrated (not a cold boot).
+          if (state._hasHydrated && newTokens > prevTokens) {
+            const levelUp = checkLevelUp(prevTokens, newTokens - prevTokens);
+            if (levelUp !== null) {
+              return { userProfile: profile, levelUpPending: true, pendingLevel: levelUp };
+            }
+          }
+
+          return { userProfile: profile };
+        }),
+
+      setHasHydrated: () => set({ _hasHydrated: true }),
+
+      triggerLevelUp: (newLevel: number) =>
+        set({ levelUpPending: true, pendingLevel: newLevel }),
+
+      clearLevelUp: () =>
+        set({ levelUpPending: false, pendingLevel: 0 }),
     }),
     {
       name:    'activity-store',

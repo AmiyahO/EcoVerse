@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText } from '@/components/themed-text';
 import { FontAwesome6 as FA6 } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { LevelUpModal } from '@/components/LevelUpModal';
 
 function isThisWeek(date: string) {
   const d = new Date(date);
@@ -29,6 +30,10 @@ export default function TabLayout() {
   const celebrated     = useActivityStore(s => s.celebrated);
   const setCelebrated  = useActivityStore(s => s.setCelebrated);
   const hasHydrated    = useActivityStore(s => s._hasHydrated);
+  const levelUpPending = useActivityStore((s) => s.levelUpPending);
+  const pendingLevel   = useActivityStore((s) => s.pendingLevel);
+  const clearLevelUp   = useActivityStore((s) => s.clearLevelUp);
+  const totalTokens    = useActivityStore((s) => s.userProfile?.tokens ?? 0);
 
   const dynamicTarget  = userProfile?.weeklyTarget ?? 500;
   const loading        = !userProfile;
@@ -159,6 +164,13 @@ export default function TabLayout() {
           </Animated.View>
         </>
       )}
+
+      <LevelUpModal
+        visible={levelUpPending}
+        newLevel={pendingLevel}
+        totalTokens={totalTokens}
+        onClose={clearLevelUp}
+      />
     </View>
   );
 }

@@ -1,10 +1,11 @@
 // (tabs)/profile.tsx
-import { View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
+import { View, Pressable, StyleSheet, ScrollView, Image, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateStreak, calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { calculateStreak, calculateTokens } from '@/src/utils/ecoLogic';
+import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
 import { router } from 'expo-router';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -70,8 +71,12 @@ export default function ProfileScreen() {
   const weeklyDots = getWeeklyActivityDots(activities);
   const activeDaysThisWeek = weeklyDots.filter(Boolean).length;
 
-  const totalTokens = activities.reduce((sum, a) => sum + calculateTokens(a), 0);
-  const totalCO2 = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
+  const totalTokens = userProfile?.tokens ?? 0;
+  const totalCO2 = userProfile?.totalCarbonSaved ?? 0;
+
+  // ── Level & rank derived from total tokens ──
+  const { level, progress: xpProgress, tokensToNext } = getLevelInfo(totalTokens);
+  const rank = getRankInfo(level);
 
   const memberSince = auth.currentUser?.metadata?.creationTime
     ? new Date(auth.currentUser.metadata.creationTime).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
@@ -150,6 +155,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
+          {/* ── Token / CO₂ summary ── */}
           <View style={styles.statsSummary}>
             <View style={styles.miniStat}>
               <ThemedText style={styles.miniStatVal}>{totalTokens.toLocaleString()}</ThemedText>
@@ -161,9 +167,36 @@ export default function ProfileScreen() {
               <ThemedText style={styles.miniStatLabel}>kg CO₂ saved</ThemedText>
             </View>
           </View>
+
+          {/* ── Level badge + XP progress bar ── */}
+          <View style={styles.levelSection}>
+            {/* Rank pill */}
+            <View style={[styles.rankPill, { borderColor: rank.color, backgroundColor: rank.color + '33' }]}>
+              <Text style={[styles.rankPillText, { color: rank.color }]}>
+                {rank.emoji}  {rank.name}  ·  Lv {level}
+              </Text>
+            </View>
+
+            {/* XP progress track */}
+            <View style={styles.xpTrack}>
+              <View
+                style={[
+                  styles.xpFill,
+                  {
+                    width: `${Math.round(xpProgress * 100)}%`,
+                    backgroundColor: rank.color,
+                  },
+                ]}
+              />
+            </View>
+
+            <Text style={styles.xpLabel}>
+              {tokensToNext.toLocaleString()} tokens to Lv {level + 1}
+            </Text>
+          </View>
         </LinearGradient>
 
-        {/* ── Consistency Card — tappable ── */}
+        {/* ── Consistency Card ── */}
         <Pressable
           onPress={() => setCalendarVisible(true)}
           style={({ pressed }) => [{ opacity: pressed ? 0.85 : 1 }]}
@@ -188,7 +221,6 @@ export default function ProfileScreen() {
                     {streak > 0 ? `${streak}-day streak` : 'No streak yet'}
                   </ThemedText>
                 </View>
-                {/* Hint to tap */}
                 <FontAwesome6 name="chevron-right" size={11} color={colors.text + '33'} />
               </View>
             </View>
@@ -259,7 +291,6 @@ export default function ProfileScreen() {
 
       </ScrollView>
 
-      {/* ── Streak Calendar Sheet ── */}
       <StreakCalendarSheet
         visible={calendarVisible}
         onClose={() => setCalendarVisible(false)}
@@ -299,6 +330,42 @@ const styles = StyleSheet.create({
   miniStatVal: { color: '#fff', fontSize: 17, fontWeight: '800' },
   miniStatLabel: { color: '#ffffffcc', fontSize: 11, textAlign: 'center', marginTop: 2 },
   statsDivider: { width: 1, height: '80%', alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.2)' },
+
+  // ── Level section ──
+  levelSection: {
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+    gap: 10,
+    alignItems: 'center',
+  },
+  rankPill: {
+    borderWidth: 1.5,
+    borderRadius: 50,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  rankPillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  xpTrack: {
+    width: '100%',
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    overflow: 'hidden',
+  },
+  xpFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  xpLabel: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
+  },
 
   card: { padding: 16, borderRadius: 16, gap: 12 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

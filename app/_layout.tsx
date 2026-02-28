@@ -65,6 +65,8 @@ export default function RootLayout() {
                 email: data.email || currentUser.email || '',
                 photoURL: data.photoURL || null,
                 weeklyTarget: data.weeklyTarget || 500,
+                tokens:          data.tokens ?? 0,
+                totalCarbonSaved: data.totalCarbonSaved ?? 0
               });
             }
             setUserDocReady(true);

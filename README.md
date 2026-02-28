@@ -32,6 +32,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 | Database | Cloud Firestore (real-time sync) |
 | Image hosting | Cloudinary |
 | Charts | Victory Native v41 (Skia-based) |
+| Date picker | `@react-native-community/datetimepicker` (native platform picker — Android Material calendar dialog) |
 | Health data | Android Health Connect (`expo-health-connect` config plugin + `react-native-health-connect`) |
 | AI tips | Google Gemini API (24h cached, data-aware prompts) |
 | OCR | Expo Camera + Google ML Kit / Vision API |
@@ -334,7 +335,7 @@ The Electricity and Water category on the Add Activity screen supports scanning 
 
 - **Inline errors** — Firebase error codes mapped to user-friendly messages (invalid credential, email in use, weak password, rate limiting, no network, disabled account)
 - **Forgot password** — pre-filled from email field, confirmation dialog, sends Firebase password reset email
-- **Delete account** — `deleteUser` (Auth) runs first; `deleteDoc` (Firestore) runs only on success; both must succeed before navigating away; failure shows an actionable error and leaves the user signed in
+- **Delete account** — Zustand store is cleared first (before `deleteUser`) so the `onAuthStateChanged` listener sees a clean state when it fires. `deleteUser` (Auth) and `deleteDoc` (Firestore) both run; the auth listener handles navigation to login — no competing `router.replace` call in `settings.tsx`. If either deletion fails, an actionable error is shown and the user remains signed in
 - **Gemini API key** — currently in `.env`. For production, should be moved to a Firebase Cloud Function (key would not be bundled in the APK)
 - **Firebase Dynamic Links** — not used; not affected by their deprecation
 
@@ -353,7 +354,7 @@ npx expo start
 npx expo run:android
 ```
 
-> **Note:** Victory Native v41 uses Skia and requires a native dev build. Health Connect requires Android 8.0+ (API 26). Both require `npx expo run:android` — Expo Go is not supported.
+> **Note:** Victory Native v41 uses Skia and requires a native dev build. Health Connect requires Android 8.0+ (API 26). `@react-native-community/datetimepicker` also requires a native build. All three require `npx expo run:android` — Expo Go is not supported.
 
 > **After a clean prebuild:** `npx expo prebuild --clean` resets `android/gradle.properties`. Re-add `minSdkVersion=26` after running it.
 
