@@ -14,22 +14,13 @@ export type ActivityCategory =
 export type Activity = {
   id: string;
   category: ActivityCategory;
-
-  // movement
   steps?: number;
-  distance?: number;   // km
-  duration?: number;   // minutes
-
-  // utilities
+  distance?: number;
+  duration?: number;
   kwhSaved?: number;
   litersSaved?: number;
-
-  // references
   billId?: string;
-
-  // origin — 'health_connect' means data was auto-filled from HC
   source?: 'manual' | 'health_connect';
-
   date: string;
 };
 
@@ -55,22 +46,26 @@ type ActivityState = {
     totalCarbonSaved: number;
   } | null;
   _hasHydrated: boolean;
-  levelUpPending: boolean;   // true → LevelUpModal should show
-  pendingLevel: number;      // the new level to display in the modal
+  levelUpPending: boolean;
+  pendingLevel: number;
+  // Not persisted — resets on every cold boot.
+  // Prevents level-up firing on the initial Firestore snapshot that populates
+  // the profile (where prevTokens=0 → newTokens=1500 looks like a level-up).
+  _profileLoaded: boolean;
 
-  setActivities: (activities: Activity[]) => void;
-  addActivity: (activity: Activity) => void;
-  removeActivity: (id: string) => void;
-  clearActivities: () => void;
-  updateActivity: (id: string, updatedActivity: Partial<Activity>) => void;
-  getActivityById: (id: string) => Activity | undefined;
-  setCelebrated: (val: boolean) => void;
+  setActivities:            (activities: Activity[]) => void;
+  addActivity:              (activity: Activity) => void;
+  removeActivity:           (id: string) => void;
+  clearActivities:          () => void;
+  updateActivity:           (id: string, updatedActivity: Partial<Activity>) => void;
+  getActivityById:          (id: string) => Activity | undefined;
+  setCelebrated:            (val: boolean) => void;
   checkAndResetCelebration: () => void;
-  setUserRegion: (region: string) => void;
-  setUserProfile: (profile: { displayName: string; email: string; photoURL: string | null; weeklyTarget: number; tokens: number; totalCarbonSaved: number }) => void;
-  setHasHydrated: () => void;
-  triggerLevelUp: (newLevel: number) => void;
-  clearLevelUp: () => void;
+  setUserRegion:            (region: string) => void;
+  setUserProfile:           (profile: { displayName: string; email: string; photoURL: string | null; weeklyTarget: number; tokens: number; totalCarbonSaved: number }) => void;
+  setHasHydrated:           () => void;
+  triggerLevelUp:           (newLevel: number) => void;
+  clearLevelUp:             () => void;
 };
 
 export const useActivityStore = create<ActivityState>()(
@@ -84,6 +79,7 @@ export const useActivityStore = create<ActivityState>()(
       _hasHydrated:   false,
       levelUpPending: false,
       pendingLevel:   0,
+      _profileLoaded: false,
 
       setActivities: (activities) => set({ activities }),
 
@@ -93,7 +89,8 @@ export const useActivityStore = create<ActivityState>()(
       removeActivity: (id) =>
         set(state => ({ activities: state.activities.filter(a => a.id !== id) })),
 
-      clearActivities: () => set({ activities: [] }),
+      // Reset _profileLoaded on sign-out so the next sign-in starts fresh
+      clearActivities: () => set({ activities: [], _profileLoaded: false }),
 
       updateActivity: (id, updatedActivity) =>
         set(state => ({
@@ -114,36 +111,41 @@ export const useActivityStore = create<ActivityState>()(
         }
       },
 
-      setUserRegion:  (region)  => set({ userRegion: region }),
+      setUserRegion: (region) => set({ userRegion: region }),
 
       setUserProfile: (profile) =>
         set((state) => {
-          const prevTokens = state.userProfile?.tokens ?? 0;
-          const newTokens  = profile?.tokens ?? 0;
+          const isFirstLoad = !state._profileLoaded;
 
-          // Only check for level-up when tokens genuinely increased this session
-          // and the store has already hydrated (not a cold boot).
-          if (state._hasHydrated && newTokens > prevTokens) {
-            const levelUp = checkLevelUp(prevTokens, newTokens - prevTokens);
-            if (levelUp !== null) {
-              return { userProfile: profile, levelUpPending: true, pendingLevel: levelUp };
+          // Always mark as loaded so subsequent calls can check level-up
+          const base = { userProfile: profile, _profileLoaded: true };
+
+          // Only check for level-up on SUBSEQUENT token increases,
+          // never on the initial cold-boot hydration from Firestore.
+          if (!isFirstLoad && state._hasHydrated) {
+            const prevTokens = state.userProfile?.tokens ?? 0;
+            const newTokens  = profile.tokens ?? 0;
+            if (newTokens > prevTokens) {
+              const levelUp = checkLevelUp(prevTokens, newTokens - prevTokens);
+              if (levelUp !== null) {
+                return { ...base, levelUpPending: true, pendingLevel: levelUp };
+              }
             }
           }
 
-          return { userProfile: profile };
+          return base;
         }),
 
       setHasHydrated: () => set({ _hasHydrated: true }),
 
-      triggerLevelUp: (newLevel: number) =>
-        set({ levelUpPending: true, pendingLevel: newLevel }),
+      triggerLevelUp: (newLevel) => set({ levelUpPending: true, pendingLevel: newLevel }),
 
-      clearLevelUp: () =>
-        set({ levelUpPending: false, pendingLevel: 0 }),
+      clearLevelUp:   ()          => set({ levelUpPending: false, pendingLevel: 0 }),
     }),
     {
       name:    'activity-store',
       storage: createJSONStorage(() => AsyncStorage),
+      // Only persist celebration state — everything else rehydrates from Firestore
       partialize: state => ({
         celebrated:     state.celebrated,
         celebratedWeek: state.celebratedWeek,

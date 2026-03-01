@@ -25,11 +25,14 @@ function parseActivityDate(iso: string): Date {
   return new Date(iso);
 }
 
-function toISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+function toLocalISOString(date: Date): string {
+  const y   = date.getFullYear();
+  const mo  = String(date.getMonth() + 1).padStart(2, '0');
+  const d   = String(date.getDate()).padStart(2, '0');
+  const h   = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const s   = String(date.getSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d}T${h}:${min}:${s}`; // local time, no Z
 }
 
 function formatDisplayDate(date: Date): string {
@@ -102,7 +105,7 @@ export default function EditActivityScreen() {
 
       const updatedData = {
         ...activity,
-        date:        toISODate(selectedDate),
+        date:        toLocalISOString(selectedDate),
         steps:       steps       ? Number(steps)       : undefined,
         distance:    distance    ? Number(distance)    : undefined,
         duration:    duration    ? Number(duration)    : undefined,

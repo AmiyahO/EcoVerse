@@ -35,6 +35,13 @@ function getZoneColor(score: number) {
   return '#4CAF50';
 }
 
+function getGreeting(firstName: string): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return `Good morning, ${firstName} ☀️`;
+  if (hour < 18) return `Hello, ${firstName} 🌿`;
+  return `Good evening, ${firstName} 🌙`;
+}
+
 function getRecentActivityLabel(activity: any) {
   if (activity.steps)       return `${activity.steps.toLocaleString()} steps`;
   if (activity.distance)    return `${activity.distance} km${activity.duration ? ` · ${activity.duration} min` : ''}`;
@@ -74,12 +81,14 @@ export default function HomeScreen() {
   const baseScore        = Math.min((weeklyTokens / weeklyTarget) * 70, 70);
   const consistencyBonus = (activeDays / 7) * 20;
   const varietyBonus     = (uniqueCategories / 3) * 10;
-  const ecoScore         = Math.round(baseScore + consistencyBonus + varietyBonus);
+  const ecoScore         = Math.min(100, Math.round(baseScore + consistencyBonus + varietyBonus));
   const zoneColor        = getZoneColor(ecoScore);
   const strokeDashoffset = CIRCUMFERENCE * (1 - ecoScore / 100);
 
   const streak     = calculateStreak(activities);
   const zone       = getEcoZone(ecoScore);
+  // Transport-only comparison — utilities comparison is not meaningful week-on-week
+  // (you might simply not have entered a bill this week, not that you used more)
   const comparison = getWeekCarbonComparison(activities, userRegion);
 
   const totalCarbonSaved = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
@@ -100,12 +109,14 @@ export default function HomeScreen() {
         {/* ── Greeting ── */}
         <View style={styles.greeting}>
           <View>
-            <ThemedText style={[styles.greetingSmall, { color: colors.text }]}>Good to see you,</ThemedText>
-            <ThemedText style={[styles.greetingName,  { color: colors.text }]}>{firstName} 🌱</ThemedText>
+            <ThemedText style={[styles.greetingName, { color: colors.text }]}>
+              {getGreeting(firstName)}
+            </ThemedText>
           </View>
           <Pressable
             style={[styles.addBtn, { backgroundColor: colors.tint }]}
             onPress={() => router.push('/activity/add')}
+            android_ripple={{ color: 'rgba(255,255,255,0.25)', radius: 32 }}
           >
             <FontAwesome6 name="plus" size={13} color="#fff" />
             <ThemedText style={styles.addBtnText}>Log</ThemedText>
@@ -140,7 +151,6 @@ export default function HomeScreen() {
                   />
                 </G>
               </Svg>
-              {/* Circle border + bg now match zoneColor so they reinforce the ring */}
               <View style={[styles.scoreCircle, {
                 borderColor: zoneColor + '40',
                 backgroundColor: zoneColor + '12',
@@ -151,7 +161,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Right: zone message, token pill, progress — original sizes */}
+            {/* Right: zone message, token pill, progress */}
             <View style={styles.heroRight}>
               <ThemedText style={[styles.zoneMessage, { color: colors.text }]}>{zone.message}</ThemedText>
               <View style={[styles.tokenPill, { backgroundColor: colors.tint + '22' }]}>
@@ -188,14 +198,18 @@ export default function HomeScreen() {
             </View>
             <View style={[styles.co2Divider, { backgroundColor: colors.surfaceMuted }]} />
             <View style={styles.co2Item}>
+              {/* Transport-only comparison — avoids misleading utility week-on-week delta */}
               <ThemedText style={[styles.statLabel, { color: colors.text }]}>vs Last Week</ThemedText>
-              <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
-                {comparisonArrow} {comparison.percentage}%
-              </ThemedText>
+              {comparison.direction === 'neutral' ? (
+                <ThemedText style={[styles.statValue, { color: colors.text, opacity: 0.4 }]}>—</ThemedText>
+              ) : (
+                <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
+                  {comparisonArrow} {comparison.percentage}%
+                </ThemedText>
+              )}
             </View>
           </View>
 
-          {/* Real-world equivalent — hidden until ≥ 0.05 kg */}
           {co2Equivalent && totalCarbonSaved >= 0.05 && (
             <View style={[styles.equivalentRow, { backgroundColor: colors.tint + '0E' }]}>
               <FontAwesome6 name={co2Equivalent.icon as any} size={11} color={colors.tint} />
@@ -290,16 +304,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container:    { padding: 16, gap: 14, paddingBottom: 24 },
   greeting:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, marginBottom: 4 },
-  greetingSmall:{ fontSize: 13, opacity: 0.55 },
-  greetingName: { fontSize: 24, fontWeight: '700', lineHeight: 30 },
+  greetingName: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 14 },
 
   // ── Hero ──
   heroCard:     { borderRadius: 20, padding: 20 },
   scoreWrapper: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-
-  // Score circle — border/bg now use zoneColor to reinforce ring colour
   scoreCircle: {
     width: 120, height: 120, borderRadius: 60,
     borderWidth: 1.5,
@@ -308,8 +319,6 @@ const styles = StyleSheet.create({
   scoreLabel:   { fontSize: 12, opacity: 0.6, fontWeight: '500' },
   scoreNumber:  { fontSize: 44, fontWeight: '800', lineHeight: 48 },
   scoreMax:     { fontSize: 12, opacity: 0.45 },
-
-  // Right side — original sizes, no streak chip
   heroRight:    { flex: 1, gap: 10, alignItems: 'flex-start' },
   zoneMessage:  { fontSize: 13, opacity: 0.75, lineHeight: 18 },
   tokenPill:    { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
@@ -321,14 +330,12 @@ const styles = StyleSheet.create({
   // ── CO₂ card ──
   card:         { padding: 16, borderRadius: 16, gap: 12 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-
-  co2Row:    { flexDirection: 'row', alignItems: 'center' },
-  co2Item:   { flex: 1, gap: 4, alignItems: 'center' },
-  co2Divider:{ width: 1, height: 40, marginHorizontal: 8 },
-  statLabel: { fontSize: 12, opacity: 0.55, textAlign: 'center' },
-  statValue: { fontSize: 24, fontWeight: '700', textAlign: 'center' },
-  statUnit:  { fontSize: 14, fontWeight: '400', opacity: 0.6 },
-
+  co2Row:       { flexDirection: 'row', alignItems: 'center' },
+  co2Item:      { flex: 1, gap: 4, alignItems: 'center' },
+  co2Divider:   { width: 1, height: 40, marginHorizontal: 8 },
+  statLabel:    { fontSize: 12, opacity: 0.55, textAlign: 'center' },
+  statValue:    { fontSize: 24, fontWeight: '700', textAlign: 'center' },
+  statUnit:     { fontSize: 14, fontWeight: '400', opacity: 0.6 },
   equivalentRow: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,

@@ -87,7 +87,23 @@ async function updateSyncState(newIds: string[]) {
   }, { merge: false });            // replace entirely so array stays clean
 }
 
-// ── Local date helper ────────────────────────────────────────────────────────
+// ── Date helpers ────────────────────────────────────────────────────────
+
+/**
+ * Convert any Date to a LOCAL ISO string with no trailing Z.
+ * JS parses "2026-03-01T14:32:00" as local time, not UTC.
+ * HC startTime comes in as UTC ("...Z") — new Date() converts it to local,
+ * then this function formats it without Z so Firestore stores local time.
+ */
+function toLocalISOString(date: Date): string {
+  const y   = date.getFullYear();
+  const mo  = String(date.getMonth() + 1).padStart(2, '0');
+  const d   = String(date.getDate()).padStart(2, '0');
+  const h   = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const s   = String(date.getSeconds()).padStart(2, '0');
+  return `${y}-${mo}-${d}T${h}:${min}:${s}`; // local time, no Z
+}
 
 /** Extract YYYY-MM-DD from any ISO string using LOCAL date, not UTC */
 function localDateKey(iso: string): string {
@@ -286,7 +302,7 @@ export async function commitSync(
 
     const activityData: Record<string, any> = {
       category:  hca.type,
-      date:      hca.startTime,
+      date: toLocalISOString(new Date(hca.startTime)),
       source:    'health_connect',
       hcId:      hca.id,           // stored so future syncs can detect duplicates
       // Preserve the originating app package name so details.tsx can show
