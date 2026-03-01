@@ -1,14 +1,17 @@
 // Activity screen
-import { View, FlatList, Pressable, StyleSheet, SectionList } from 'react-native';
+import { View, FlatList, Pressable, StyleSheet, SectionList, Modal, Alert, Animated } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
 import { isToday, isThisWeek } from '@/src/utils/dateUtils';
+import * as Haptics from 'expo-haptics';
+import { doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { db, auth } from '@/src/firebase/config';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -56,15 +59,137 @@ function groupActivities(activities: any[]) {
   return sections;
 }
 
-// ── Activity card ─────────────────────────────────────────────────────────────
-function ActivityCard({ item, colors, userRegion }: { item: any; colors: any; userRegion: string }) {
+// ── Custom long-press action sheet ───────────────────────────────────────────
+type ActionSheetItem = {
+  activity: any;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+};
+
+function ActivityActionSheet({ activity, onDuplicate, onDelete, onClose }: ActionSheetItem) {
+  const { colors, scheme } = useAppTheme();
+  const slideY = useRef(new Animated.Value(300)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.spring(slideY, { toValue: 0, damping: 22, stiffness: 280, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  const dismiss = (cb?: () => void) => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 0, duration: 140, useNativeDriver: true }),
+      Animated.timing(slideY, { toValue: 300, duration: 160, useNativeDriver: true }),
+    ]).start(() => { onClose(); cb?.(); });
+  };
+
+  const accent  = CATEGORY_COLORS[activity.category] ?? colors.tint;
+  const bgSheet = scheme === 'dark' ? '#1C2820' : '#FFFFFF';
+  const label   = activity.category.charAt(0).toUpperCase() + activity.category.slice(1);
+  const dateStr = new Date(activity.date).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const tokens  = calculateTokens(activity);
+
+  return (
+    <Modal transparent animationType="none" onRequestClose={() => dismiss()}>
+      {/* Backdrop */}
+      <Animated.View style={[styles.asBackdrop, { opacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => dismiss()} />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View style={[styles.asSheet, { backgroundColor: bgSheet, transform: [{ translateY: slideY }] }]}>
+        {/* Handle */}
+        <View style={[styles.asHandle, { backgroundColor: colors.text + '20' }]} />
+
+        {/* Activity preview */}
+        <View style={[styles.asPreview, { backgroundColor: accent + '12', borderColor: accent + '30' }]}>
+          <View style={[styles.asPreviewIcon, { backgroundColor: accent + '22' }]}>
+            <FontAwesome6 name={CATEGORY_ICON[activity.category] ?? 'leaf'} size={20} color={accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.asPreviewLabel, { color: colors.text }]}>{label}</ThemedText>
+            <ThemedText style={[styles.asPreviewDate,  { color: colors.text }]}>{dateStr}</ThemedText>
+          </View>
+          <View style={[styles.asTokenBadge, { backgroundColor: accent + '18' }]}>
+            <FontAwesome6 name="leaf" size={11} color={accent} />
+            <ThemedText style={[styles.asTokenText, { color: accent }]}>{tokens}</ThemedText>
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={[styles.asActions, { borderColor: colors.text + '10' }]}>
+          {/* Duplicate */}
+          <Pressable
+            style={({ pressed }) => [styles.asAction, pressed && { opacity: 0.6 }]}
+            onPress={() => dismiss(onDuplicate)}
+          >
+            <View style={[styles.asActionIcon, { backgroundColor: colors.tint + '18' }]}>
+              <FontAwesome6 name="copy" size={16} color={colors.tint} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={[styles.asActionTitle, { color: colors.text }]}>Duplicate</ThemedText>
+              <ThemedText style={[styles.asActionSub,   { color: colors.text }]}>
+                Creates a copy dated to today
+              </ThemedText>
+            </View>
+            <FontAwesome6 name="chevron-right" size={13} color={colors.text + '30'} />
+          </Pressable>
+
+          <View style={[styles.asSep, { backgroundColor: colors.text + '08' }]} />
+
+          {/* Delete */}
+          <Pressable
+            style={({ pressed }) => [styles.asAction, pressed && { opacity: 0.6 }]}
+            onPress={() => dismiss(() => {
+              Alert.alert(
+                'Delete Activity',
+                'This cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: onDelete },
+                ]
+              );
+            })}
+          >
+            <View style={[styles.asActionIcon, { backgroundColor: '#EF535018' }]}>
+              <FontAwesome6 name="trash" size={16} color="#EF5350" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <ThemedText style={[styles.asActionTitle, { color: '#EF5350' }]}>Delete</ThemedText>
+              <ThemedText style={[styles.asActionSub,   { color: colors.text }]}>
+                Permanently removes this activity
+              </ThemedText>
+            </View>
+            <FontAwesome6 name="chevron-right" size={13} color={colors.text + '30'} />
+          </Pressable>
+        </View>
+
+        {/* Cancel */}
+        <Pressable
+          style={({ pressed }) => [styles.asCancel, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+          onPress={() => dismiss()}
+        >
+          <ThemedText style={[styles.asCancelText, { color: colors.text }]}>Cancel</ThemedText>
+        </Pressable>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+
+function ActivityCard({ item, colors, userRegion, onLongPress }: { item: any; colors: any; userRegion: string; onLongPress: () => void }) {
   const label = getActivityMetric(item);
   const accent = CATEGORY_COLORS[item.category] ?? '#2E7D32';
 
   return (
     <Pressable
-      style={[ styles.card, { backgroundColor: colors.surface, borderWidth: 1, borderColor: accent + '25' },]}
+      style={({ pressed }) => [styles.card, { backgroundColor: colors.surface, borderWidth: 1, borderColor: accent + '25', opacity: pressed ? 0.88 : 1 }]}
       onPress={() => router.push(`/activity/details?id=${item.id}`)}
+      onLongPress={onLongPress}
+      delayLongPress={350}
     >
       {/* Left accent bar */}
       <View style={[styles.accentBar, { backgroundColor: accent }]} />
@@ -120,6 +245,7 @@ export default function ActivityScreen() {
   const activities    = useActivityStore(s => s.activities);
   const CATEGORIES    = ['all', 'walking', 'running', 'cycling', 'electricity', 'water'];
   const [filter, setFilter] = useState('all');
+  const [actionSheet, setActionSheet] = useState<any | null>(null);
 
   const sortedActivities = useMemo(() =>
     [...activities].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
@@ -133,13 +259,40 @@ export default function ActivityScreen() {
 
   const sections = useMemo(() => groupActivities(filteredActivities), [filteredActivities]);
 
+  const handleLongPress = (item: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setActionSheet(item);
+  };
+
+  const handleDuplicate = async (item: any) => {
+    const copy = useActivityStore.getState().duplicateActivity(item.id);
+    const uid = auth.currentUser?.uid;
+    if (copy && uid) await setDoc(doc(db, 'users', uid, 'activities', copy.id), copy);
+  };
+
+  const handleDelete = async (item: any) => {
+    useActivityStore.getState().removeActivity(item.id);
+    const uid = auth.currentUser?.uid;
+    if (uid) await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Custom action sheet */}
+      {actionSheet && (
+        <ActivityActionSheet
+          activity={actionSheet}
+          onClose={() => setActionSheet(null)}
+          onDuplicate={() => handleDuplicate(actionSheet)}
+          onDelete={() => handleDelete(actionSheet)}
+        />
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <ThemedText type="title" style={{ color: colors.text, lineHeight: 35 }}>Activity</ThemedText>
         <Pressable
-          style={[styles.addButton, { backgroundColor: colors.tint }]}
+          style={({ pressed }) => [styles.addButton, { backgroundColor: colors.tint, opacity: pressed ? 0.75 : 1 }]}
           onPress={() => router.push('/activity/add')}
         >
           <FontAwesome6 name="plus" size={13} color="#fff" />
@@ -224,7 +377,7 @@ export default function ActivityScreen() {
           )}
           renderItem={({ item }) => (
             <View style={{ marginBottom: 10 }}>
-              <ActivityCard item={item} colors={colors} userRegion={userRegion} />
+              <ActivityCard item={item} colors={colors} userRegion={userRegion} onLongPress={() => handleLongPress(item)} />
             </View>
           )}
         />
@@ -382,4 +535,69 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     marginTop: 8,
   },
+
+  // ── Action sheet ──
+  asBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    zIndex: 10,
+  },
+  asSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 11,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 10,
+    paddingBottom: 32,
+    paddingHorizontal: 16,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 24,
+  },
+  asHandle: {
+    width: 36, height: 4, borderRadius: 2,
+    alignSelf: 'center', marginBottom: 4,
+  },
+  asPreview: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 14, borderWidth: 1,
+  },
+  asPreviewIcon: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  asPreviewLabel: { fontSize: 15, fontWeight: '700' },
+  asPreviewDate:  { fontSize: 12, opacity: 0.5, marginTop: 1 },
+  asTokenBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+  },
+  asTokenText: { fontSize: 13, fontWeight: '700' },
+  asActions: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+  },
+  asAction: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 16, paddingVertical: 15,
+  },
+  asActionIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  asActionTitle: { fontSize: 15, fontWeight: '600' },
+  asActionSub:   { fontSize: 12, opacity: 0.45, marginTop: 1 },
+  asSep:         { height: StyleSheet.hairlineWidth, marginLeft: 66 },
+  asCancel: {
+    alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 15, borderRadius: 14,
+  },
+  asCancelText: { fontSize: 16, fontWeight: '600', opacity: 0.7 },
 });

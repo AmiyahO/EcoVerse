@@ -5,7 +5,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, View, Pressable, Modal, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   calculateTokens, calculateCarbonSaved, getEcoZone,
@@ -13,7 +13,10 @@ import {
 } from '@/src/utils/ecoLogic';
 import { getCO2Equivalent } from '@/src/utils/co2Equivalents';
 import AISuggestionsCard from '@/components/ai-suggestions-card';
-import Svg, { Circle, G } from 'react-native-svg';
+import Svg, { Circle, G, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { CartesianChart, Line, Area } from 'victory-native';
+import { Dimensions } from 'react-native';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -50,11 +53,267 @@ function getRecentActivityLabel(activity: any) {
   return '—';
 }
 
+const MODAL_CHART_WIDTH = Dimensions.get('window').width - 64;
+
+// ── 30-day token sparkline data ───────────────────────────────────────────────
+function buildSparklineData(activities: any[]) {
+  const now    = new Date();
+  const points: { day: number; tokens: number; label: string }[] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d     = new Date(now);
+    d.setDate(now.getDate() - i);
+    const key   = d.toDateString();
+    const tokens = activities
+      .filter(a => new Date(a.date).toDateString() === key)
+      .reduce((s, a) => s + calculateTokens(a), 0);
+    points.push({
+      day:    30 - i,
+      tokens,
+      label:  i % 7 === 0 ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '',
+    });
+  }
+  return points;
+}
+
+// ── EcoScore history modal ────────────────────────────────────────────────────
+function EcoScoreModal({
+  visible, onClose, ecoScore, zoneColor, activities, ecoScoreSnapshots, colors, scheme,
+}: {
+  visible: boolean; onClose: () => void;
+  ecoScore: number; zoneColor: string;
+  activities: any[]; ecoScoreSnapshots: any[];
+  colors: any; scheme: string;
+}) {
+  const [tab, setTab] = useState<'sparkline' | 'history'>('sparkline');
+  const slideY  = useRef(new Animated.Value(600)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, damping: 24, stiffness: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const dismiss = () => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(slideY, { toValue: 600, duration: 200, useNativeDriver: true }),
+    ]).start(() => onClose());
+  };
+
+  const sparkData     = useMemo(() => buildSparklineData(activities), [activities]);
+  const hasSparkData  = sparkData.some(d => d.tokens > 0);
+  const hasHistory    = ecoScoreSnapshots.length >= 2;
+  const bgSheet       = scheme === 'dark' ? '#121F16' : '#FFFFFF';
+  const tabBg         = scheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F0F0F0';
+
+  // Peak + streak for sparkline summary
+  const peakDay    = sparkData.reduce((best, d) => d.tokens > best.tokens ? d : best, sparkData[0]);
+  const totalTokens30 = sparkData.reduce((s, d) => s + d.tokens, 0);
+  const activeDays30  = sparkData.filter(d => d.tokens > 0).length;
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={dismiss}>
+      <Animated.View style={[styles.modalBackdrop, { opacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
+      </Animated.View>
+
+      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, transform: [{ translateY: slideY }] }]}>
+        {/* Handle */}
+        <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
+
+        {/* Header */}
+        <View style={styles.modalHeader}>
+          <View>
+            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>EcoScore Overview</ThemedText>
+            <ThemedText style={[styles.modalSub,   { color: colors.text }]}>Your eco impact at a glance</ThemedText>
+          </View>
+          {/* Current score badge */}
+          <View style={[styles.scoreBadge, { backgroundColor: zoneColor + '18', borderColor: zoneColor + '40' }]}>
+            <ThemedText style={[styles.scoreBadgeNum, { color: zoneColor }]}>{ecoScore}</ThemedText>
+            <ThemedText style={[styles.scoreBadgeSub, { color: colors.text }]}>/100</ThemedText>
+          </View>
+        </View>
+
+        {/* Tab switcher */}
+        <View style={[styles.tabRow, { backgroundColor: tabBg }]}>
+          {([
+            { key: 'sparkline', label: '30-Day Tokens', icon: 'chart-line' },
+            { key: 'history',   label: 'Score History', icon: 'clock-rotate-left' },
+          ] as const).map(t => (
+            <Pressable
+              key={t.key}
+              style={[styles.tab, tab === t.key && { backgroundColor: colors.tint }]}
+              onPress={() => setTab(t.key)}
+            >
+              <FontAwesome6 name={t.icon as any} size={12} color={tab === t.key ? '#fff' : colors.text} style={{ opacity: tab === t.key ? 1 : 0.5 }} />
+              <ThemedText style={[styles.tabText, { color: tab === t.key ? '#fff' : colors.text, opacity: tab === t.key ? 1 : 0.5 }]}>
+                {t.label}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </View>
+
+        {/* ── Tab: 30-day sparkline ── */}
+        {tab === 'sparkline' && (
+          <View style={{ gap: 16 }}>
+            {!hasSparkData ? (
+              <View style={styles.modalEmpty}>
+                <FontAwesome6 name="chart-line" size={32} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.modalEmptyText, { color: colors.text }]}>
+                  Log activities to see your token trend
+                </ThemedText>
+              </View>
+            ) : (
+              <>
+                {/* Summary pills */}
+                <View style={styles.modalPillRow}>
+                  {[
+                    { label: '30-day total', val: `${totalTokens30}`, icon: 'leaf' },
+                    { label: 'Active days',  val: `${activeDays30}`,  icon: 'calendar-check' },
+                    { label: 'Best day',     val: `${peakDay.tokens}`, icon: 'fire' },
+                  ].map(({ label, val, icon }) => (
+                    <View key={label} style={[styles.modalPill, { backgroundColor: colors.tint + '12' }]}>
+                      <FontAwesome6 name={icon as any} size={13} color={colors.tint} />
+                      <ThemedText style={[styles.modalPillVal, { color: colors.text }]}>{val}</ThemedText>
+                      <ThemedText style={[styles.modalPillLabel, { color: colors.text }]}>{label}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Victory Native Line chart */}
+                <View style={{ height: 180 }}>
+                  <CartesianChart
+                    data={sparkData}
+                    xKey="day"
+                    yKeys={['tokens']}
+                    domainPadding={{ top: 20, bottom: 10, left: 8, right: 8 }}
+                    axisOptions={{
+                      tickCount: { x: 5, y: 4 },
+                      labelColor: colors.text + '66',
+                      lineColor:  'transparent',
+                      formatXLabel: (val) => {
+                        const pt = sparkData.find(d => d.day === val);
+                        return pt?.label ?? '';
+                      },
+                    }}
+                  >
+                    {({ points, chartBounds }) => (
+                      <>
+                        <Area
+                          points={points.tokens}
+                          y0={chartBounds.bottom}
+                          color={colors.tint}
+                          opacity={0.15}
+                        />
+                        <Line
+                          points={points.tokens}
+                          color={colors.tint}
+                          strokeWidth={2.5}
+                          curveType="natural"
+                        />
+                      </>
+                    )}
+                  </CartesianChart>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* ── Tab: EcoScore history ── */}
+        {tab === 'history' && (
+          <View style={{ gap: 16 }}>
+            {!hasHistory ? (
+              <View style={styles.modalEmpty}>
+                <FontAwesome6 name="clock-rotate-left" size={32} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.modalEmptyText, { color: colors.text }]}>
+                  EcoScore history builds up after your first week.{'\n'}Come back next week!
+                </ThemedText>
+              </View>
+            ) : (
+              <>
+                {/* Summary pills */}
+                <View style={styles.modalPillRow}>
+                  {[
+                    { label: 'This week', val: `${ecoScoreSnapshots.at(-1)?.score ?? ecoScore}`, icon: 'star' },
+                    { label: 'Best week', val: `${Math.max(...ecoScoreSnapshots.map((s: any) => s.score))}`, icon: 'trophy' },
+                    { label: 'Avg score', val: `${Math.round(ecoScoreSnapshots.reduce((s: number, x: any) => s + x.score, 0) / ecoScoreSnapshots.length)}`, icon: 'chart-line' },
+                  ].map(({ label, val, icon }) => (
+                    <View key={label} style={[styles.modalPill, { backgroundColor: zoneColor + '12' }]}>
+                      <FontAwesome6 name={icon as any} size={13} color={zoneColor} />
+                      <ThemedText style={[styles.modalPillVal, { color: colors.text }]}>{val}</ThemedText>
+                      <ThemedText style={[styles.modalPillLabel, { color: colors.text }]}>{label}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+
+                {/* Victory Native Line chart for history */}
+                <View style={{ height: 180 }}>
+                  <CartesianChart
+                    data={ecoScoreSnapshots.map((s: any, i: number) => ({ x: i, score: s.score, label: s.label }))}
+                    xKey="x"
+                    yKeys={['score']}
+                    domain={{ y: [0, 100] }}
+                    domainPadding={{ top: 10, bottom: 10, left: 8, right: 8 }}
+                    axisOptions={{
+                      tickCount: { x: ecoScoreSnapshots.length, y: 5 },
+                      labelColor: colors.text + '66',
+                      lineColor:  'transparent',
+                      formatXLabel: (val) => ecoScoreSnapshots[val]?.label ?? '',
+                    }}
+                  >
+                    {({ points }) => (
+                      <>
+                        <Line
+                          points={points.score}
+                          color={zoneColor}
+                          strokeWidth={2.5}
+                          curveType="natural"
+                        />
+                      </>
+                    )}
+                  </CartesianChart>
+                </View>
+
+                {/* Score dots row */}
+                <View style={styles.historyDots}>
+                  {ecoScoreSnapshots.map((s: any) => (
+                    <View key={s.weekKey} style={styles.historyDot}>
+                      <View style={[styles.historyDotCircle, {
+                        backgroundColor: s.score >= 75 ? '#4CAF50' : s.score >= 50 ? '#FFC107' : '#EF5350',
+                      }]} />
+                      <ThemedText style={[styles.historyDotLabel, { color: colors.text }]}>{s.label}</ThemedText>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
+        {/* Close */}
+        <Pressable
+          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.tint + '22', opacity: pressed ? 0.75 : 1 }]}
+          onPress={dismiss}
+        >
+          <ThemedText style={[styles.modalCloseText, { color: colors.text }]}>Close</ThemedText>
+        </Pressable>
+      </Animated.View>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const { colors, scheme } = useAppTheme();
-  const userRegion  = useActivityStore(s => s.userRegion);
-  const activities  = useActivityStore(s => s.activities);
-  const userProfile = useActivityStore(s => s.userProfile);
+  const userRegion        = useActivityStore(s => s.userRegion);
+  const activities        = useActivityStore(s => s.activities);
+  const userProfile       = useActivityStore(s => s.userProfile);
+  const ecoScoreSnapshots = useActivityStore(s => s.ecoScoreSnapshots);
+  const [showEcoModal, setShowEcoModal] = useState(false);
 
   const recentActivity = activities.length > 0
     ? [...activities].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
@@ -104,6 +363,16 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <EcoScoreModal
+        visible={showEcoModal}
+        onClose={() => setShowEcoModal(false)}
+        ecoScore={ecoScore}
+        zoneColor={zoneColor}
+        activities={activities}
+        ecoScoreSnapshots={ecoScoreSnapshots}
+        colors={colors}
+        scheme={scheme}
+      />
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* ── Greeting ── */}
@@ -114,9 +383,8 @@ export default function HomeScreen() {
             </ThemedText>
           </View>
           <Pressable
-            style={[styles.addBtn, { backgroundColor: colors.tint }]}
+            style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.tint, opacity: pressed ? 0.75 : 1 }]}
             onPress={() => router.push('/activity/add')}
-            android_ripple={{ color: 'rgba(255,255,255,0.25)', radius: 32 }}
           >
             <FontAwesome6 name="plus" size={13} color="#fff" />
             <ThemedText style={styles.addBtnText}>Log</ThemedText>
@@ -130,8 +398,11 @@ export default function HomeScreen() {
         >
           <View style={styles.scoreWrapper}>
 
-            {/* Left: ring + score */}
-            <View style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}>
+            {/* Left: ring + score — tap to open sparkline/history modal */}
+            <Pressable
+              style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}
+              onPress={() => setShowEcoModal(true)}
+            >
               <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
                 <Circle
                   cx={CENTER} cy={CENTER} r={RING_RADIUS}
@@ -159,7 +430,7 @@ export default function HomeScreen() {
                 <ThemedText style={[styles.scoreNumber, { color: zoneColor }]}>{ecoScore}</ThemedText>
                 <ThemedText style={[styles.scoreMax,    { color: colors.text }]}>/100</ThemedText>
               </View>
-            </View>
+            </Pressable>
 
             {/* Right: zone message, token pill, progress */}
             <View style={styles.heroRight}>
@@ -353,4 +624,36 @@ const styles = StyleSheet.create({
   recentRow:     { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12 },
   recentIcon:    { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   emptyActivity: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed' },
+
+  // ── EcoScore modal ──
+  modalBackdrop:   { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10 },
+  modalSheet: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 11,
+    borderTopLeftRadius: 28, borderTopRightRadius: 28,
+    padding: 20, paddingBottom: 36, gap: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.2, shadowRadius: 24, elevation: 24,
+  },
+  modalHandle:    { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 4 },
+  modalHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle:     { fontSize: 18, fontWeight: '700' },
+  modalSub:       { fontSize: 12, opacity: 0.45, marginTop: 2 },
+  scoreBadge:     { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, borderWidth: 1, alignItems: 'center' },
+  scoreBadgeNum:  { fontSize: 22, fontWeight: '800', lineHeight: 26 },
+  scoreBadgeSub:  { fontSize: 11, opacity: 0.45 },
+  tabRow:         { flexDirection: 'row', borderRadius: 12, padding: 3, gap: 3 },
+  tab:            { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10 },
+  tabText:        { fontSize: 13, fontWeight: '600' },
+  modalPillRow:   { flexDirection: 'row', gap: 8 },
+  modalPill:      { flex: 1, padding: 10, borderRadius: 12, alignItems: 'center', gap: 3 },
+  modalPillVal:   { fontSize: 16, fontWeight: '700' },
+  modalPillLabel: { fontSize: 10, opacity: 0.5, textAlign: 'center' },
+  modalEmpty:     { height: 160, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  modalEmptyText: { fontSize: 13, opacity: 0.45, textAlign: 'center', lineHeight: 20 },
+  modalClose:     { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14 },
+  modalCloseText: { fontSize: 16, fontWeight: '600' },
+  historyDots:    { flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap', gap: 6 },
+  historyDot:     { alignItems: 'center', gap: 3 },
+  historyDotCircle: { width: 8, height: 8, borderRadius: 4 },
+  historyDotLabel:  { fontSize: 9, opacity: 0.4 },
 });

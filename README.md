@@ -48,7 +48,8 @@ app/
 │   ├── _layout.tsx      # Tab navigator — global celebration banner, confetti
 │   ├── index.tsx        # Dashboard — EcoScore hero + zone-coloured SVG ring, CO₂ card with
 │   │                    #   real-world equivalent, quick stats, recent activity, AI eco-tips
-│   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards
+│   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards,
+│   │                    #   long-press action sheet (duplicate / delete with haptic feedback)
 │   ├── stats.tsx        # Stats — 3 swipeable rows: Overview, Breakdown, Monthly & Trends
 │   │                    #   Row 1: All-Time grid | This Week vs Last Week (tokens, activity
 │   │                    #     count, CO₂ dual bars by category)
@@ -82,7 +83,9 @@ src/
 ├── store/
 │   ├── activityStore.ts # Zustand store — activities, userProfile (tokens,
 │   │                    #   totalCarbonSaved), celebration, levelUpPending,
-│   │                    #   pendingLevel, _hasHydrated, _profileLoaded
+│   │                    #   pendingLevel, _hasHydrated, _profileLoaded.
+│   │                    #   duplicateActivity() creates a dated copy and returns
+│   │                    #   it for Firestore persistence by the caller
 │   └── themeStore.ts    # Zustand store — persisted theme mode (light/dark/system)
 │
 ├── services/
@@ -362,7 +365,7 @@ Three swipeable rows, each with animated pill-shaped page indicators:
 - **Login:** Soft green gradient (light) / deep forest green (dark). Inline error messages
 - **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring, CO₂ card with weekly total and transport-only week-on-week % comparison (walking/running/cycling only — utility bills excluded to avoid misleading swings), real-world CO₂ equivalent, quick stats row, recent activity, AI tips card
 - **Stats:** Three swipeable card rows with section labels and animated dot indicators (see Stats Screen section above)
-- **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA
+- **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + native action sheet with Duplicate and Delete options. Duplicate creates a copy dated to now and persists it to Firestore. Delete requires a second confirmation alert before removing from both Zustand and Firestore.
 - **Profile:** 3-stop gradient hero, level badge, streak calendar bottom sheet, goal progress bar
 - **Settings:** iOS-style uppercase section headers, coloured icon rows, live cloud sync timestamp, HC connection status, in-app Terms of Service and Privacy Policy modals
 - **Onboarding:** 7-step pager with animated transitions, theme-aware backgrounds
@@ -409,6 +412,8 @@ npx expo run:android
 | Level-up modal fires on every cold boot | Zustand init sets `tokens = 0`; first Firestore snapshot looks like a token increase from 0 | `_profileLoaded` flag gates level-up check — only fires after first hydration, not during it |
 | Dashboard CO₂ week-on-week % misleading | Utility bills logged monthly; week with no bill shows "−100% CO₂" | `getWeekCarbonComparison()` filters to transport categories only (walking, running, cycling) |
 | Stats "CO₂ saved" pill misleading | Same as above — weekly CO₂ pill included utility bills | Pill removed from This Week vs Last Week card; per-category bars retained (absolute values, not delta) |
+| +Log button shows wrong theme tint on OS theme change | `android_ripple` causes Android to recreate the native `RippleDrawable` on re-render; during reconstruction it briefly renders the system default colour | Removed `android_ripple`; replaced with JS `({ pressed }) => [...]` style callback using opacity for press feedback |
+| Theme tint flashes opposite colour on cold boot | Zustand `persist` middleware rehydrates AsyncStorage asynchronously; a stale persisted `mode` (e.g. `'light'`) briefly applied before the correct value loaded | Added `_hydrated` flag to `themeStore`; `useAppTheme` falls back to OS scheme until hydration completes |
 
 ---
 

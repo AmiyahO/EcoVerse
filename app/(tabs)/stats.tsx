@@ -215,6 +215,7 @@ export default function StatsScreen() {
   const { colors } = useAppTheme();
   const userRegion  = useActivityStore(s => s.userRegion);
   const activities  = useActivityStore(s => s.activities);
+  const userProfile = useActivityStore(s => s.userProfile);
 
   const [slide1, setSlide1] = useState(0);
   const [slide2, setSlide2] = useState(0);
@@ -245,7 +246,10 @@ export default function StatsScreen() {
   // ── All-time data ─────────────────────────────────────────────────────────
   const totalSteps    = activities.reduce((s, a) => s + (a.steps ?? 0), 0);
   const totalDistance = activities.reduce((s, a) => s + (a.distance ?? 0), 0);
-  const totalCO2      = activities.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
+  // Use Firestore totalCarbonSaved (same source as Profile) to avoid drift
+  // from region changes after logging or floating-point rounding differences
+  const totalCO2      = userProfile?.totalCarbonSaved
+    ?? activities.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
 
   const stepActs     = activities.filter(a => a.steps !== undefined);
   const distActs     = activities.filter(a => a.distance !== undefined);
@@ -279,11 +283,11 @@ export default function StatsScreen() {
   const thisMonthActs = activities.filter(a => { const d = new Date(a.date); return d >= thisMonth.start && d <= thisMonth.end; });
   const lastMonthActs = activities.filter(a => { const d = new Date(a.date); return d >= lastMonth.start && d <= lastMonth.end; });
 
-  // Activity counts by category, monthly
-  const thisMonthCounts: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  const lastMonthCounts: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  thisMonthActs.forEach(a => { thisMonthCounts[a.category] = (thisMonthCounts[a.category] || 0) + 1; });
-  lastMonthActs.forEach(a => { lastMonthCounts[a.category] = (lastMonthCounts[a.category] || 0) + 1; });
+  // CO₂ by category, monthly
+  const co2ThisMonth: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+  const co2LastMonth: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+  thisMonthActs.forEach(a => { co2ThisMonth[a.category] += calculateCarbonSaved(a, userRegion); });
+  lastMonthActs.forEach(a => { co2LastMonth[a.category] += calculateCarbonSaved(a, userRegion); });
 
   const thisMonthTotal = thisMonthActs.length;
   const lastMonthTotal = lastMonthActs.length;
@@ -444,26 +448,27 @@ export default function StatsScreen() {
                     </ThemedText>
                   </View>
                 ) : (
-                  <View style={styles.donutLayout}>
-                    {/* Donut */}
-                    <View style={{ width: 156, height: 156 }}>
-                      <DonutChart slices={donutSlices} size={156} />
-                      {/* Centre label absolutely positioned */}
-                      <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-                        <ThemedText style={{ fontSize: 22, fontWeight: '800', color: colors.text, lineHeight: 26 }}>
-                          {donutTotal}
-                        </ThemedText>
-                        <ThemedText style={{ fontSize: 11, opacity: 0.45, color: colors.text }}>total</ThemedText>
+                  <View style={{ gap: 16 }}>
+                    {/* Donut centred */}
+                    <View style={{ alignItems: 'center' }}>
+                      <View style={{ width: 156, height: 156 }}>
+                        <DonutChart slices={donutSlices} size={156} />
+                        <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+                          <ThemedText style={{ fontSize: 22, fontWeight: '800', color: colors.text, lineHeight: 26 }}>
+                            {donutTotal}
+                          </ThemedText>
+                          <ThemedText style={{ fontSize: 11, opacity: 0.45, color: colors.text }}>total</ThemedText>
+                        </View>
                       </View>
                     </View>
 
-                    {/* Legend */}
-                    <View style={styles.donutLegend}>
+                    {/* Legend grid — 2 columns below the donut */}
+                    <View style={styles.donutLegendGrid}>
                       {donutSlices
                         .filter(sl => sl.count > 0)
                         .sort((a, b) => b.count - a.count)
                         .map(sl => (
-                          <View key={sl.category} style={styles.donutLegendRow}>
+                          <View key={sl.category} style={styles.donutLegendGridItem}>
                             <View style={[styles.legendDot, { backgroundColor: sl.color }]} />
                             <View style={{ flex: 1 }}>
                               <ThemedText style={[styles.legendText, { color: colors.text }]}>
@@ -580,17 +585,17 @@ export default function StatsScreen() {
                       />
                     </View>
 
-                    {/* Per-category count bars */}
+                    {/* CO₂ by category */}
                     <View style={{ gap: 2 }}>
                       <ThemedText style={[styles.cardSubtitle, { color: colors.text }]}>
-                        Activities by category
+                        CO₂ by category
                       </ThemedText>
                       {CATEGORY_ORDER.map(cat => {
-                        const thisC = thisMonthCounts[cat] ?? 0;
-                        const lastC = lastMonthCounts[cat] ?? 0;
+                        const thisC = co2ThisMonth[cat] ?? 0;
+                        const lastC = co2LastMonth[cat] ?? 0;
                         if (thisC === 0 && lastC === 0) return null;
                         const diff  = thisC - lastC;
-                        const max   = Math.max(thisC, lastC, 0.01);
+                        const max   = Math.max(thisC, lastC, 0.001);
                         const clr   = CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS];
                         return (
                           <View key={cat} style={[styles.catBarRow, { marginBottom: 6 }]}>
@@ -611,7 +616,7 @@ export default function StatsScreen() {
                             <ThemedText style={[styles.catBarDiff, {
                               color: diff > 0 ? '#4CAF50' : diff < 0 ? '#EF5350' : colors.text,
                             }]}>
-                              {diff > 0 ? '+' : ''}{diff}
+                              {diff > 0 ? '+' : ''}{diff.toFixed(2)}
                             </ThemedText>
                           </View>
                         );
@@ -796,6 +801,9 @@ const styles = StyleSheet.create({
   donutLayout:   { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 },
   donutLegend:   { flex: 1, gap: 9 },
   donutLegendRow:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // Donut legend grid (2 columns, below donut)
+  donutLegendGrid:     { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  donutLegendGridItem: { flexDirection: 'row', alignItems: 'center', gap: 8, width: '47%' },
 
   // Legends
   legendList: { gap: 7, marginTop: 4 },

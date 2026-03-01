@@ -4,6 +4,12 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkLevelUp } from '@/src/utils/levelSystem';
 
+export type EcoScoreSnapshot = {
+  weekKey: string;   // e.g. "2026-W09"
+  score: number;
+  label: string;     // e.g. "W9"
+};
+
 export type ActivityCategory =
   | 'walking'
   | 'running'
@@ -52,10 +58,12 @@ type ActivityState = {
   // Prevents level-up firing on the initial Firestore snapshot that populates
   // the profile (where prevTokens=0 → newTokens=1500 looks like a level-up).
   _profileLoaded: boolean;
+  ecoScoreSnapshots: EcoScoreSnapshot[];
 
   setActivities:            (activities: Activity[]) => void;
   addActivity:              (activity: Activity) => void;
   removeActivity:           (id: string) => void;
+  duplicateActivity:        (id: string) => Activity | null;
   clearActivities:          () => void;
   updateActivity:           (id: string, updatedActivity: Partial<Activity>) => void;
   getActivityById:          (id: string) => Activity | undefined;
@@ -66,6 +74,7 @@ type ActivityState = {
   setHasHydrated:           () => void;
   triggerLevelUp:           (newLevel: number) => void;
   clearLevelUp:             () => void;
+  setEcoScoreSnapshots:     (snapshots: EcoScoreSnapshot[]) => void;
 };
 
 export const useActivityStore = create<ActivityState>()(
@@ -80,6 +89,7 @@ export const useActivityStore = create<ActivityState>()(
       levelUpPending: false,
       pendingLevel:   0,
       _profileLoaded: false,
+      ecoScoreSnapshots: [],
 
       setActivities: (activities) => set({ activities }),
 
@@ -88,6 +98,19 @@ export const useActivityStore = create<ActivityState>()(
 
       removeActivity: (id) =>
         set(state => ({ activities: state.activities.filter(a => a.id !== id) })),
+
+      // Returns the new activity so the caller can persist it to Firestore
+      duplicateActivity: (id) => {
+        const original = get().activities.find(a => a.id === id);
+        if (!original) return null;
+        const copy: Activity = {
+          ...original,
+          id:   `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          date: new Date().toISOString(),
+        };
+        set(state => ({ activities: [...state.activities, copy] }));
+        return copy;
+      },
 
       // Reset _profileLoaded on sign-out so the next sign-in starts fresh
       clearActivities: () => set({ activities: [], _profileLoaded: false }),
@@ -141,6 +164,8 @@ export const useActivityStore = create<ActivityState>()(
       triggerLevelUp: (newLevel) => set({ levelUpPending: true, pendingLevel: newLevel }),
 
       clearLevelUp:   ()          => set({ levelUpPending: false, pendingLevel: 0 }),
+
+      setEcoScoreSnapshots: (snapshots) => set({ ecoScoreSnapshots: snapshots }),
     }),
     {
       name:    'activity-store',

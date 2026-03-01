@@ -134,13 +134,7 @@ export function getWeekRange(offset: number = 0) {
   return { start, end };
 }
 
-// ── Week CO₂ comparison — TRANSPORT ONLY ──────────────────────────────────────
-// Electricity and water are billed monthly/quarterly, not tracked weekly with
-// reliable regularity. Including them makes the "vs last week" comparison
-// misleading — a week with no bill entry looks like CO₂ went to zero.
-// We compare only walking/running/cycling which are logged consistently.
-const TRANSPORT_CATEGORIES = new Set(['walking', 'running', 'cycling']);
-
+// ── Week CO₂ comparison ──────────────────────────────────────
 export function getWeekCarbonComparison(
   activities: Activity[],
   userRegion: string = 'GLOBAL_AVG',
@@ -149,12 +143,7 @@ export function getWeekCarbonComparison(
   const previous = getWeekRange(1);
 
   const sum = (range: { start: Date; end: Date }) =>
-    activities
-      .filter(a => {
-        const d = new Date(a.date);
-        return TRANSPORT_CATEGORIES.has(a.category) && d >= range.start && d <= range.end;
-      })
-      .reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
+    activities       .filter(a => { const d = new Date(a.date); return d >= range.start && d <= range.end; })       .reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
 
   const currentTotal  = sum(current);
   const previousTotal = sum(previous);

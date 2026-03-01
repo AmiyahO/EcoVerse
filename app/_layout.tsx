@@ -6,10 +6,75 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
 import { auth, db } from '@/src/firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, setDoc, getDocs } from 'firebase/firestore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
+import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+
+// ── EcoScore snapshot helpers ─────────────────────────────────────────────────
+
+function getISOWeekKey(date: Date): string {
+  // Returns "YYYY-WNN" — ISO week number, Monday-based
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7; // Mon=1 … Sun=7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+}
+
+function calcEcoScore(
+  weekActivities: any[], weeklyTarget: number, userRegion: string
+): number {
+  const tokens = weekActivities.reduce((s: number, a: any) => s + calculateTokens(a), 0);
+  const activeDays = new Set(weekActivities.map((a: any) => new Date(a.date).toDateString())).size;
+  const uniqueCats = new Set(weekActivities.map((a: any) => a.category)).size;
+  const base        = Math.min((tokens / Math.max(weeklyTarget, 1)) * 70, 70);
+  const consistency = (activeDays / 7) * 20;
+  const variety     = (uniqueCats / 3) * 10;
+  return Math.min(100, Math.round(base + consistency + variety));
+}
+
+async function writeEcoScoreSnapshot(
+  uid: string,
+  activities: any[],
+  weeklyTarget: number,
+  userRegion: string,
+): Promise<void> {
+  const now      = new Date();
+  const weekKey  = getISOWeekKey(now);
+
+  // Week boundaries — Mon 00:00 to Sun 23:59
+  const d        = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  const dayNum   = d.getUTCDay() || 7;
+  const monday   = new Date(d); monday.setUTCDate(d.getUTCDate() - (dayNum - 1)); monday.setUTCHours(0,0,0,0);
+  const sunday   = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6); sunday.setUTCHours(23,59,59,999);
+
+  const weekActs = activities.filter(a => {
+    const t = new Date(a.date).getTime();
+    return t >= monday.getTime() && t <= sunday.getTime();
+  });
+
+  const score = calcEcoScore(weekActs, weeklyTarget, userRegion);
+  const label = `W${weekKey.split('-W')[1].replace(/^0/, '')}`;
+
+  await setDoc(
+    doc(collection(doc(db, 'users', uid), 'ecoScoreSnapshots'), weekKey),
+    { weekKey, score, label, updatedAt: new Date().toISOString() },
+    { merge: true }
+  );
+}
+
+async function loadEcoScoreSnapshots(uid: string) {
+  const snap = await getDocs(
+    query(collection(doc(db, 'users', uid), 'ecoScoreSnapshots'), orderBy('weekKey', 'desc'))
+  );
+  return snap.docs
+    .map(d => d.data() as { weekKey: string; score: number; label: string })
+    .slice(0, 12) // last 12 weeks max
+    .reverse();   // oldest → newest for charting
+}
 
 export default function RootLayout() {
   const { scheme, colors } = useAppTheme();
@@ -30,7 +95,7 @@ export default function RootLayout() {
 
   const loading = !authResolved || (!!user && (!userDocReady || !activitiesReady) && !freshLogin.current);
 
-  const { setActivities, clearActivities, setUserRegion, setUserProfile } = useActivityStore();
+  const { setActivities, clearActivities, setUserRegion, setUserProfile, setEcoScoreSnapshots } = useActivityStore();
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
   const initialLoadDone = useRef(false);
 
@@ -90,6 +155,15 @@ export default function RootLayout() {
               setActivities(firebaseData);
               initialLoadDone.current = true;
               setActivitiesReady(true);
+
+              // Write this week's snapshot and load all snapshots
+              const store = useActivityStore.getState();
+              const target = store.userProfile?.weeklyTarget ?? 500;
+              const region = store.userRegion;
+              writeEcoScoreSnapshot(currentUser.uid, firebaseData, target, region).catch(() => {});
+              loadEcoScoreSnapshots(currentUser.uid).then(snaps => {
+                setEcoScoreSnapshots(snaps);
+              }).catch(() => {});
               return;
             }
 
