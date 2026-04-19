@@ -179,9 +179,8 @@ export default function HealthConnectSyncScreen() {
           </ThemedText>
 
           <Pressable
-            onPress={() => router.back()}
-            style={[styles.doneBtn, { backgroundColor: tintGreen }]}
-            android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
+            onPress={() => router.replace('/(tabs)')}
+            style={({ pressed }) => [styles.doneBtn, { backgroundColor: tintGreen, opacity: pressed ? 0.8 : 1 }]}
           >
             <FontAwesome6 name="check" size={14} color="#fff" />
             <ThemedText style={styles.doneBtnText}>Back to Dashboard</ThemedText>
