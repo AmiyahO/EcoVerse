@@ -98,6 +98,13 @@ export default function RootLayout() {
   const { setActivities, clearActivities, setUserRegion, setUserProfile, setEcoScoreSnapshots } = useActivityStore();
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
   const initialLoadDone = useRef(false);
+  // Holds weeklyTarget + region read directly from the Firestore user doc snapshot.
+  // The activities listener may fire before setUserProfile/setUserRegion have updated
+  // the Zustand store, so we cannot rely on store state here — the ref is always current.
+  const snapshotParams = useRef<{ weeklyTarget: number; userRegion: string }>({
+    weeklyTarget: 500,
+    userRegion: 'GLOBAL_AVG',
+  });
 
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
@@ -133,6 +140,12 @@ export default function RootLayout() {
                 tokens:          data.tokens ?? 0,
                 totalCarbonSaved: data.totalCarbonSaved ?? 0
               });
+              // Keep ref in sync — activities listener reads this to avoid
+              // reading stale Zustand state before setUserProfile has fired.
+              snapshotParams.current = {
+                weeklyTarget: data.weeklyTarget || 500,
+                userRegion:   data.region || 'GLOBAL_AVG',
+              };
             }
             setUserDocReady(true);
           },
@@ -156,11 +169,10 @@ export default function RootLayout() {
               initialLoadDone.current = true;
               setActivitiesReady(true);
 
-              // Write this week's snapshot and load all snapshots
-              const store = useActivityStore.getState();
-              const target = store.userProfile?.weeklyTarget ?? 500;
-              const region = store.userRegion;
-              writeEcoScoreSnapshot(currentUser.uid, firebaseData, target, region).catch(() => {});
+              // Write using ref values — populated by the user doc listener which
+              // may not have updated the Zustand store yet at this point.
+              const { weeklyTarget, userRegion } = snapshotParams.current;
+              writeEcoScoreSnapshot(currentUser.uid, firebaseData, weeklyTarget, userRegion).catch(() => {});
               loadEcoScoreSnapshots(currentUser.uid).then(snaps => {
                 setEcoScoreSnapshots(snaps);
               }).catch(() => {});

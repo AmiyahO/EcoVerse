@@ -10,7 +10,8 @@ import {
 import { ScrollView, StyleSheet, View, FlatList, Dimensions, Pressable } from 'react-native';
 import { useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { CartesianChart, Bar } from 'victory-native';
+import { CartesianChart, Bar, useChartPressState } from 'victory-native';
+import { Circle as SkiaCircle } from '@shopify/react-native-skia';
 import Svg, { Path } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -205,6 +206,84 @@ function MonthBar({ thisVal, lastVal, color, colors, thisLabel, lastLabel }: {
           <View style={[styles.monthBarFill, { width: `${(thisVal / max) * 100}%`, backgroundColor: color }]} />
         </View>
       </View>
+    </View>
+  );
+}
+
+// ─── 8-week chart with press tooltip ─────────────────────────────────────────
+// Extracted as sub-component so useChartPressState is called at component top level.
+
+function WeeklyCO2Chart({
+  weeklyCO2Data, currentWeekLabel, colors,
+}: {
+  weeklyCO2Data: { week: string; co2: number }[];
+  currentWeekLabel: string;
+  colors: any;
+}) {
+  const { state, isActive } = useChartPressState({ x: '0', y: { co2: 0 } });
+
+  const activePoint = isActive
+    ? weeklyCO2Data.find(d => d.week === state.x.value) ?? null
+    : null;
+
+  return (
+    <View>
+      {/* Fixed-height tooltip row — prevents layout shift when pressing */}
+      <View style={{ height: 26, alignItems: 'center', justifyContent: 'center' }}>
+        {isActive && activePoint && (
+          <View style={{
+            flexDirection: 'row', gap: 8, alignItems: 'center',
+            backgroundColor: colors.tint + '18', borderRadius: 8,
+            paddingHorizontal: 10, paddingVertical: 3,
+          }}>
+            <ThemedText style={{ fontSize: 13, fontWeight: '700', color: colors.tint }}>
+              {activePoint.co2.toFixed(3)} kg CO₂
+            </ThemedText>
+            <ThemedText style={{ fontSize: 11, opacity: 0.5, color: colors.text }}>
+              {activePoint.week}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+
+      <CartesianChart
+        data={weeklyCO2Data} xKey="week" yKeys={['co2']}
+        domainPadding={{ left: 40, right: 40, top: 20 }}
+        chartPressState={state}
+        axisOptions={{
+          tickCount: 8,
+          labelColor: colors.text + '99',
+          lineColor: colors.surfaceMuted,
+          labelOffset: { x: 0, y: 4 },
+          formatXLabel: (val: string) => {
+            const p = String(val).split(' ');
+            return p[1] ?? String(val);
+          },
+        }}
+      >
+        {({ points, chartBounds }) => (
+          <>
+            {points.co2.map((point, i) => (
+              <Bar
+                key={i}
+                points={[point]}
+                chartBounds={chartBounds}
+                color={weeklyCO2Data[i]?.week === currentWeekLabel ? colors.tint : colors.tint + '55'}
+                roundedCorners={{ topLeft: 4, topRight: 4 }}
+                barWidth={24}
+              />
+            ))}
+            {isActive && (
+              <SkiaCircle
+                cx={state.x.position}
+                cy={state.y.co2.position}
+                r={4}
+                color={colors.tint}
+              />
+            )}
+          </>
+        )}
+      </CartesianChart>
     </View>
   );
 }
@@ -706,26 +785,11 @@ export default function StatsScreen() {
                     </ThemedText>
                   </View>
                 ) : (
-                  <CartesianChart
-                    data={weeklyCO2Data} xKey="week" yKeys={["co2"]}
-                    domainPadding={{ left: 40, right: 40, top: 20 }}
-                    axisOptions={{
-                      tickCount: 8,
-                      labelColor: colors.text + '99',
-                      lineColor: colors.surfaceMuted,
-                      labelOffset: { x: 0, y: 4 },
-                      formatXLabel: val => { const p = String(val).split(' '); return p[1] ?? String(val); },
-                    }}
-                  >
-                    {({ points, chartBounds }) =>
-                      points.co2.map((point, i) => (
-                        <Bar key={i} points={[point]} chartBounds={chartBounds}
-                          color={weeklyCO2Data[i]?.week === currentWeekLabel ? colors.tint : colors.tint + '55'}
-                          roundedCorners={{ topLeft: 4, topRight: 4 }} barWidth={24}
-                        />
-                      ))
-                    }
-                  </CartesianChart>
+                  <WeeklyCO2Chart
+                    weeklyCO2Data={weeklyCO2Data}
+                    currentWeekLabel={currentWeekLabel}
+                    colors={colors}
+                  />
                 )}
 
                 <View style={styles.chartSummary}>

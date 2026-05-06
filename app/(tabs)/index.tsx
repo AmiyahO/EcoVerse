@@ -13,9 +13,10 @@ import {
 } from '@/src/utils/ecoLogic';
 import { getCO2Equivalent } from '@/src/utils/co2Equivalents';
 import AISuggestionsCard from '@/components/ai-suggestions-card';
-import Svg, { Circle, G, Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { CartesianChart, Line, Area } from 'victory-native';
+import { CartesianChart, Line, Area, useChartPressState } from 'victory-native';
+import { Circle as SkiaCircle } from '@shopify/react-native-skia';
 import { Dimensions } from 'react-native';
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -55,7 +56,121 @@ function getRecentActivityLabel(activity: any) {
 
 const MODAL_CHART_WIDTH = Dimensions.get('window').width - 64;
 
-// ── 30-day token sparkline data ───────────────────────────────────────────────
+// ── Chart sub-components (useChartPressState must be at component top-level) ──
+
+function SparklineChart({ sparkData, colors }: { sparkData: any[]; colors: any }) {
+  const { state, isActive } = useChartPressState({ x: 0, y: { tokens: 0 } });
+
+  const activeDay = isActive ? sparkData.find(d => d.day === state.x.value) : null;
+  const activeDateStr = activeDay
+    ? (() => {
+        const now = new Date();
+        const d   = new Date(now);
+        d.setDate(now.getDate() - (30 - activeDay.day));
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      })()
+    : null;
+
+  return (
+    <View>
+      {/* Fixed-height tooltip row — prevents layout shift */}
+      <View style={{ height: 28, alignItems: 'center', justifyContent: 'center' }}>
+        {isActive && activeDay && (
+          <View style={{
+            flexDirection: 'row', gap: 6, alignItems: 'center',
+            backgroundColor: colors.tint + '18', borderRadius: 8,
+            paddingHorizontal: 10, paddingVertical: 4,
+          }}>
+            <ThemedText style={{ fontSize: 13, fontWeight: '700', color: colors.tint }}>
+              {Math.round(state.y.tokens.value)} tokens
+            </ThemedText>
+            {activeDateStr && (
+              <ThemedText style={{ fontSize: 11, opacity: 0.5, color: colors.text }}>
+                {activeDateStr}
+              </ThemedText>
+            )}
+          </View>
+        )}
+      </View>
+      <View style={{ height: 155 }}>
+        <CartesianChart
+          data={sparkData} xKey="day" yKeys={['tokens']}
+          domainPadding={{ top: 20, bottom: 8, left: 8, right: 8 }}
+          chartPressState={state}
+          axisOptions={{
+            tickCount: { x: 5, y: 4 },
+            labelColor: colors.text + '55',
+            lineColor: 'transparent',
+            formatXLabel: (val: number) => sparkData.find(d => d.day === val)?.label ?? '',
+          }}
+        >
+          {({ points, chartBounds }) => (
+            <>
+              <Area points={points.tokens} y0={chartBounds.bottom} color={colors.tint} opacity={0.12} />
+              <Line points={points.tokens} color={colors.tint} strokeWidth={2.5} curveType="natural" />
+              {isActive && (
+                <SkiaCircle cx={state.x.position} cy={state.y.tokens.position} r={5} color={colors.tint} />
+              )}
+            </>
+          )}
+        </CartesianChart>
+      </View>
+    </View>
+  );
+}
+
+function HistoryChart({ snapshots, zoneColor, colors }: { snapshots: any[]; zoneColor: string; colors: any }) {
+  const { state, isActive } = useChartPressState({ x: 0, y: { score: 0 } });
+
+  const activeSnap = isActive ? snapshots[Math.round(state.x.value)] ?? null : null;
+
+  return (
+    <View>
+      <View style={{ height: 28, alignItems: 'center', justifyContent: 'center' }}>
+        {isActive && activeSnap && (
+          <View style={{
+            flexDirection: 'row', gap: 6, alignItems: 'center',
+            backgroundColor: zoneColor + '18', borderRadius: 8,
+            paddingHorizontal: 10, paddingVertical: 4,
+          }}>
+            <ThemedText style={{ fontSize: 13, fontWeight: '700', color: zoneColor }}>
+              {Math.round(state.y.score.value)}/100
+            </ThemedText>
+            <ThemedText style={{ fontSize: 11, opacity: 0.5, color: colors.text }}>
+              {activeSnap.label}
+            </ThemedText>
+          </View>
+        )}
+      </View>
+      <View style={{ height: 155 }}>
+        <CartesianChart
+          data={snapshots.map((s: any, i: number) => ({ x: i, score: s.score, label: s.label }))}
+          xKey="x" yKeys={['score']}
+          domain={{ y: [0, 100] }}
+          domainPadding={{ top: 10, bottom: 10, left: 8, right: 8 }}
+          chartPressState={state}
+          axisOptions={{
+            tickCount: { x: snapshots.length, y: 5 },
+            labelColor: colors.text + '55',
+            lineColor: 'transparent',
+            formatXLabel: (val: number) => snapshots[val]?.label ?? '',
+          }}
+        >
+          {({ points }) => (
+            <>
+              <Line points={points.score} color={zoneColor} strokeWidth={2.5} curveType="natural" />
+              {isActive && (
+                <SkiaCircle cx={state.x.position} cy={state.y.score.position} r={5} color={zoneColor} />
+              )}
+            </>
+          )}
+        </CartesianChart>
+      </View>
+    </View>
+  );
+}
+
+
 function buildSparklineData(activities: any[]) {
   const now    = new Date();
   const points: { day: number; tokens: number; label: string }[] = [];
@@ -184,41 +299,8 @@ function EcoScoreModal({
                   ))}
                 </View>
 
-                {/* Victory Native Line chart */}
-                <View style={{ height: 180 }}>
-                  <CartesianChart
-                    data={sparkData}
-                    xKey="day"
-                    yKeys={['tokens']}
-                    domainPadding={{ top: 20, bottom: 10, left: 8, right: 8 }}
-                    axisOptions={{
-                      tickCount: { x: 5, y: 4 },
-                      labelColor: colors.text + '66',
-                      lineColor:  'transparent',
-                      formatXLabel: (val) => {
-                        const pt = sparkData.find(d => d.day === val);
-                        return pt?.label ?? '';
-                      },
-                    }}
-                  >
-                    {({ points, chartBounds }) => (
-                      <>
-                        <Area
-                          points={points.tokens}
-                          y0={chartBounds.bottom}
-                          color={colors.tint}
-                          opacity={0.15}
-                        />
-                        <Line
-                          points={points.tokens}
-                          color={colors.tint}
-                          strokeWidth={2.5}
-                          curveType="natural"
-                        />
-                      </>
-                    )}
-                  </CartesianChart>
-                </View>
+                {/* Chart with press-to-reveal tooltip */}
+                <SparklineChart sparkData={sparkData} colors={colors} />
               </>
             )}
           </View>
@@ -251,33 +333,8 @@ function EcoScoreModal({
                   ))}
                 </View>
 
-                {/* Victory Native Line chart for history */}
-                <View style={{ height: 180 }}>
-                  <CartesianChart
-                    data={ecoScoreSnapshots.map((s: any, i: number) => ({ x: i, score: s.score, label: s.label }))}
-                    xKey="x"
-                    yKeys={['score']}
-                    domain={{ y: [0, 100] }}
-                    domainPadding={{ top: 10, bottom: 10, left: 8, right: 8 }}
-                    axisOptions={{
-                      tickCount: { x: ecoScoreSnapshots.length, y: 5 },
-                      labelColor: colors.text + '66',
-                      lineColor:  'transparent',
-                      formatXLabel: (val) => ecoScoreSnapshots[val]?.label ?? '',
-                    }}
-                  >
-                    {({ points }) => (
-                      <>
-                        <Line
-                          points={points.score}
-                          color={zoneColor}
-                          strokeWidth={2.5}
-                          curveType="natural"
-                        />
-                      </>
-                    )}
-                  </CartesianChart>
-                </View>
+                {/* Chart with press-to-reveal tooltip */}
+                <HistoryChart snapshots={ecoScoreSnapshots} zoneColor={zoneColor} colors={colors} />
 
                 {/* Score dots row */}
                 <View style={styles.historyDots}>
@@ -297,7 +354,7 @@ function EcoScoreModal({
 
         {/* Close */}
         <Pressable
-          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.tint + '22', opacity: pressed ? 0.75 : 1 }]}
+          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
           onPress={dismiss}
         >
           <ThemedText style={[styles.modalCloseText, { color: colors.text }]}>Close</ThemedText>
@@ -398,39 +455,44 @@ export default function HomeScreen() {
         >
           <View style={styles.scoreWrapper}>
 
-            {/* Left: ring + score — tap to open sparkline/history modal */}
-            <Pressable
-              style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}
-              onPress={() => setShowEcoModal(true)}
-            >
-              <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
-                <Circle
-                  cx={CENTER} cy={CENTER} r={RING_RADIUS}
-                  stroke={zoneColor + '28'}
-                  strokeWidth={RING_STROKE}
-                  fill="none"
-                />
-                <G transform={`rotate(-90, ${CENTER}, ${CENTER})`}>
+            {/* Left: ring + tap hint stacked vertically */}
+            <View style={{ alignItems: 'center', gap: 5 }}>
+              <Pressable
+                style={{ width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => setShowEcoModal(true)}
+              >
+                <Svg width={SIZE} height={SIZE} style={StyleSheet.absoluteFill}>
                   <Circle
                     cx={CENTER} cy={CENTER} r={RING_RADIUS}
-                    stroke={zoneColor}
+                    stroke={zoneColor + '28'}
                     strokeWidth={RING_STROKE}
                     fill="none"
-                    strokeDasharray={CIRCUMFERENCE}
-                    strokeDashoffset={strokeDashoffset}
-                    strokeLinecap="round"
                   />
-                </G>
-              </Svg>
-              <View style={[styles.scoreCircle, {
-                borderColor: zoneColor + '40',
-                backgroundColor: zoneColor + '12',
-              }]}>
-                <ThemedText style={[styles.scoreLabel,  { color: colors.text }]}>EcoScore</ThemedText>
-                <ThemedText style={[styles.scoreNumber, { color: zoneColor }]}>{ecoScore}</ThemedText>
-                <ThemedText style={[styles.scoreMax,    { color: colors.text }]}>/100</ThemedText>
-              </View>
-            </Pressable>
+                  <G transform={`rotate(-90, ${CENTER}, ${CENTER})`}>
+                    <Circle
+                      cx={CENTER} cy={CENTER} r={RING_RADIUS}
+                      stroke={zoneColor}
+                      strokeWidth={RING_STROKE}
+                      fill="none"
+                      strokeDasharray={CIRCUMFERENCE}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                    />
+                  </G>
+                </Svg>
+                <View style={[styles.scoreCircle, {
+                  borderColor: zoneColor + '40',
+                  backgroundColor: zoneColor + '12',
+                }]}>
+                  <ThemedText style={[styles.scoreLabel,  { color: colors.text }]}>EcoScore</ThemedText>
+                  <ThemedText style={[styles.scoreNumber, { color: zoneColor }]}>{ecoScore}</ThemedText>
+                  <ThemedText style={[styles.scoreMax,    { color: colors.text }]}>/100</ThemedText>
+                </View>
+              </Pressable>
+              <ThemedText style={[styles.tapHint, { color: colors.text }]}>
+                Tap for insights
+              </ThemedText>
+            </View>
 
             {/* Right: zone message, token pill, progress */}
             <View style={styles.heroRight}>
@@ -582,6 +644,7 @@ const styles = StyleSheet.create({
   // ── Hero ──
   heroCard:     { borderRadius: 20, padding: 20 },
   scoreWrapper: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  tapHint:      { fontSize: 10, opacity: 0.35, letterSpacing: 0.3 },
   scoreCircle: {
     width: 120, height: 120, borderRadius: 60,
     borderWidth: 1.5,
@@ -651,7 +714,7 @@ const styles = StyleSheet.create({
   modalEmpty:     { height: 160, alignItems: 'center', justifyContent: 'center', gap: 12 },
   modalEmptyText: { fontSize: 13, opacity: 0.45, textAlign: 'center', lineHeight: 20 },
   modalClose:     { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14 },
-  modalCloseText: { fontSize: 16, fontWeight: '600' },
+  modalCloseText: { fontSize: 16, fontWeight: '600', opacity: 0.6 },
   historyDots:    { flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap', gap: 6 },
   historyDot:     { alignItems: 'center', gap: 3 },
   historyDotCircle: { width: 8, height: 8, borderRadius: 4 },

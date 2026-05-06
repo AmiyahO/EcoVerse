@@ -289,6 +289,29 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* ── What's Next card ── */}
+        <Pressable
+          style={({ pressed }) => [styles.visionCard, {
+            backgroundColor: colors.surface,
+            borderColor: colors.tint + '30',
+            opacity: pressed ? 0.8 : 1,
+          }]}
+          onPress={() => router.push('/future-vision')}
+        >
+          <View style={[styles.visionIcon, { backgroundColor: colors.tint + '18' }]}>
+            <FontAwesome6 name="rocket" size={18} color={colors.tint} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.visionTitle, { color: colors.text }]}>
+              What&#39;s Next for EcoVerse
+            </ThemedText>
+            <ThemedText style={[styles.visionSub, { color: colors.text }]}>
+              Token rewards, friend challenges, city partnerships
+            </ThemedText>
+          </View>
+          <FontAwesome6 name="chevron-right" size={13} color={colors.text} style={{ opacity: 0.3 }} />
+        </Pressable>
+
       </ScrollView>
 
       <StreakCalendarSheet
@@ -387,6 +410,14 @@ const styles = StyleSheet.create({
   progressBarFill: { height: '100%', borderRadius: 7 },
   goalCompleteLabel: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
   goalRemainingLabel: { fontSize: 12, opacity: 0.5 },
+
+  visionCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 14, borderWidth: 1,
+  },
+  visionIcon:  { width: 42, height: 42, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  visionTitle: { fontSize: 14, fontWeight: '700' },
+  visionSub:   { fontSize: 12, opacity: 0.45, marginTop: 2 },
 
   decorCircle1: {
     position: 'absolute', width: 180, height: 180, borderRadius: 90,

@@ -114,7 +114,7 @@ USER STATS
 RULES — read carefully before writing:
 1. Tip 1 MUST be about "${s.topCategory}" — but focus on the ENVIRONMENTAL IMPACT of this habit (e.g. CO₂ saved vs driving, how it helps), NOT on encouraging them to do it more or log more sessions. They already do it regularly.
 2. Tip 2: If they have untried categories, gently suggest one and explain its eco benefit. If all categories are tracked, give a consistency or variety insight.
-3. Tip 3: A specific, practical eco tip unrelated to their tracked activities — e.g. food waste, home energy, recycling, seasonal habits. Make it feel fresh.
+3. Tip 3: A specific, practical eco tip unrelated to their tracked activities — e.g. home energy (standby power, thermostat, insulation), laundry habits (cold wash, air-dry), device habits (screen brightness, charging), or seasonal habits. Make it feel fresh. Do NOT suggest food, diet, or meal planning.
 4. Each tip body: 1-2 sentences MAX. No fluff. Specific and encouraging.
 5. Titles: 3-5 words. No colons.
 6. NEVER say "log more", "walk more", "try to do X more times", or reference the session count as a goal.
@@ -317,11 +317,12 @@ function getPlaceholderTips(s: ActivitySummary): AISuggestion[] {
   const weekIndex = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000)) % 5;
   const broader: AISuggestion[] = [
     { icon: 'plug-circle-xmark', title: 'Standby power adds up', body: 'Devices on standby can account for 10% of home electricity. Unplugging idle chargers and screens is a consistent small saving.' },
-    { icon: 'recycle', title: 'Food waste emits CO₂', body: 'Around a third of all food produced is wasted, generating methane in landfill. Meal planning is one of the highest-impact household habits.' },
-    { icon: 'sun', title: 'Use daylight first', body: 'Keeping blinds open and relying on natural light before switching on artificial lighting is a free, daily saving.' },
-    { icon: 'house', title: 'Draught-proof your home', body: 'Sealing gaps around doors and windows can cut heating bills by up to 10%, reducing both cost and CO₂ year-round.' },
-    { icon: 'shirt', title: 'Wash cold, save energy', body: 'About 90% of a washing machine’s energy goes toward heating water. Switching to 30°C can significantly lower your laundry’s carbon footprint.' },
-
+    { icon: 'temperature-half', title: 'Lower thermostat by 1°C', body: 'Reducing your heating by just one degree can cut your heating energy use by up to 10%, with no noticeable comfort difference.' },
+    { icon: 'sun',              title: 'Use daylight first',        body: 'Keeping blinds open and relying on natural light before switching on artificial lighting is a free, daily saving.' },
+    { icon: 'house',            title: 'Draught-proof your home',   body: 'Sealing gaps around doors and windows can cut heating bills by up to 10%, reducing both cost and CO₂ year-round.' },
+    { icon: 'shirt',            title: 'Wash cold, save energy',    body: 'About 90% of a washing machine’s energy goes toward heating water. Switching to 30°C can significantly lower your laundry’s carbon footprint.' },
+    { icon: 'wind',             title: 'Air-dry instead of tumble', body: 'A tumble dryer uses 2–4 kWh per load. Air-drying a full load saves both energy and money with no quality difference.' },
+    { icon: 'lightbulb',        title: 'Switch off empty rooms',    body: 'Lights left on in unoccupied rooms are one of the easiest wasted-energy habits to fix — a small daily action with a real monthly impact.' },
   ];
   tips.push(broader[weekIndex]);
 
