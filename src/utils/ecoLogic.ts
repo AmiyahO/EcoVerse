@@ -94,6 +94,35 @@ export function getEcoZone(score: number) {
   return   { label: 'Green',  message: 'Amazing! You\'re making a real impact 🌍' };
 }
 
+// ── EcoScore calculation (matches dashboard formula exactly) ─────────────────
+export function calculateEcoScore(
+  activities: Activity[],
+  weeklyTarget: number,
+  userRegion: string = 'GLOBAL_AVG',
+): number {
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setDate(now.getDate() - now.getDay());
+  startOfWeek.setHours(0, 0, 0, 0);
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const weeklyActivities = activities.filter(a => {
+    const d = new Date(a.date);
+    return d >= startOfWeek && d <= endOfWeek;
+  });
+
+  const weeklyTokens     = weeklyActivities.reduce((s, a) => s + calculateTokens(a), 0);
+  const activeDays       = new Set(weeklyActivities.map(a => new Date(a.date).toDateString())).size;
+  const uniqueCategories = new Set(weeklyActivities.map(a => a.category)).size;
+
+  const baseScore        = Math.min((weeklyTokens / (weeklyTarget || 500)) * 70, 70);
+  const consistencyBonus = (activeDays / 7) * 20;
+  const varietyBonus     = (uniqueCategories / 3) * 10;
+  return Math.min(100, Math.round(baseScore + consistencyBonus + varietyBonus));
+}
+
 // ── Streak helpers ────────────────────────────────────────────────────────────
 export function getActiveDays(activities: { date: string }[]) {
   return new Set(activities.map(a => new Date(a.date).toDateString()));
@@ -171,4 +200,40 @@ export function getWeeklyCO2Data(
     const label = range.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     return { week: label, co2: parseFloat(co2.toFixed(3)), weekStart: range.start };
   });
+}
+
+// ── Persist weeklyEcoScore to Firestore ───────────────────────────────────────
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/src/firebase/config';
+
+export async function persistWeeklyEcoScore(
+  activities: Activity[],
+  weeklyTarget: number,
+  userRegion: string = 'GLOBAL_AVG',
+): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  try {
+    const score = calculateEcoScore(activities, weeklyTarget, userRegion);
+    const user  = auth.currentUser;
+
+    // Write score to user doc (source of truth)
+    await updateDoc(doc(db, 'users', uid), {
+      weeklyEcoScore:          score,
+      weeklyEcoScoreUpdatedAt: new Date().toISOString(),
+    });
+
+    // Mirror public fields to /leaderboard for cross-user queries
+    // setDoc with merge so showOnLeaderboard (written by settings) is preserved
+    const { setDoc } = await import('firebase/firestore');
+    await setDoc(doc(db, 'leaderboard', uid), {
+      weeklyEcoScore: score,
+      displayName:    user?.displayName ?? null,
+      photoURL:       user?.photoURL ?? null,
+      updatedAt:      new Date().toISOString(),
+    }, { merge: true });
+  } catch (e) {
+    // Non-critical — leaderboard will show stale value until next save
+    console.warn('persistWeeklyEcoScore failed:', e);
+  }
 }

@@ -1,7 +1,7 @@
 // settings.tsx
 import {
   View, StyleSheet, Pressable, ScrollView,
-  Alert, Modal, AppState, AppStateStatus, Linking,
+  Alert, Modal, AppState, AppStateStatus, Linking, Switch,
 } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -145,6 +145,7 @@ export default function SettingsScreen() {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [hcStatus,   setHcStatus]     = useState<PermissionStatus>('not_asked');
   const [lastSynced, setLastSynced]   = useState<string | null>(null);
+  const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
 
   const [cloudSyncTime,   setCloudSyncTime]   = useState<string>('Syncing…');
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
@@ -164,7 +165,10 @@ export default function SettingsScreen() {
       unsubCloudSync.current = onSnapshot(
         userDocRef,
         (snap) => {
-          if (snap.exists()) setRegion(snap.data().region || 'GLOBAL_AVG');
+          if (snap.exists()) {
+            setRegion(snap.data().region || 'GLOBAL_AVG');
+            setShowOnLeaderboard(snap.data().showOnLeaderboard ?? false);
+          }
           const now = new Date();
           setCloudSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
           setCloudSyncStatus('synced');
@@ -200,6 +204,17 @@ export default function SettingsScreen() {
       setRegion(r);
     }
     setRegionModal(false);
+  };
+
+  const handleLeaderboardToggle = async (value: boolean) => {
+    setShowOnLeaderboard(value);
+    if (auth.currentUser) {
+      const uid = auth.currentUser.uid;
+      await updateDoc(doc(db, 'users', uid), { showOnLeaderboard: value });
+      // Mirror to leaderboard collection so it's reflected in community screen
+      const { setDoc } = await import('firebase/firestore');
+      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true });
+    }
   };
 
   const handleSignOut = () => {
@@ -362,7 +377,22 @@ export default function SettingsScreen() {
           <Row icon="shield-checkmark-outline" iconColor="#26A69A" label="Privacy Policy"
             onPress={() => setShowPrivacy(true)} separator={true} />
           <Row icon="document-text-outline" iconColor="#29B6F6" label="Terms of Service"
-            onPress={() => setShowTerms(true)} separator={false} />
+            onPress={() => setShowTerms(true)} separator={true} />
+          <Row
+            icon="people-outline"
+            iconColor="#4CAF50"
+            label="Show name on leaderboard"
+            chevron={false}
+            separator={false}
+            rightNode={
+              <Switch
+                value={showOnLeaderboard}
+                onValueChange={handleLeaderboardToggle}
+                trackColor={{ true: colors.tint, false: colors.surfaceMuted }}
+                thumbColor="#fff"
+              />
+            }
+          />
         </Section>
 
         <Section title="About">

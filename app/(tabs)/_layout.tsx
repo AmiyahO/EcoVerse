@@ -115,6 +115,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="community"
+          options={{
+            title: 'Community',
+            tabBarIcon: ({ color, size }) => <FontAwesome6 name="users" size={size} color={color} solid />,
+          }}
+        />
+        <Tabs.Screen
           name="stats"
           options={{
             title: 'Progress',

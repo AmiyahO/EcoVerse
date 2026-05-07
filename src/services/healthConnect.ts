@@ -165,7 +165,6 @@ function toLocalISODate(d: Date): string {
  */
 export async function fetchTodaySteps(): Promise<{ steps: number; distance: number } | null> {
   try {
-    // ✅ Local midnight → now (not the last 24h from getDateRange(1))
     const startTime = localMidnightToday().toISOString();
     const endTime   = new Date().toISOString();
 
@@ -174,17 +173,30 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
       readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
     ]);
 
-    const totalSteps = stepsResult.records.reduce(
-      (sum: number, r: any) => sum + (r.count ?? 0), 0
-    );
+    // Same deduplication as fetchDailyStepSummaries:
+    // bucket by dataOrigin, take max across origins to prevent
+    // Samsung Health + Google Fit both writing the same steps
+    const stepsByOrigin: Record<string, number> = {};
+    for (const r of stepsResult.records as any[]) {
+      const origin = r.metadata?.dataOrigin ?? 'unknown';
+      stepsByOrigin[origin] = (stepsByOrigin[origin] ?? 0) + (r.count ?? 0);
+    }
+    const totalSteps = stepsByOrigin && Object.keys(stepsByOrigin).length > 0
+      ? Math.max(...Object.values(stepsByOrigin))
+      : 0;
 
-    const totalDistanceMeters = distanceResult.records.reduce(
-      (sum: number, r: any) => sum + (r.distance?.inMeters ?? 0), 0
-    );
+    const distByOrigin: Record<string, number> = {};
+    for (const r of distanceResult.records as any[]) {
+      const origin = r.metadata?.dataOrigin ?? 'unknown';
+      distByOrigin[origin] = (distByOrigin[origin] ?? 0) + (r.distance?.inMeters ?? 0);
+    }
+    const totalDistanceMeters = distByOrigin && Object.keys(distByOrigin).length > 0
+      ? Math.max(...Object.values(distByOrigin))
+      : 0;
 
     return {
       steps:    Math.round(totalSteps),
-      distance: Math.round((totalDistanceMeters / 1000) * 100) / 100, // km, 2dp
+      distance: Math.round((totalDistanceMeters / 1000) * 100) / 100,
     };
   } catch (e) {
     console.error('fetchTodaySteps error:', e);

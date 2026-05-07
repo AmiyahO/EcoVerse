@@ -102,6 +102,18 @@ const SUPPORTED_APPS = [
       'Find "Health Connect" → grant permissions',
     ],
   },
+  {
+    name: 'Mi Fitness (Xiaomi Wear)',
+    icon: <Image source={require('@/assets/images/mi-fitness.png')} style={{ width: 20, height: 20 }} />,
+    color: '#FF3C00',
+    packageId: 'com.xiaomi.wearable',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.xiaomi.wearable',
+    steps: [
+      'Open Mi Fitness → Profile tab',
+      'Select "Third-party data"',
+      'Find Health Connect and toggle it on → grant permissions',
+    ],
+  }
 ];
 
 const HC_PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';

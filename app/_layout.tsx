@@ -10,25 +10,37 @@ import { doc, onSnapshot, collection, query, orderBy, setDoc, getDocs } from 'fi
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
-import { calculateTokens, calculateCarbonSaved } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
-function getISOWeekKey(date: Date): string {
-  // Returns "YYYY-WNN" — ISO week number, Monday-based
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7; // Mon=1 … Sun=7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+function getWeekKey(date: Date): string {
+  // Sunday-based week, local time — matches getWeekRange() in ecoLogic.ts
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  const y  = sunday.getFullYear();
+  const m  = String(sunday.getMonth() + 1).padStart(2, '0');
+  const d  = String(sunday.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`; // e.g. "2026-05-03" (the Sunday)
+}
+
+function getWeekLabel(date: Date): string {
+  // "May 3" style label for the Sunday that starts this week
+  const sunday = new Date(date);
+  sunday.setDate(date.getDate() - date.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  return sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function calcEcoScore(
-  weekActivities: any[], weeklyTarget: number, userRegion: string
+  weekActivities: any[], weeklyTarget: number,
 ): number {
   const tokens = weekActivities.reduce((s: number, a: any) => s + calculateTokens(a), 0);
-  const activeDays = new Set(weekActivities.map((a: any) => new Date(a.date).toDateString())).size;
+  const activeDays = new Set(weekActivities.map((a: any) => {
+    const d = new Date(a.date);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  })).size;
   const uniqueCats = new Set(weekActivities.map((a: any) => a.category)).size;
   const base        = Math.min((tokens / Math.max(weeklyTarget, 1)) * 70, 70);
   const consistency = (activeDays / 7) * 20;
@@ -42,22 +54,24 @@ async function writeEcoScoreSnapshot(
   weeklyTarget: number,
   userRegion: string,
 ): Promise<void> {
-  const now      = new Date();
-  const weekKey  = getISOWeekKey(now);
+  const now     = new Date();
+  const weekKey = getWeekKey(now);
+  const label   = getWeekLabel(now);
 
-  // Week boundaries — Mon 00:00 to Sun 23:59
-  const d        = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-  const dayNum   = d.getUTCDay() || 7;
-  const monday   = new Date(d); monday.setUTCDate(d.getUTCDate() - (dayNum - 1)); monday.setUTCHours(0,0,0,0);
-  const sunday   = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6); sunday.setUTCHours(23,59,59,999);
+  // Sunday 00:00 → Saturday 23:59 local time — same as getWeekRange(0)
+  const sunday = new Date(now);
+  sunday.setDate(now.getDate() - now.getDay());
+  sunday.setHours(0, 0, 0, 0);
+  const saturday = new Date(sunday);
+  saturday.setDate(sunday.getDate() + 6);
+  saturday.setHours(23, 59, 59, 999);
 
   const weekActs = activities.filter(a => {
     const t = new Date(a.date).getTime();
-    return t >= monday.getTime() && t <= sunday.getTime();
+    return t >= sunday.getTime() && t <= saturday.getTime();
   });
 
-  const score = calcEcoScore(weekActs, weeklyTarget, userRegion);
-  const label = `W${weekKey.split('-W')[1].replace(/^0/, '')}`;
+  const score = calcEcoScore(weekActs, weeklyTarget);
 
   await setDoc(
     doc(collection(doc(db, 'users', uid), 'ecoScoreSnapshots'), weekKey),
@@ -84,6 +98,9 @@ export default function RootLayout() {
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);
   const [userDocReady, setUserDocReady] = useState(false);
   const [activitiesReady, setActivitiesReady] = useState(false);
+  const activitiesForSnapshot = useRef<any[]>([]);
+  const snapshotWritten = useRef(false);
+  const readyFlags = useRef({ userDoc: false, activities: false });
 
   const freshLogin = useRef(false);
   // ── Prevents double-navigation: once _layout routes somewhere, it won't
@@ -106,6 +123,16 @@ export default function RootLayout() {
     userRegion: 'GLOBAL_AVG',
   });
 
+  const maybeWriteSnapshot = (uid: string) => {
+    if (snapshotWritten.current) return;
+    if (!readyFlags.current.userDoc || !readyFlags.current.activities) return;
+    snapshotWritten.current = true;
+    const { weeklyTarget, userRegion } = snapshotParams.current;
+    writeEcoScoreSnapshot(uid, activitiesForSnapshot.current, weeklyTarget, userRegion).catch(() => {});
+    // Also keep leaderboard current on every cold boot
+    persistWeeklyEcoScore(activitiesForSnapshot.current, weeklyTarget, userRegion).catch(() => {});
+  };
+
   useEffect(() => {
     let unsubscribeDoc: (() => void) | undefined;
     let unsubscribeActivities: (() => void) | undefined;
@@ -116,6 +143,9 @@ export default function RootLayout() {
 
       clearActivities();
       initialLoadDone.current = false;
+      snapshotWritten.current = false;
+      readyFlags.current = { userDoc: false, activities: false };
+      activitiesForSnapshot.current = [];
 
       setAuthResolved(true);
       // Reset nav guard on every auth state change so the new state can route
@@ -146,6 +176,8 @@ export default function RootLayout() {
                 weeklyTarget: data.weeklyTarget || 500,
                 userRegion:   data.region || 'GLOBAL_AVG',
               };
+              readyFlags.current.userDoc = true;
+              maybeWriteSnapshot(currentUser.uid);
             }
             setUserDocReady(true);
           },
@@ -171,11 +203,13 @@ export default function RootLayout() {
 
               // Write using ref values — populated by the user doc listener which
               // may not have updated the Zustand store yet at this point.
-              const { weeklyTarget, userRegion } = snapshotParams.current;
-              writeEcoScoreSnapshot(currentUser.uid, firebaseData, weeklyTarget, userRegion).catch(() => {});
+              activitiesForSnapshot.current = firebaseData;
+              readyFlags.current.activities = true;
+              maybeWriteSnapshot(currentUser.uid);
               loadEcoScoreSnapshots(currentUser.uid).then(snaps => {
                 setEcoScoreSnapshots(snaps);
               }).catch(() => {});
+
               return;
             }
 

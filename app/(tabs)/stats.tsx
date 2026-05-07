@@ -1,18 +1,19 @@
 // (tabs)/stats.tsx
 import { ThemedText } from '@/components/themed-text';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import {
   calculateCarbonSaved, calculateTokens, CATEGORY_COLORS,
-  getWeekRange, getWeeklyCO2Data,
+  getWeeklyCO2Data,
+  getWeekRange,
 } from '@/src/utils/ecoLogic';
-import { ScrollView, StyleSheet, View, FlatList, Dimensions, Pressable } from 'react-native';
-import { useState } from 'react';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { CartesianChart, Bar, useChartPressState } from 'victory-native';
 import { Circle as SkiaCircle } from '@shopify/react-native-skia';
+import { useState } from 'react';
+import { Dimensions, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
+import { Bar, CartesianChart, useChartPressState } from 'victory-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH   = SCREEN_WIDTH - 32;
@@ -223,7 +224,7 @@ function WeeklyCO2Chart({
   const { state, isActive } = useChartPressState({ x: '0', y: { co2: 0 } });
 
   const activePoint = isActive
-    ? weeklyCO2Data.find(d => d.week === state.x.value) ?? null
+    ? weeklyCO2Data.find(d => d.week === (state.x.value as any)) ?? null
     : null;
 
   return (
@@ -822,7 +823,7 @@ const styles = StyleSheet.create({
   headerArea:  { gap: 2, paddingTop: 18, paddingBottom: 8 },
   scroll:      { paddingBottom: 32, gap: 8, paddingTop: 8 },
   sectionLabel:{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, opacity: 0.45, textTransform: 'uppercase', paddingHorizontal: 16, marginTop: 8 },
-  subtle:      { fontSize: 13, opacity: 0.55 },
+  subtle:      { fontSize: 13, opacity: 0.7 },
   card:        { padding: 16, borderRadius: 14, gap: 10 },
   swipeCard:   { width: CARD_WIDTH },
   divider:     { height: 1, marginVertical: 2 },

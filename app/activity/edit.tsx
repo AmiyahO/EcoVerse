@@ -1,5 +1,4 @@
 // activity/edit.tsx
-
 import {
   View, StyleSheet, Pressable, TextInput, Alert, ScrollView, ActivityIndicator, Platform,
 } from 'react-native';
@@ -10,7 +9,7 @@ import { auth, db } from '@/src/firebase/config';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ThemedText } from '@/components/themed-text';
 import { useActivityStore } from '@/src/store/activityStore';
-import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -53,6 +52,8 @@ export default function EditActivityScreen() {
 
   const activity       = useActivityStore(s => s.getActivityById(id as string));
   const userRegion     = useActivityStore(s => s.userRegion);
+  const activities     = useActivityStore(s => s.activities);
+  const userProfile    = useActivityStore(s => s.userProfile);
   const updateActivity = useActivityStore(s => s.updateActivity);
 
   const [steps,       setSteps]       = useState('');
@@ -125,6 +126,16 @@ export default function EditActivityScreen() {
         tokens:           increment(newTokens - oldTokens),
         totalCarbonSaved: increment(newCarbon - oldCarbon),
       });
+
+      // Reflect edit in leaderboard score
+      const updatedActivities = activities.map(a =>
+        a.id === activity.id ? { ...a, ...updatedData } : a
+      );
+      await persistWeeklyEcoScore(
+        updatedActivities,
+        userProfile?.weeklyTarget ?? 500,
+        userRegion,
+      );
 
       updateActivity(activity.id, updatedData);
 

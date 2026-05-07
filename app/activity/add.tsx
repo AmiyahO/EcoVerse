@@ -14,7 +14,7 @@ import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import {
   calculateFinalTokens, calculateStreak, calculateCarbonSaved, calculateTokens,
-  BASELINES, CATEGORY_COLORS,
+  BASELINES, CATEGORY_COLORS, persistWeeklyEcoScore,
 } from '@/src/utils/ecoLogic';
 import {
   getLastBill, calculateSaving, saveBillReading, BillReading,
@@ -262,6 +262,16 @@ export default function AddActivityScreen() {
       tokens:           increment(tokensEarned),
       totalCarbonSaved: increment(carbonSaved),
     });
+
+    // Update leaderboard field — uses all activities including the new one
+    // (Zustand store will reflect it via Firestore onSnapshot shortly, but
+    //  we derive the score locally here to avoid a round-trip delay)
+    const updatedActivities = [...activities, { ...newActivityData, id: 'pending' } as any];
+    await persistWeeklyEcoScore(
+      updatedActivities,
+      userProfile?.weeklyTarget ?? 500,
+      userRegion,
+    );
 
     if (!celebrated) {
       const weeklyTarget = userProfile?.weeklyTarget ?? 500;

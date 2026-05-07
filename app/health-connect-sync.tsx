@@ -22,6 +22,7 @@ import {
   formatActivityDuration,
   formatSource,
 } from '@/src/services/healthConnect';
+import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking: 'person-walking',
@@ -95,6 +96,15 @@ export default function HealthConnectSyncScreen() {
     try {
       const result = await commitSync(sessions, userRegion, activities, importedIds);
       setSyncResult(result);
+
+      // Update leaderboard field — HC imports bypass add.tsx so we write here
+      const userProfile = useActivityStore.getState().userProfile;
+      const allActivities = useActivityStore.getState().activities;
+      await persistWeeklyEcoScore(
+        allActivities,
+        userProfile?.weeklyTarget ?? 500,
+        userRegion,
+      );
 
       // Animate success screen in stages
       setShowSuccess(true);
