@@ -196,9 +196,17 @@ export default function CommunityScreen() {
 
   // ── Data fetching ────────────────────────────────────────────────────────────
   const fetchLeaderboard = useCallback(async () => {
+    if (!auth.currentUser) {
+      setLoadingLB(false);
+      return;
+    }
+    
     try {
       const q = query(collection(db, 'leaderboard'), orderBy('weeklyEcoScore', 'desc'), limit(50));
       const snap = await getDocs(q);
+
+      if (!auth.currentUser) return;
+
       const entries: LeaderboardEntry[] = snap.docs.map((d, i) => {
         const data = d.data();
         return {
@@ -244,7 +252,12 @@ export default function CommunityScreen() {
     } catch (e) { console.warn('Challenge state error:', e); }
   }, [currentUid]);
 
-  useEffect(() => { fetchLeaderboard(); fetchChallengeState(); }, [fetchLeaderboard, fetchChallengeState]);
+  useEffect(() => { 
+    if (!currentUid) return;
+    
+    fetchLeaderboard(); 
+    fetchChallengeState(); 
+  }, [currentUid, fetchLeaderboard, fetchChallengeState]);
 
   useEffect(() => {
     if (!joinedIds.length) return;
