@@ -1,19 +1,24 @@
 // edit-profile.tsx
-import {
-  View, StyleSheet, TextInput, Pressable, Alert,
-  ScrollView, Image, ActivityIndicator, Animated,
-} from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { ThemedText } from '@/components/themed-text';
+import { useAppTheme } from '@/hooks/useAppTheme';
+import { auth, db } from '@/src/firebase/config';
+import { useActivityStore } from '@/src/store/activityStore';
+import { FontAwesome6, Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import * as ImagePicker from 'expo-image-picker';
-import { auth, db } from '@/src/firebase/config';
-import { useAppTheme } from '@/hooks/useAppTheme';
-import { ThemedText } from '@/components/themed-text';
-import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet, TextInput,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
-import { useActivityStore } from '@/src/store/activityStore';
 
 const CLOUD_NAME    = 'dn70uuubp';
 const UPLOAD_PRESET = 'ecoverse_default';
@@ -24,6 +29,7 @@ export default function EditProfileScreen() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
   const setUserProfile = useActivityStore(s => s.setUserProfile);
+  const userProfile = useActivityStore(s => s.userProfile);
 
   const [displayName, setDisplayName]   = useState('');
   const [weeklyTarget, setWeeklyTarget] = useState('500');
@@ -117,12 +123,20 @@ export default function EditProfileScreen() {
         weeklyTarget: target,
         photoURL,
       });
+      // Update leaderboard if it exists
+      const leaderboardRef = doc(db, 'leaderboard', auth.currentUser.uid);
+      await updateDoc(leaderboardRef, {
+        displayName: displayName.trim(),
+        photoURL,
+      }).catch(() => {}); // Ignore if leaderboard doc doesn't exist
       // Update local store immediately so header reflects changes
       setUserProfile({
         displayName: displayName.trim(),
         email: auth.currentUser.email || '',
         photoURL,
         weeklyTarget: target,
+        tokens: userProfile?.tokens ?? 0,
+        totalCarbonSaved: userProfile?.totalCarbonSaved ?? 0,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();

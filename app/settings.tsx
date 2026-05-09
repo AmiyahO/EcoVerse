@@ -1,32 +1,39 @@
 // settings.tsx
-import {
-  View, StyleSheet, Pressable, ScrollView,
-  Alert, Modal, AppState, AppStateStatus, Linking, Switch,
-} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { auth, db } from '@/src/firebase/config';
+import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
+import { formatSyncDate, getSyncState } from '@/src/services/healthSyncService';
+import {
+  applyNotifSettings,
+  DEFAULT_NOTIF_SETTINGS,
+  getNotifPermStatus, requestNotifPermission,
+  type NotifPermStatus,
+  type NotifSettings,
+} from '@/src/services/notificationService';
+import { useActivityStore } from '@/src/store/activityStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import {
+  deleteUser,
   GoogleAuthProvider, reauthenticateWithCredential,
-  signOut, deleteUser,
+  signOut,
 } from 'firebase/auth';
-import { auth, db } from '@/src/firebase/config';
-import { useEffect, useState, useRef } from 'react';
-import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
-import { getSyncState, formatSyncDate } from '@/src/services/healthSyncService';
-import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useActivityStore } from '@/src/store/activityStore';
-import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
-import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
+import { deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import {
-  getNotifPermStatus, requestNotifPermission, applyNotifSettings,
-  DEFAULT_NOTIF_SETTINGS, type NotifSettings, type NotifPermStatus,
-} from '@/src/services/notificationService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  Alert,
+  AppState, AppStateStatus, Linking,
+  Modal,
+  Pressable, ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const FEEDBACK_FORM_URL = 'https://forms.google.com';
 
@@ -146,8 +153,6 @@ export default function SettingsScreen() {
   const [region, setRegion]           = useState('GLOBAL_AVG');
   const [regionModal, setRegionModal] = useState(false);
   const [themeModal, setThemeModal]   = useState(false);
-  const [showTerms, setShowTerms]     = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
   const [hcStatus,   setHcStatus]     = useState<PermissionStatus>('not_asked');
   const [lastSynced, setLastSynced]   = useState<string | null>(null);
   const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
@@ -227,9 +232,13 @@ export default function SettingsScreen() {
     if (auth.currentUser) {
       const uid = auth.currentUser.uid;
       await updateDoc(doc(db, 'users', uid), { showOnLeaderboard: value });
-      // Mirror to leaderboard collection so it's reflected in community screen
+      // Mirror to leaderboard collection with displayName and photoURL so it's reflected in community screen
       const { setDoc } = await import('firebase/firestore');
-      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true });
+      await setDoc(doc(db, 'leaderboard', uid), {
+        showOnLeaderboard: value,
+        displayName: userProfile?.displayName || null,
+        photoURL: userProfile?.photoURL || null,
+      }, { merge: true });
     }
   };
 
@@ -492,9 +501,9 @@ export default function SettingsScreen() {
             separator={true}
           />
           <Row icon="shield-checkmark-outline" iconColor="#26A69A" label="Privacy Policy"
-            onPress={() => setShowPrivacy(true)} separator={true} />
+            onPress={() => router.push('/privacy-policy')} separator={true} />
           <Row icon="document-text-outline" iconColor="#29B6F6" label="Terms of Service"
-            onPress={() => setShowTerms(true)} separator={true} />
+            onPress={() => router.push('/terms-of-service')} separator={true} />
           <Row
             icon="people-outline"
             iconColor="#4CAF50"
@@ -648,10 +657,6 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-      <DocModal visible={showPrivacy} title="Privacy Policy"   content={PRIVACY_POLICY}    onClose={() => setShowPrivacy(false)} />
-      <DocModal visible={showTerms}   title="Terms of Service" content={TERMS_OF_SERVICE}   onClose={() => setShowTerms(false)} />
-
     </SafeAreaView>
   );
 }
