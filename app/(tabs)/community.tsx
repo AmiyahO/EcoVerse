@@ -7,11 +7,13 @@ import {
   type Challenge,
   getChallengeProgress,
   getCurrentWeekId,
+  fetchChallengesForWeek,
 } from '@/src/utils/challengeData';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAuth } from 'firebase/auth';
 import {
+  arrayRemove,
   arrayUnion,
   collection,
   doc,
@@ -186,10 +188,12 @@ export default function CommunityScreen() {
   const [loadingLB, setLoadingLB]         = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
 
+  const [liveChallenges, setLiveChallenges] = useState<Challenge[]>(CHALLENGES);
   const [joinedIds, setJoinedIds]         = useState<string[]>([]);
   const [progressMap, setProgressMap]     = useState<Record<string, number>>({});
   const [completedIds, setCompletedIds]   = useState<string[]>([]);
   const [joiningId, setJoiningId]         = useState<string | null>(null);
+  const [leavingId, setLeavingId]         = useState<string | null>(null);
 
   const tabAnim   = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -252,11 +256,12 @@ export default function CommunityScreen() {
     } catch (e) { console.warn('Challenge state error:', e); }
   }, [currentUid]);
 
-  useEffect(() => { 
+  useEffect(() => {
     if (!currentUid) return;
     
-    fetchLeaderboard(); 
-    fetchChallengeState(); 
+    fetchLeaderboard();
+    fetchChallengeState();
+    fetchChallengesForWeek().then(setLiveChallenges);
   }, [currentUid, fetchLeaderboard, fetchChallengeState]);
 
   useEffect(() => {
@@ -269,7 +274,7 @@ export default function CommunityScreen() {
     weekEnd.setDate(weekStart.getDate() + 7);
     const weekActivities = activities.filter(a => { const d = new Date(a.date); return d >= weekStart && d < weekEnd; });
     const newProgress: Record<string, number> = { ...progressMap };
-    CHALLENGES.forEach(ch => { if (!joinedIds.includes(ch.id)) return; newProgress[ch.id] = getChallengeProgress(ch, weekActivities); });
+    liveChallenges.forEach(ch => { if (!joinedIds.includes(ch.id)) return; newProgress[ch.id] = getChallengeProgress(ch, weekActivities); });
     setProgressMap(newProgress);
   }, [activities, joinedIds]);
 
@@ -288,7 +293,26 @@ export default function CommunityScreen() {
     finally { setJoiningId(null); }
   };
 
-  const onRefresh = () => { setRefreshing(true); fetchLeaderboard(); fetchChallengeState(); };
+  const handleLeave = async (challengeId: string) => {
+    if (!currentUid || leavingId) return;
+    setLeavingId(challengeId);
+    try {
+      const weekId = getCurrentWeekId();
+      const progressRef = doc(db, 'users', currentUid, 'challengeProgress', weekId);
+      await updateDoc(progressRef, { joinedIds: arrayRemove(challengeId) }).catch(() => {});
+      setJoinedIds(prev => prev.filter(id => id !== challengeId));
+      // Clear progress for this challenge from local state
+      setProgressMap(prev => { const n = { ...prev }; delete n[challengeId]; return n; });
+    } catch (e) { console.warn('Leave challenge error:', e); }
+    finally { setLeavingId(null); }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchLeaderboard();
+    fetchChallengeState();
+    fetchChallengesForWeek().then(setLiveChallenges);
+  };
 
   const switchTab = (tab: 'leaderboard' | 'challenges') => {
     setActiveTab(tab);
@@ -439,9 +463,23 @@ export default function CommunityScreen() {
               </TouchableOpacity>
             )}
             {joined && !completed && (
-              <View style={[styles.statusTag, { borderColor: ch.color + '60' }]}>
-                <FontAwesome6 name="circle-check" size={9} color={ch.color} solid />
-                <Text style={[styles.statusTagText, { color: ch.color }]}>Joined</Text>
+              <View style={styles.joinedRow}>
+                <View style={[styles.statusTag, { borderColor: ch.color + '60' }]}>
+                  <FontAwesome6 name="circle-check" size={9} color={ch.color} solid />
+                  <Text style={[styles.statusTagText, { color: ch.color }]}>Joined</Text>
+                </View>
+                <TouchableOpacity
+                  style={[styles.leaveBtn, { borderColor: colors.text + '25' }]}
+                  onPress={() => handleLeave(ch.id)}
+                  disabled={leavingId === ch.id}
+                  activeOpacity={0.7}
+                >
+                  {leavingId === ch.id ? (
+                    <ActivityIndicator size="small" color={colors.text} />
+                  ) : (
+                    <Text style={[styles.leaveBtnText, { color: colors.text }]}>Leave</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             )}
             {completed && (
@@ -618,7 +656,7 @@ export default function CommunityScreen() {
             New challenges every Sunday
           </Text>
 
-          {CHALLENGES.map(renderChallenge)}
+          {liveChallenges.map(renderChallenge)}
 
           <View style={styles.privacyNote}>
             <FontAwesome6 name="shield-halved" size={11} color={colors.tint} />
@@ -735,6 +773,9 @@ const styles = StyleSheet.create({
   joinBtnText:      { color: '#fff', fontSize: 13, fontWeight: '800' },
   statusTag:        { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   statusTagText:    { fontSize: 11, fontWeight: '600' },
+  joinedRow:        { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  leaveBtn:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
+  leaveBtnText:     { fontSize: 11, fontWeight: '600', opacity: 0.6 },
 
   privacyNote:      { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4, marginTop: 4 },
   privacyText:      { fontSize: 12, flex: 1, lineHeight: 16, opacity: 0.6 },

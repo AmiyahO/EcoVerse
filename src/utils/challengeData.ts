@@ -1,9 +1,14 @@
 // src/utils/challengeData.ts
-// Static challenge definitions for the current week.
-// For FYP: seed these manually in Firestore under /challenges/{id}
-// or use this file as the source of truth for the UI.
-// A new set can be swapped in each Sunday by updating this file.
-
+// Challenge definitions.
+// At runtime the app tries to fetch challenges from Firestore /challenges
+// (filtered to the current weekId). If Firestore is empty or unavailable,
+// it falls back to CHALLENGES (the static array below), so the UI always
+// has something to show.
+//
+// TO UPDATE CHALLENGES EACH WEEK without a rebuild:
+//   Write documents to Firestore under /challenges/{id} with the shape below.
+//   Add a `weekId` field (e.g. "2026-05-11") matching getCurrentWeekId().
+//   The app fetches them on mount and shows them instead of the static set.
 export type ChallengeMetric = 'steps' | 'co2' | 'tokens' | 'distance' | 'kwh';
 
 export interface Challenge {
@@ -124,5 +129,43 @@ export function getChallengeProgress(ch: Challenge, weekActivities: any[]): numb
 
     default:
       return 0;
+  }
+}
+
+// ── Firestore fetch (returns CHALLENGES fallback if Firestore empty) ──────────
+/**
+ * Fetches challenges for the current week from Firestore /challenges.
+ * Each document should have a `weekId` field matching getCurrentWeekId(),
+ * or no `weekId` field at all (treated as always-active).
+ * Falls back to the static CHALLENGES array if Firestore returns nothing.
+ */
+export async function fetchChallengesForWeek(): Promise<Challenge[]> {
+  try {
+    const { collection, getDocs, query, where, getFirestore } = await import('firebase/firestore');
+    const db = getFirestore();
+    const weekId = getCurrentWeekId();
+
+    // Try week-specific challenges first
+    const weekQ = query(
+      collection(db, 'challenges'),
+      where('weekId', '==', weekId),
+    );
+    const weekSnap = await getDocs(weekQ);
+
+    if (!weekSnap.empty) {
+      return weekSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
+    }
+
+    // Fall back to always-active challenges (no weekId field)
+    const allQ = query(collection(db, 'challenges'), where('weekId', '==', null));
+    const allSnap = await getDocs(allQ);
+    if (!allSnap.empty) {
+      return allSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
+    }
+
+    // Final fallback: static local array
+    return CHALLENGES;
+  } catch {
+    return CHALLENGES;
   }
 }

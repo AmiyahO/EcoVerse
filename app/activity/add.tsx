@@ -14,7 +14,7 @@ import { db, auth } from '@/src/firebase/config';
 import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import {
   calculateFinalTokens, calculateStreak, calculateCarbonSaved, calculateTokens,
-  BASELINES, CATEGORY_COLORS, persistWeeklyEcoScore,
+  BASELINES, CATEGORY_COLORS, persistWeeklyEcoScore, getRegionalBaseline,
 } from '@/src/utils/ecoLogic';
 import {
   getLastBill, calculateSaving, saveBillReading, BillReading,
@@ -170,7 +170,8 @@ export default function AddActivityScreen() {
     if (!isBillCategory(category)) return null;
     const reading = parseFloat(billReading);
     if (!billReading || isNaN(reading) || reading <= 0) return null;
-    return calculateSaving(category, reading, lastBill?.reading ?? null);
+    const regionalBaseline = getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG');
+    return calculateSaving(category, reading, lastBill?.reading ?? null, regionalBaseline);
   };
 
   const handleSave = async () => {
@@ -190,6 +191,7 @@ export default function AddActivityScreen() {
 
         const { savedAmount, basedOnPrevious } = calculateSaving(
           category, reading, lastBill?.reading ?? null,
+          getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG'),
         );
 
         const doSave = async () => {
@@ -503,10 +505,9 @@ export default function AddActivityScreen() {
               <View style={styles.hintRow}>
                 <FontAwesome6 name="circle-info" size={11} color={colors.text} style={{ opacity: 0.4 }} />
                 <ThemedText style={[styles.hintText, { color: colors.text }]}>
-                  No previous reading — comparing against{' '}
-                  {category === 'electricity'
-                    ? `avg household (~${BASELINES.electricity.kwhPerMonth} kWh/month)`
-                    : `avg usage (~${BASELINES.water.litresPerMonth.toLocaleString()} L/month)`}
+                  No previous reading — comparing against your region's avg
+                  {' '}(~{getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG').toLocaleString()}
+                  {category === 'electricity' ? ' kWh/month' : ' L/month'})
                 </ThemedText>
               </View>
             )}
