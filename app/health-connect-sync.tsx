@@ -128,74 +128,80 @@ export default function HealthConnectSyncScreen() {
 
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Animated.View style={[styles.successScreen, { opacity: successAnim }]}>
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        > 
+          <Animated.View style={[styles.successScreen, { opacity: successAnim }]}>
 
-          {/* Large green circle + animated checkmark */}
-          <Animated.View style={[styles.successCircleOuter, { transform: [{ scale: checkScale }] }]}>
-            <View style={[styles.successCircleInner, { backgroundColor: tintGreen + '18', borderColor: tintGreen + '40' }]}>
-              <FontAwesome6 name="circle-check" size={56} color={tintGreen} solid />
+            {/* Large green circle + animated checkmark */}
+            <Animated.View style={[styles.successCircleOuter, { transform: [{ scale: checkScale }] }]}>
+              <View style={[styles.successCircleInner, { backgroundColor: tintGreen + '18', borderColor: tintGreen + '40' }]}>
+                <FontAwesome6 name="circle-check" size={56} color={tintGreen} solid />
+              </View>
+            </Animated.View>
+
+            {/* Title */}
+            <View style={styles.successTitleBlock}>
+              <ThemedText style={[styles.successTitle, { color: colors.text }]}>
+                Sync Complete!
+              </ThemedText>
+              <ThemedText style={[styles.successSub, { color: colors.text }]}>
+                {syncResult.imported} {syncResult.imported === 1 ? 'activity' : 'activities'} imported from Health Connect
+              </ThemedText>
             </View>
+
+            {/* Stat cards — stagger in */}
+            <View style={styles.successStats}>
+              <Animated.View style={[
+                styles.successStat,
+                { backgroundColor: isDark ? '#1A2E1A' : '#F0FDF4', borderColor: tintGreen + '44' },
+                { opacity: stat1Anim, transform: [{ translateY: stat1Anim.interpolate({ inputRange: [0,1], outputRange: [16,0] }) }] },
+              ]}>
+                <View style={[styles.successStatIcon, { backgroundColor: tintGreen + '20' }]}>
+                  <FontAwesome6 name="leaf" size={18} color={tintGreen} />
+                </View>
+                <ThemedText style={[styles.successStatValue, { color: tintGreen }]}>
+                  +{Math.round(syncResult.totalTokens)}
+                </ThemedText>
+                <ThemedText style={[styles.successStatLabel, { color: colors.text }]}>
+                  tokens earned
+                </ThemedText>
+              </Animated.View>
+
+              <Animated.View style={[
+                styles.successStat,
+                { backgroundColor: isDark ? '#1A2E2E' : '#F0FDFD', borderColor: '#26C6DA44' },
+                { opacity: stat2Anim, transform: [{ translateY: stat2Anim.interpolate({ inputRange: [0,1], outputRange: [16,0] }) }] },
+              ]}>
+                <View style={[styles.successStatIcon, { backgroundColor: '#26C6DA20' }]}>
+                  <FontAwesome6 name="cloud" size={18} color="#26C6DA" />
+                </View>
+                <ThemedText style={[styles.successStatValue, { color: '#26C6DA' }]}>
+                  {syncResult.totalCarbon.toFixed(2)}
+                </ThemedText>
+                <ThemedText style={[styles.successStatLabel, { color: colors.text }]}>
+                  kg CO₂ saved
+                </ThemedText>
+              </Animated.View>
+            </View>
+
+            {/* Thin divider hint */}
+            <View style={[styles.successDivider, { backgroundColor: colors.surfaceMuted }]} />
+            <ThemedText style={[styles.successHint, { color: colors.text }]}>
+              Your dashboard has been updated 🌿
+            </ThemedText>
+
+            <Pressable
+              onPress={() => router.replace('/(tabs)')}
+              style={({ pressed }) => [styles.doneBtn, { backgroundColor: tintGreen, opacity: pressed ? 0.8 : 1 }]}
+            >
+              <FontAwesome6 name="check" size={14} color="#fff" />
+              <ThemedText style={styles.doneBtnText}>Back to Dashboard</ThemedText>
+            </Pressable>
           </Animated.View>
-
-          {/* Title */}
-          <View style={styles.successTitleBlock}>
-            <ThemedText style={[styles.successTitle, { color: colors.text }]}>
-              Sync Complete!
-            </ThemedText>
-            <ThemedText style={[styles.successSub, { color: colors.text }]}>
-              {syncResult.imported} {syncResult.imported === 1 ? 'activity' : 'activities'} imported from Health Connect
-            </ThemedText>
-          </View>
-
-          {/* Stat cards — stagger in */}
-          <View style={styles.successStats}>
-            <Animated.View style={[
-              styles.successStat,
-              { backgroundColor: isDark ? '#1A2E1A' : '#F0FDF4', borderColor: tintGreen + '44' },
-              { opacity: stat1Anim, transform: [{ translateY: stat1Anim.interpolate({ inputRange: [0,1], outputRange: [16,0] }) }] },
-            ]}>
-              <View style={[styles.successStatIcon, { backgroundColor: tintGreen + '20' }]}>
-                <FontAwesome6 name="leaf" size={18} color={tintGreen} />
-              </View>
-              <ThemedText style={[styles.successStatValue, { color: tintGreen }]}>
-                +{Math.round(syncResult.totalTokens)}
-              </ThemedText>
-              <ThemedText style={[styles.successStatLabel, { color: colors.text }]}>
-                tokens earned
-              </ThemedText>
-            </Animated.View>
-
-            <Animated.View style={[
-              styles.successStat,
-              { backgroundColor: isDark ? '#1A2E2E' : '#F0FDFD', borderColor: '#26C6DA44' },
-              { opacity: stat2Anim, transform: [{ translateY: stat2Anim.interpolate({ inputRange: [0,1], outputRange: [16,0] }) }] },
-            ]}>
-              <View style={[styles.successStatIcon, { backgroundColor: '#26C6DA20' }]}>
-                <FontAwesome6 name="cloud" size={18} color="#26C6DA" />
-              </View>
-              <ThemedText style={[styles.successStatValue, { color: '#26C6DA' }]}>
-                {syncResult.totalCarbon.toFixed(2)}
-              </ThemedText>
-              <ThemedText style={[styles.successStatLabel, { color: colors.text }]}>
-                kg CO₂ saved
-              </ThemedText>
-            </Animated.View>
-          </View>
-
-          {/* Thin divider hint */}
-          <View style={[styles.successDivider, { backgroundColor: colors.surfaceMuted }]} />
-          <ThemedText style={[styles.successHint, { color: colors.text }]}>
-            Your dashboard has been updated 🌿
-          </ThemedText>
-
-          <Pressable
-            onPress={() => router.replace('/(tabs)')}
-            style={({ pressed }) => [styles.doneBtn, { backgroundColor: tintGreen, opacity: pressed ? 0.8 : 1 }]}
-          >
-            <FontAwesome6 name="check" size={14} color="#fff" />
-            <ThemedText style={styles.doneBtnText}>Back to Dashboard</ThemedText>
-          </Pressable>
-        </Animated.View>
+        </ScrollView> 
       </SafeAreaView>
     );
   }
@@ -455,22 +461,22 @@ const styles = StyleSheet.create({
 
   // ── Success screen ──
   successScreen: {
-    flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 28, gap: 0,
+    flexGrow: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 28, paddingVertical: 32, gap: 0,
   },
   successCircleOuter: {
     marginBottom: 28,
   },
   successCircleInner: {
-    width: 120, height: 120, borderRadius: 60,
+    width: 100, height: 100, borderRadius: 50,
     borderWidth: 2,
     alignItems: 'center', justifyContent: 'center',
   },
   successTitleBlock: {
-    alignItems: 'center', gap: 8, marginBottom: 32,
+    alignItems: 'center', gap: 8, marginBottom: 32, width: '100%',
   },
   successTitle: { fontSize: 30, fontWeight: '900', textAlign: 'center', letterSpacing: -0.5 },
-  successSub:   { fontSize: 15, opacity: 0.55, textAlign: 'center', lineHeight: 22 },
+  successSub:   { fontSize: 15, opacity: 0.55, textAlign: 'center', lineHeight: 22, flexShrink: 1, width: '100%' },
 
   successStats: {
     flexDirection: 'row', gap: 12, width: '100%', marginBottom: 28,
@@ -499,5 +505,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: 8,
   },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '700', },
 });

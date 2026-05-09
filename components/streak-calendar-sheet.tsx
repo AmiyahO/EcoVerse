@@ -272,16 +272,21 @@ const styles = StyleSheet.create({
     fontSize: 12, fontWeight: '600',
     opacity: 0.4,
   },
-  calendarGrid: { gap: 4 },
-  calRow: { flexDirection: 'row' },
+ calendarGrid: {},
+  calRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
   dayCell: {
-    flex: 1, aspectRatio: 1,
-    alignItems: 'center', justifyContent: 'center',
-    padding: 2,
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dayCircle: {
-    width: 34, height: 34, borderRadius: 17,
+    width: 34, height: 34, borderRadius: 999,
     alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
   },
   dayText: { fontSize: 13, fontWeight: '500' },
 
