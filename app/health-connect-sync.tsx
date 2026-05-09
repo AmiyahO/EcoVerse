@@ -319,7 +319,7 @@ export default function HealthConnectSyncScreen() {
                     <ThemedText style={[styles.sessionMeta, { color: colors.text }]}>
                       {[
                         hca.steps    ? `${hca.steps.toLocaleString()} steps` : null,
-                        hca.distance ? `${hca.distance} km`                  : null,
+                        hca.distance ? `${hca.distance.toPrecision(3)} km`                  : null,
                         hca.duration ? formatActivityDuration(hca.duration)  : null,
                       ].filter(Boolean).join(' · ')}
                     </ThemedText>

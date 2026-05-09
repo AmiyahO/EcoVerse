@@ -167,24 +167,32 @@ export async function fetchSyncCandidates(
     });
   });
 
-  // Track which local dates are covered by a walking session so we don't
-  // double-count with pedometer summaries below.
+  // Build a map of date → total steps already accounted for by HC walking sessions.
+  //
+  // Problem: Samsung Health logs a morning walk as an ExerciseSession (e.g. 4 000 steps).
+  // The user imports it. Later in the day they walk more. The daily pedometer total is now
+  // e.g. 7 000 steps — which INCLUDES the 4 000 from the already-imported session.
+  // Old behaviour: suppress the pedometer day entirely → afternoon steps are lost.
+  // New behaviour: offer (pedometerTotal − sessionSteps) as a separate entry so only
+  //                genuinely new steps are imported.  Suppressed entirely when delta ≤ 200.
   //
   // Include BOTH:
-  //   a) new unimported walking sessions (filteredSessions)
+  //   a) new unimported walking sessions from this sync pass (filteredSessions)
   //   b) previously-imported HC walking activities already in Firestore
-  //      Without (b), a pedometer day would re-appear on every subsequent sync
-  //      for any date where a walking session was imported on a prior sync.
-  const sessionCoveredDates = new Set<string>();
+  const sessionStepsByDate = new Map<string, number>();
   for (const hca of filteredSessions) {
-    if (hca.type === 'walking') sessionCoveredDates.add(localDateKey(hca.startTime));
+    if (hca.type === 'walking') {
+      const dk = localDateKey(hca.startTime);
+      sessionStepsByDate.set(dk, (sessionStepsByDate.get(dk) ?? 0) + (hca.steps ?? 0));
+    }
   }
   for (const existing of currentActivities) {
     if (existing.category === 'walking' && (existing as any).source === 'health_connect') {
-      sessionCoveredDates.add(localDateKey(existing.date));
+      const dk = localDateKey(existing.date);
+      sessionStepsByDate.set(dk, (sessionStepsByDate.get(dk) ?? 0) + (existing.steps ?? 0));
     }
   }
-
+ 
   const sessionCandidates: SyncSession[] = filteredSessions.map(hca => {
     const activityLike = {
       category: hca.type,
@@ -218,14 +226,14 @@ export async function fetchSyncCandidates(
 
   const pedometerCandidates: SyncSession[] = [];
 
+   const STEP_NOISE_THRESHOLD = 200; // ignore deltas smaller than this to avoid double-counting minor pedometer discrepancies
+
   for (const day of pedometerDays) {
     // Already imported (pedometer IDs are "steps-YYYY-MM-DD")
     if (importedSet.has(day.id)) continue;
-    // A walking exercise session already covers this date
-    if (sessionCoveredDates.has(day.date)) continue;
-    // Any walking activity (manual or previously-imported HC) exists on this date
-    // Note: HC walking sessions are already handled by sessionCoveredDates above;
-    // this catches manually-logged walking entries on the same date.
+
+    // Any manual walking entry on this date suppresses the pedometer day entirely
+    // (user already logged it themselves — no partial delta needed)
     const manualExists = currentActivities.some(
       a => a.category === 'walking' &&
            (a as any).source !== 'health_connect' &&
@@ -233,22 +241,38 @@ export async function fetchSyncCandidates(
     );
     if (manualExists) continue;
 
+     // Calculate how many of today's pedometer steps are already accounted for
+    // by imported or newly-fetched HC walking sessions.
+    const alreadyAccountedSteps = sessionStepsByDate.get(day.date) ?? 0;
+    const deltaSteps = day.steps - alreadyAccountedSteps;
+ 
+    // If delta is below noise threshold, nothing new to import
+    if (alreadyAccountedSteps > 0 && deltaSteps <= STEP_NOISE_THRESHOLD) continue;
+ 
+    // Compute proportional distance for the delta steps
+    const deltaDistance = alreadyAccountedSteps > 0 && day.distance > 0
+      ? day.distance * (deltaSteps / day.steps)
+      : (day.distance > 0 ? day.distance : undefined);
+ 
+    const effectiveSteps = alreadyAccountedSteps > 0 ? Math.max(0, deltaSteps) : day.steps;
+
     // Convert HCDailySteps → HCActivity so the sync screen renders it
-    // identically to a session card with zero screen changes needed
+    // identically to a session card with zero screen changes needed.
+    // Label shows "Additional steps" when it's a delta after a session.
     const syntheticActivity: HCActivity = {
       id:        day.id,
       type:      'walking',
       startTime: day.startTime,
       endTime:   day.endTime,
-      steps:     day.steps,
-      distance:  day.distance > 0 ? day.distance : undefined,
-      source:    'pedometer',
+      steps:     effectiveSteps,
+      distance:  deltaDistance,
+      source:    alreadyAccountedSteps > 0 ? 'pedometer-delta' : 'pedometer',
     };
 
     const activityLike = {
       category: 'walking' as const,
-      steps:    day.steps,
-      distance: day.distance > 0 ? day.distance : undefined,
+      steps:    effectiveSteps,
+      distance: deltaDistance,
       date:     day.startTime,
     };
 
