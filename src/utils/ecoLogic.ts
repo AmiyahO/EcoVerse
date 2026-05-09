@@ -12,6 +12,42 @@ export const REGIONAL_INTENSITY: Record<string, number> = {
   'GLOBAL_AVG': 0.475,
 };
 
+// Regional average monthly household electricity consumption (kWh/month).
+// Sources: IEA Electricity Information 2023, Eurostat Energy Statistics 2023,
+//          US EIA Residential Energy Consumption Survey 2020.
+export const REGIONAL_ELECTRICITY_BASELINE: Record<string, number> = {
+  'US':         877,   // US EIA: ~877 kWh/month average household
+  'UK':         242,   // Ofgem / BEIS: ~242 kWh/month average household
+  'EU':         290,   // Eurostat: ~290 kWh/month EU average
+  'INDIA':      90,    // IEA: ~90 kWh/month (urban average)
+  'CHINA':      250,   // NBSC: ~250 kWh/month average household
+  'GLOBAL_AVG': 350,   // IEA global residential average
+};
+
+// Regional average monthly household water consumption (litres/month).
+// Sources: WHO/UNICEF JMP 2023, Eurostat Water Statistics.
+export const REGIONAL_WATER_BASELINE: Record<string, number> = {
+  'US':         15000, // AWWA: ~500 L/day per household → 15 000/month
+  'UK':         9000,  // Ofwat: ~300 L/day → 9 000/month
+  'EU':         9000,  // Eurostat: ~300 L/day EU average
+  'INDIA':      6000,  // WHO: ~200 L/day urban
+  'CHINA':      7500,  // 250 L/day average
+  'GLOBAL_AVG': 11000, // WHO global estimate
+};
+
+/** Returns regional monthly baseline for the given category and region. */
+export function getRegionalBaseline(
+  category: 'electricity' | 'water',
+  region: string,
+): number {
+  const key = region.toUpperCase();
+  if (category === 'electricity') {
+    return REGIONAL_ELECTRICITY_BASELINE[key] ?? REGIONAL_ELECTRICITY_BASELINE['GLOBAL_AVG'];
+  }
+  return REGIONAL_WATER_BASELINE[key] ?? REGIONAL_WATER_BASELINE['GLOBAL_AVG'];
+}
+
+// Keep BASELINES for any existing import references — forwards to regional lookup.
 export const BASELINES = {
   electricity: {
     kwhPerMonth:    290,

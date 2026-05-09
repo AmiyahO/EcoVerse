@@ -5,7 +5,7 @@ import {
   collection, addDoc, query, where,
   getDocs, serverTimestamp,
 } from 'firebase/firestore';
-import { BASELINES } from '@/src/utils/ecoLogic';
+import { getRegionalBaseline } from '@/src/utils/ecoLogic';
 
 export type BillType = 'electricity' | 'water';
 
@@ -47,20 +47,25 @@ export function calculateSaving(
   type: BillType,
   newReading: number,
   previousReading: number | null,
+  /** Regional monthly baseline (kWh or litres). Pass from getRegionalBaseline()
+   *  in the UI layer. Falls back to a safe global average if omitted. */
+  regionalBaseline?: number,
 ): { savedAmount: number; basedOnPrevious: boolean } {
-  const monthlyBaseline = type === 'electricity'
-    ? BASELINES.electricity.kwhPerMonth   // ~290 kWh/month
-    : BASELINES.water.litresPerMonth;     // ~11000 L/month
+  // Use the caller-supplied regional baseline if provided; otherwise derive a
+  // reasonable default from the type so existing call-sites without the param
+  // continue to work correctly.
+  const monthlyBaseline = regionalBaseline
+    ?? (type === 'electricity' ? 350 : 11000); // global-avg fallback
 
   if (previousReading !== null) {
-    // Saving = how much LESS they used vs last time
-    // If they used more → 0 saving
+    // Saving = how much LESS they used vs last time.
+    // If they used more → 0 saving (usage went up, nothing to reward).
     return {
       savedAmount: Math.max(0, previousReading - newReading),
       basedOnPrevious: true,
     };
   } else {
-    // No history — compare against monthly average baseline
+    // No history — compare against the regional monthly average.
     return {
       savedAmount: Math.max(0, monthlyBaseline - newReading),
       basedOnPrevious: false,
