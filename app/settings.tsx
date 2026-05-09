@@ -1,27 +1,33 @@
 // settings.tsx
-import {
-  View, StyleSheet, Pressable, ScrollView,
-  Alert, Modal, AppState, AppStateStatus, Linking, Switch,
-} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
+import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
+import { auth, db } from '@/src/firebase/config';
+import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
+import { formatSyncDate, getSyncState } from '@/src/services/healthSyncService';
+import { useActivityStore } from '@/src/store/activityStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Ionicons } from '@expo/vector-icons';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import {
+  deleteUser,
   GoogleAuthProvider, reauthenticateWithCredential,
-  signOut, deleteUser,
+  signOut,
 } from 'firebase/auth';
-import { auth, db } from '@/src/firebase/config';
-import { useEffect, useState, useRef } from 'react';
-import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
-import { getSyncState, formatSyncDate } from '@/src/services/healthSyncService';
-import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  AppState, AppStateStatus, Linking,
+  Modal,
+  Pressable, ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useActivityStore } from '@/src/store/activityStore';
-import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
-import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
 
 const FEEDBACK_FORM_URL = 'https://forms.google.com';
 
@@ -213,7 +219,7 @@ export default function SettingsScreen() {
       await updateDoc(doc(db, 'users', uid), { showOnLeaderboard: value });
       // Mirror to leaderboard collection so it's reflected in community screen
       const { setDoc } = await import('firebase/firestore');
-      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true });
+      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value, displayName: userProfile?.displayName || null, photoURL: userProfile?.photoURL || null }, { merge: true });
     }
   };
 

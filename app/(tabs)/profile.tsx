@@ -170,12 +170,20 @@ export default function ProfileScreen() {
 
           {/* ── Level badge + XP progress bar ── */}
           <View style={styles.levelSection}>
-            {/* Rank pill */}
-            <View style={[styles.rankPill, { borderColor: rank.color, backgroundColor: rank.color + '33' }]}>
+            {/* Rank pill — tappable, routes to leveling screen */}
+            <Pressable
+              onPress={() => router.push('/leveling')}
+              style={({ pressed }) => [
+                styles.rankPill,
+                { borderColor: rank.color, backgroundColor: rank.color + '33' },
+                pressed && { opacity: 0.75 },
+              ]}
+            >
               <Text style={[styles.rankPillText, { color: rank.color }]}>
                 {rank.emoji}  {rank.name}  ·  Lv {level}
               </Text>
-            </View>
+              <FontAwesome6 name="chevron-right" size={10} color={rank.color} style={{ marginLeft: 6, opacity: 0.7 }} />
+            </Pressable>
 
             {/* XP progress track */}
             <View style={styles.xpTrack}>
@@ -367,6 +375,8 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     paddingHorizontal: 16,
     paddingVertical: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   rankPillText: {
     fontSize: 14,

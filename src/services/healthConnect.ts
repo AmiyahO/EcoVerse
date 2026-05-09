@@ -252,7 +252,14 @@ export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]>
           const stepsResult = await readRecords('Steps', {
             timeRangeFilter: { operator: 'between', startTime: session.startTime, endTime: session.endTime },
           });
-          steps = stepsResult.records.reduce((s: number, r: any) => s + (r.count ?? 0), 0);
+          const sessionStepsByOrigin: Record<string, number> = {};
+          for (const r of stepsResult.records as any[]) {
+            const origin = r.metadata?.dataOrigin ?? 'unknown';
+            sessionStepsByOrigin[origin] = (sessionStepsByOrigin[origin] ?? 0) + (r.count ?? 0);
+          }
+          steps = Object.keys(sessionStepsByOrigin).length > 0
+            ? Math.max(...Object.values(sessionStepsByOrigin))
+            : 0;
         } catch { /* steps not available */ }
       }
 
