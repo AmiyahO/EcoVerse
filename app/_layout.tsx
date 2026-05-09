@@ -11,6 +11,13 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
 import { calculateTokens, calculateCarbonSaved, persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
+import {
+  configureNotificationHandler,
+  checkAndScheduleMissedDayNudge,
+} from '@/src/services/notificationService';
+configureNotificationHandler();
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
@@ -208,6 +215,13 @@ export default function RootLayout() {
               maybeWriteSnapshot(currentUser.uid);
               loadEcoScoreSnapshots(currentUser.uid).then(snaps => {
                 setEcoScoreSnapshots(snaps);
+              }).catch(() => {});
+
+              // Missed-day nudge — runs once per cold boot after activities load
+              AsyncStorage.getItem('notifSettings').then(raw => {
+                const ns = raw ? JSON.parse(raw) : {};
+                const dates = firebaseData.map((a: any) => String(a.date));
+                checkAndScheduleMissedDayNudge(dates, ns.missedDayNudge ?? true).catch(() => {});
               }).catch(() => {});
 
               return;

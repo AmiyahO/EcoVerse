@@ -42,7 +42,8 @@
       "@react-native-google-signin/google-signin",
       "expo-health-connect",
       "react-native-health-connect",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true

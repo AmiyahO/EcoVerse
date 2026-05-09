@@ -1,14 +1,7 @@
-// app/leveling.tsx
-// Accessed from profile.tsx via router.push('/leveling')
+// app/leveling.tsx  — accessed via router.push('/leveling') from profile.tsx
 import React, { useRef, useEffect } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Animated,
-  Dimensions,
+  View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
@@ -20,312 +13,363 @@ import { getLevelInfo, getRankInfo, RANKS, tokensForLevel } from '@/src/utils/le
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-// ── All rank tiers with token ranges ─────────────────────────────────────────
-// Derived from RANKS so this file stays in sync with levelSystem.ts
+// ── Build tier data ──────────────────────────────────────────────────────────
 function buildTierRows() {
   return RANKS.map((rank, i) => {
-    const nextRank = RANKS[i + 1];
+    const next      = RANKS[i + 1];
     const minTokens = tokensForLevel(rank.minLevel);
-    const maxTokens = nextRank ? tokensForLevel(nextRank.minLevel) - 1 : null;
-    const maxLevel  = nextRank ? nextRank.minLevel - 1 : null;
+    const maxTokens = next ? tokensForLevel(next.minLevel) - 1 : null;
+    const maxLevel  = next ? next.minLevel - 1 : null;
     return { rank, minLevel: rank.minLevel, maxLevel, minTokens, maxTokens };
   });
 }
 
-// ── Animated XP bar ───────────────────────────────────────────────────────────
-function XPBar({ progress, color }: { progress: number; color: string }) {
+// ── Animated fill bar ────────────────────────────────────────────────────────
+function AnimBar({ pct, color, height = 8, delay = 0 }: { pct: number; color: string; height?: number; delay?: number }) {
   const anim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(anim, { toValue: progress, duration: 900, useNativeDriver: false }).start();
-  }, [progress]);
-  const width = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+    Animated.timing(anim, { toValue: pct, duration: 950, delay, useNativeDriver: false }).start();
+  }, [pct]);
+  const w = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
   return (
-    <View style={xpStyles.track}>
-      <Animated.View style={[xpStyles.fill, { width, backgroundColor: color }]} />
+    <View style={[{ height, borderRadius: height / 2, overflow: 'hidden', backgroundColor: color + '22' }]}>
+      <Animated.View style={{ width: w, height, borderRadius: height / 2, backgroundColor: color }} />
     </View>
   );
 }
 
-const xpStyles = StyleSheet.create({
-  track: { height: 10, borderRadius: 5, overflow: 'hidden', backgroundColor: 'rgba(0,0,0,0.08)' },
-  fill:  { height: '100%', borderRadius: 5 },
-});
-
-// ── Main screen ───────────────────────────────────────────────────────────────
-export default function LevelingScreen() {
-  const { colors, scheme } = useAppTheme();
-  const isDark = scheme === 'dark';
-  const userProfile = useActivityStore(s => s.userProfile);
-
-  const totalTokens = userProfile?.tokens ?? 0;
-  const { level, progress, tokensToNext, nextLevelTokens } = getLevelInfo(totalTokens);
-  const rank = getRankInfo(level);
-  const tierRows = buildTierRows();
-
-  // Entry animation
-  const heroAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.spring(heroAnim, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }).start();
-  }, []);
-
-  const heroScale = heroAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] });
-  const heroOpacity = heroAnim;
-
+// ── Next rank preview pill ───────────────────────────────────────────────────
+function NextRankPill({ currentLevel, colors, isDark }: { currentLevel: number; colors: any; isDark: boolean }) {
+  const next    = getRankInfo(currentLevel + 1);
+  const current = getRankInfo(currentLevel);
+  if (next.name === current.name) return null;
+  const minLv = RANKS.find(r => r.name === next.name)?.minLevel ?? currentLevel + 1;
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top']}>
-      {/* Back button */}
-      <View style={styles.navRow}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()} hitSlop={12}>
-          <FontAwesome6 name="chevron-left" size={14} color={colors.text} />
-          <Text style={[styles.backLabel, { color: colors.text }]}>Profile</Text>
-        </Pressable>
+    <View style={[nrS.pill, { backgroundColor: next.color + '18', borderColor: next.color + '40' }]}>
+      <Text style={nrS.emoji}>{next.emoji}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={[nrS.name, { color: next.color }]}>Next rank: {next.name}</Text>
+        <Text style={[nrS.sub, { color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)' }]}>
+          Reach Level {minLv}
+        </Text>
       </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Hero card ───────────────────────────────────────────────────── */}
-        <Animated.View style={{ transform: [{ scale: heroScale }], opacity: heroOpacity }}>
-          <LinearGradient
-            colors={isDark
-              ? [rank.color + 'AA', rank.color + '33', colors.surface]
-              : [rank.color + '55', rank.color + '18', colors.background]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.heroCard, { borderColor: rank.color + '40' }]}
-          >
-            {/* Large emoji */}
-            <Text style={styles.rankEmoji}>{rank.emoji}</Text>
-
-            {/* Rank + level */}
-            <View style={[styles.rankBadge, { backgroundColor: rank.color + '25', borderColor: rank.color + '60' }]}>
-              <Text style={[styles.rankBadgeText, { color: rank.color }]}>{rank.name}</Text>
-            </View>
-
-            <Text style={[styles.levelBig, { color: colors.text }]}>Level {level}</Text>
-            <Text style={[styles.tokenCount, { color: rank.color }]}>
-              {totalTokens.toLocaleString()} tokens
-            </Text>
-
-            {/* XP bar */}
-            <View style={styles.xpSection}>
-              <XPBar progress={progress} color={rank.color} />
-              <View style={styles.xpLabels}>
-                <Text style={[styles.xpLabel, { color: colors.text }]}>
-                  {tokensToNext.toLocaleString()} to Level {level + 1}
-                </Text>
-                <Text style={[styles.xpPct, { color: rank.color }]}>
-                  {Math.round(progress * 100)}%
-                </Text>
-              </View>
-            </View>
-
-            {/* Next rank teaser */}
-            {(() => {
-              const nextRank = getRankInfo(level + 1);
-              if (nextRank.name === rank.name) return null;
-              return (
-                <View style={[styles.nextRankHint, { backgroundColor: nextRank.color + '15' }]}>
-                  <Text style={styles.nextRankEmoji}>{nextRank.emoji}</Text>
-                  <Text style={[styles.nextRankText, { color: nextRank.color }]}>
-                    Next rank: {nextRank.name}
-                  </Text>
-                </View>
-              );
-            })()}
-          </LinearGradient>
-        </Animated.View>
-
-        {/* ── Section label ───────────────────────────────────────────────── */}
-        <Text style={[styles.sectionLabel, { color: colors.text }]}>All Ranks</Text>
-
-        {/* ── Tier list ────────────────────────────────────────────────────── */}
-        {tierRows.map((tier, idx) => {
-          const isCurrentTier =
-            level >= tier.minLevel && (tier.maxLevel === null || level <= tier.maxLevel);
-          const isPastTier =
-            tier.maxLevel !== null && level > tier.maxLevel;
-
-          return (
-            <TierRow
-              key={tier.rank.name}
-              tier={tier}
-              isCurrentTier={isCurrentTier}
-              isPastTier={isPastTier}
-              currentLevel={level}
-              totalTokens={totalTokens}
-              colors={colors}
-              isDark={isDark}
-              progress={progress}
-            />
-          );
-        })}
-
-        {/* ── How levels work ─────────────────────────────────────────────── */}
-        <View style={[styles.infoCard, { backgroundColor: colors.surface }]}>
-          <View style={styles.infoHeader}>
-            <FontAwesome6 name="circle-info" size={14} color={colors.tint} />
-            <Text style={[styles.infoTitle, { color: colors.text }]}>How levels work</Text>
-          </View>
-          <Text style={[styles.infoBody, { color: colors.text }]}>
-            Every EcoToken you earn counts as XP. Levels use quadratic scaling — early levels are easy, later ones reward long-term commitment.
-          </Text>
-          <View style={styles.formulaRow}>
-            <Text style={[styles.formulaText, { color: colors.text }]}>
-              Tokens to reach Level <Text style={{ color: colors.tint }}>L</Text>
-              {'  =  '}
-              <Text style={{ color: colors.tint }}>500 × (L − 1)²</Text>
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <FontAwesome6 name="chevron-right" size={11} color={next.color} />
+    </View>
   );
 }
+const nrS = StyleSheet.create({
+  pill:  { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, marginTop: 4 },
+  emoji: { fontSize: 24 },
+  name:  { fontSize: 13, fontWeight: '800' },
+  sub:   { fontSize: 11, marginTop: 1 },
+});
 
-// ── Tier row component ─────────────────────────────────────────────────────────
-function TierRow({
-  tier,
-  isCurrentTier,
-  isPastTier,
-  currentLevel,
-  totalTokens,
-  colors,
-  isDark,
-  progress,
+// ── Tier card ────────────────────────────────────────────────────────────────
+function TierCard({
+  tier, isCurrentTier, isPastTier, totalTokens, colors, isDark, index,
 }: {
   tier: ReturnType<typeof buildTierRows>[number];
-  isCurrentTier: boolean;
-  isPastTier: boolean;
-  currentLevel: number;
-  totalTokens: number;
-  colors: any;
-  isDark: boolean;
-  progress: number;
+  isCurrentTier: boolean; isPastTier: boolean;
+  totalTokens: number; colors: any; isDark: boolean; index: number;
 }) {
   const { rank, minLevel, maxLevel, minTokens, maxTokens } = tier;
+  const isLocked = !isCurrentTier && !isPastTier;
+
   const levelRange = maxLevel
-    ? minLevel === maxLevel ? `Lv ${minLevel}` : `Lv ${minLevel}–${maxLevel}`
-    : `Lv ${minLevel}+`;
+    ? minLevel === maxLevel ? `Level ${minLevel}` : `Levels ${minLevel}–${maxLevel}`
+    : `Level ${minLevel}+`;
 
   const tokenRange = maxTokens !== null
     ? `${minTokens.toLocaleString()} – ${maxTokens.toLocaleString()}`
     : `${minTokens.toLocaleString()}+`;
 
-  // Within this tier, how far along?
-  let tierProgress = 0;
-  if (isCurrentTier && maxTokens !== null) {
-    tierProgress = Math.min((totalTokens - minTokens) / (maxTokens - minTokens + 1), 1);
-  } else if (isCurrentTier && maxTokens === null) {
-    tierProgress = 1;
-  } else if (isPastTier) {
-    tierProgress = 1;
-  }
+  let tierPct = 0;
+  if (isCurrentTier && maxTokens !== null)
+    tierPct = Math.min((totalTokens - minTokens) / (maxTokens - minTokens + 1), 1);
+  else if (isPastTier || (isCurrentTier && maxTokens === null))
+    tierPct = 1;
 
-  const anim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(12)).current;
   useEffect(() => {
-    Animated.timing(anim, { toValue: tierProgress, duration: 700, useNativeDriver: false }).start();
-  }, [tierProgress]);
-  const barWidth = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 320, delay: index * 55, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 320, delay: index * 55, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   return (
-    <View style={[
-      styles.tierRow,
-      { backgroundColor: colors.surface },
-      isCurrentTier && { borderWidth: 1.5, borderColor: rank.color + '60', backgroundColor: rank.color + '0A' },
-    ]}>
-      {/* Left accent line */}
-      <View style={[styles.tierAccent, { backgroundColor: isCurrentTier || isPastTier ? rank.color : rank.color + '40' }]} />
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <View style={[
+        tcS.card,
+        { backgroundColor: colors.surface },
+        isCurrentTier && { borderWidth: 1.5, borderColor: rank.color + '55', backgroundColor: isDark ? rank.color + '10' : rank.color + '06' },
+      ]}>
+        {/* Left colour strip */}
+        <View style={[tcS.strip, { backgroundColor: isLocked ? rank.color + '25' : rank.color }]} />
 
-      <View style={{ flex: 1 }}>
-        {/* Top row */}
-        <View style={styles.tierTopRow}>
-          {/* Emoji + name */}
-          <Text style={styles.tierEmoji}>{rank.emoji}</Text>
-          <View style={{ flex: 1 }}>
-            <View style={styles.tierNameRow}>
-              <Text style={[
-                styles.tierName,
-                { color: isCurrentTier || isPastTier ? (isDark ? '#fff' : '#111') : colors.text },
-                !isPastTier && !isCurrentTier && { opacity: 0.45 },
-              ]}>
-                {rank.name}
+        <View style={tcS.inner}>
+          {/* Top row */}
+          <View style={tcS.topRow}>
+            <View style={[tcS.iconWrap, {
+              backgroundColor: isLocked ? colors.surfaceMuted : rank.color + '20',
+              borderColor:     isLocked ? colors.surfaceMuted : rank.color + '45',
+            }]}>
+              <Text style={[tcS.emoji, isLocked && { opacity: 0.3 }]}>{rank.emoji}</Text>
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={tcS.nameRow}>
+                <Text style={[tcS.name, { color: isLocked ? colors.text : (isDark ? '#fff' : '#111') }, isLocked && { opacity: 0.35 }]}>
+                  {rank.name}
+                </Text>
+                {isCurrentTier && (
+                  <LinearGradient colors={[rank.color, rank.color + 'CC']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={tcS.herePill}>
+                    <Text style={tcS.herePillText}>You're here</Text>
+                  </LinearGradient>
+                )}
+                {isPastTier && (
+                  <View style={[tcS.donePill, { backgroundColor: rank.color + '20' }]}>
+                    <FontAwesome6 name="circle-check" size={10} color={rank.color} solid />
+                    <Text style={[tcS.donePillText, { color: rank.color }]}>Done</Text>
+                  </View>
+                )}
+                {isLocked && <FontAwesome6 name="lock" size={10} color={colors.text} style={{ opacity: 0.25 }} />}
+              </View>
+              <Text style={[tcS.meta, { color: colors.text, opacity: isLocked ? 0.28 : 0.55 }]}>{levelRange}</Text>
+              <Text style={[tcS.tokens, { color: isLocked ? colors.text : rank.color, opacity: isLocked ? 0.28 : 0.85 }]}>
+                {tokenRange} tokens
               </Text>
-              {isCurrentTier && (
-                <View style={[styles.currentPill, { backgroundColor: rank.color }]}>
-                  <Text style={styles.currentPillText}>Current</Text>
-                </View>
+            </View>
+          </View>
+
+          {/* Progress bar */}
+          {!isLocked && (
+            <View style={tcS.barRow}>
+              <View style={{ flex: 1 }}>
+                <AnimBar pct={tierPct} color={rank.color} height={5} delay={index * 55 + 200} />
+              </View>
+              {isCurrentTier && maxTokens !== null && (
+                <Text style={[tcS.pctLabel, { color: rank.color }]}>{Math.round(tierPct * 100)}%</Text>
               )}
               {isPastTier && (
-                <FontAwesome6 name="circle-check" size={13} color={rank.color} solid />
+                <Text style={[tcS.pctLabel, { color: rank.color }]}>100%</Text>
               )}
             </View>
-            <Text style={[styles.tierMeta, { color: colors.text, opacity: isCurrentTier || isPastTier ? 0.6 : 0.35 }]}>
-              {levelRange}  ·  {tokenRange} tokens
+          )}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+const tcS = StyleSheet.create({
+  card:    { flexDirection: 'row', borderRadius: 16, overflow: 'hidden', marginBottom: 8 },
+  strip:   { width: 4 },
+  inner:   { flex: 1, padding: 14, gap: 10 },
+  topRow:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconWrap:{ width: 48, height: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  emoji:   { fontSize: 26 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
+  name:    { fontSize: 16, fontWeight: '800' },
+  meta:    { fontSize: 12, marginTop: 1 },
+  tokens:  { fontSize: 11, fontWeight: '600', marginTop: 1 },
+  herePill:{ paddingHorizontal: 9, paddingVertical: 3, borderRadius: 20 },
+  herePillText: { color: '#fff', fontSize: 10, fontWeight: '800' },
+  donePill:{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  donePillText: { fontSize: 10, fontWeight: '700' },
+  barRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pctLabel:{ fontSize: 11, fontWeight: '800', minWidth: 32, textAlign: 'right' },
+});
+
+// ── Main screen ──────────────────────────────────────────────────────────────
+export default function LevelingScreen() {
+  const { colors, scheme } = useAppTheme();
+  const isDark      = scheme === 'dark';
+  const userProfile = useActivityStore(s => s.userProfile);
+  const totalTokens = userProfile?.tokens ?? 0;
+
+  const { level, progress, tokensToNext } = getLevelInfo(totalTokens);
+  const rank     = getRankInfo(level);
+  const tierRows = buildTierRows();
+
+  const completedCount = tierRows.filter(t => t.maxLevel !== null && level > t.maxLevel).length;
+
+  // Hero entrance
+  const heroScale   = useRef(new Animated.Value(0.9)).current;
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(heroScale,   { toValue: 1, friction: 8, tension: 55, useNativeDriver: true }),
+      Animated.timing(heroOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <SafeAreaView style={[s.root, { backgroundColor: colors.background }]} edges={['top']}>
+
+      {/* Nav bar */}
+      <View style={s.nav}>
+        <Pressable style={[s.backBtn, { backgroundColor: colors.surface }]} onPress={() => router.back()} hitSlop={12}>
+          <FontAwesome6 name="chevron-left" size={13} color={colors.text} />
+        </Pressable>
+        <Text style={[s.navTitle, { color: colors.text }]}>Levels & Ranks</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Hero card ─────────────────────────────────────────────────── */}
+        <Animated.View style={{ transform: [{ scale: heroScale }], opacity: heroOpacity, marginBottom: 20 }}>
+          <LinearGradient
+            colors={isDark
+              ? [rank.color + 'B5', rank.color + '45', colors.surface + 'EE']
+              : [rank.color + '65', rank.color + '22', colors.background]}
+            start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }}
+            style={[s.heroCard, { borderColor: rank.color + '55' }]}
+          >
+            {/* Decorative blobs */}
+            <View style={[s.blob, { width: 170, height: 170, top: -55, right: -55, backgroundColor: rank.color + '14' }]} />
+            <View style={[s.blob, { width: 90,  height: 90,  bottom: -25, left: 10,  backgroundColor: rank.color + '0E' }]} />
+
+            {/* Top: emoji + level + rank */}
+            <View style={s.heroTop}>
+              <View style={[s.emojiFrame, { borderColor: rank.color + '55', backgroundColor: rank.color + '1E' }]}>
+                <Text style={s.heroEmoji}>{rank.emoji}</Text>
+              </View>
+              <View style={{ flex: 1, gap: 5 }}>
+                <Text style={[s.heroLevel, { color: isDark ? '#fff' : '#111' }]}>Level {level}</Text>
+                <View style={[s.rankTag, { backgroundColor: rank.color + '28', borderColor: rank.color + '55' }]}>
+                  <Text style={[s.rankTagText, { color: rank.color }]}>{rank.name}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Token count */}
+            <Text style={[s.heroTokens, { color: rank.color }]}>
+              {totalTokens.toLocaleString()} lifetime tokens
+            </Text>
+
+            {/* XP bar */}
+            <View style={{ gap: 6 }}>
+              <AnimBar pct={progress} color={rank.color} height={10} />
+              <View style={s.xpLabels}>
+                <Text style={[s.xpLeft, { color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)' }]}>
+                  {tokensToNext.toLocaleString()} to Level {level + 1}
+                </Text>
+                <Text style={[s.xpRight, { color: rank.color }]}>{Math.round(progress * 100)}%</Text>
+              </View>
+            </View>
+
+            {/* Stat chips */}
+            <View style={[s.statsRow, { backgroundColor: isDark ? 'rgba(0,0,0,0.22)' : 'rgba(255,255,255,0.5)' }]}>
+              {[
+                { label: 'Level',     value: String(level) },
+                { label: 'Rank tier', value: `${RANKS.indexOf(rank) + 1}/${RANKS.length}` },
+                { label: 'Completed', value: `${completedCount} tier${completedCount !== 1 ? 's' : ''}` },
+              ].map((stat, i) => (
+                <React.Fragment key={stat.label}>
+                  {i > 0 && <View style={[s.statDiv, { backgroundColor: rank.color + '30' }]} />}
+                  <View style={s.statItem}>
+                    <Text style={[s.statNum,   { color: rank.color }]}>{stat.value}</Text>
+                    <Text style={[s.statLabel, { color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)' }]}>{stat.label}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
+            </View>
+
+            {/* Next rank teaser */}
+            <NextRankPill currentLevel={level} colors={colors} isDark={isDark} />
+          </LinearGradient>
+        </Animated.View>
+
+        {/* ── Section header ─────────────────────────────────────────────── */}
+        <View style={s.sectionRow}>
+          <Text style={[s.sectionLabel, { color: colors.text }]}>All Rank Tiers</Text>
+          <Text style={[s.sectionSub, { color: colors.text }]}>{completedCount} of {RANKS.length} completed</Text>
+        </View>
+
+        {/* ── Tier cards ─────────────────────────────────────────────────── */}
+        {tierRows.map((tier, idx) => {
+          const isCurrentTier = level >= tier.minLevel && (tier.maxLevel === null || level <= tier.maxLevel);
+          const isPastTier    = tier.maxLevel !== null && level > tier.maxLevel;
+          return (
+            <TierCard
+              key={tier.rank.name}
+              tier={tier}
+              isCurrentTier={isCurrentTier}
+              isPastTier={isPastTier}
+              totalTokens={totalTokens}
+              colors={colors}
+              isDark={isDark}
+              index={idx}
+            />
+          );
+        })}
+
+        {/* ── Formula card ───────────────────────────────────────────────── */}
+        <View style={[s.infoCard, { backgroundColor: colors.surface }]}>
+          <View style={s.infoHeader}>
+            <View style={[s.infoIcon, { backgroundColor: colors.tint + '18' }]}>
+              <FontAwesome6 name="circle-info" size={13} color={colors.tint} />
+            </View>
+            <Text style={[s.infoTitle, { color: colors.text }]}>How levels work</Text>
+          </View>
+          <Text style={[s.infoBody, { color: colors.text }]}>
+            Every EcoToken you earn counts as XP. Levels use quadratic scaling — early ranks level up quickly, higher ranks reward long-term commitment.
+          </Text>
+          <View style={[s.formula, { backgroundColor: colors.tint + '10' }]}>
+            <Text style={[s.formulaText, { color: colors.text }]}>
+              Tokens to reach{' '}
+              <Text style={{ color: colors.tint, fontWeight: '800' }}>Level L</Text>
+              {'  =  '}
+              <Text style={{ color: colors.tint, fontWeight: '800' }}>500 × (L−1)²</Text>
             </Text>
           </View>
         </View>
 
-        {/* Progress bar — only show for current/past */}
-        {(isCurrentTier || isPastTier) && (
-          <View style={[styles.tierBarTrack, { backgroundColor: rank.color + '20' }]}>
-            <Animated.View style={[styles.tierBarFill, { width: barWidth, backgroundColor: rank.color }]} />
-          </View>
-        )}
-      </View>
-    </View>
+        <View style={{ height: 16 }} />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  root:         { flex: 1 },
-  navRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8 },
-  backBtn:      { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: 20 },
-  backLabel:    { fontSize: 15, fontWeight: '500' },
+const s = StyleSheet.create({
+  root:  { flex: 1 },
+  nav:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
+  backBtn:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  navTitle: { fontSize: 17, fontWeight: '700' },
+  scroll:   { paddingHorizontal: 16, paddingBottom: 40 },
 
-  scrollContent: { paddingHorizontal: 16, paddingBottom: 40, gap: 10 },
+  heroCard:   { borderRadius: 24, padding: 20, borderWidth: 1.5, gap: 14, overflow: 'hidden' },
+  blob:       { position: 'absolute', borderRadius: 999 },
+  heroTop:    { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  emojiFrame: { width: 68, height: 68, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  heroEmoji:  { fontSize: 38 },
+  heroLevel:  { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
+  rankTag:    { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  rankTagText:{ fontSize: 13, fontWeight: '800' },
+  heroTokens: { fontSize: 14, fontWeight: '700' },
 
-  // Hero
-  heroCard:      { borderRadius: 24, padding: 24, alignItems: 'center', borderWidth: 1, gap: 8 },
-  rankEmoji:     { fontSize: 72, marginBottom: 4 },
-  rankBadge:     { paddingHorizontal: 16, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
-  rankBadgeText: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  levelBig:      { fontSize: 36, fontWeight: '900', letterSpacing: -1, marginTop: 4 },
-  tokenCount:    { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  xpLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  xpLeft:   { fontSize: 12 },
+  xpRight:  { fontSize: 13, fontWeight: '800' },
 
-  xpSection:     { width: '100%', gap: 6, marginTop: 4 },
-  xpLabels:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  xpLabel:       { fontSize: 12, opacity: 0.65 },
-  xpPct:         { fontSize: 13, fontWeight: '800' },
+  statsRow:  { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 12 },
+  statItem:  { flex: 1, alignItems: 'center', gap: 2 },
+  statNum:   { fontSize: 15, fontWeight: '900' },
+  statLabel: { fontSize: 10, fontWeight: '500' },
+  statDiv:   { width: 1, height: 28 },
 
-  nextRankHint:  { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, marginTop: 6 },
-  nextRankEmoji: { fontSize: 16 },
-  nextRankText:  { fontSize: 12, fontWeight: '700' },
+  sectionRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, marginTop: 4 },
+  sectionLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 0.8, opacity: 0.5, textTransform: 'uppercase' },
+  sectionSub:   { fontSize: 11, opacity: 0.4 },
 
-  // Section label
-  sectionLabel:  { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, opacity: 0.5, textTransform: 'uppercase', paddingHorizontal: 2, marginTop: 6 },
-
-  // Tier rows
-  tierRow:       { flexDirection: 'row', borderRadius: 16, overflow: 'hidden', paddingVertical: 14, paddingRight: 14, paddingLeft: 0, gap: 12 },
-  tierAccent:    { width: 4 },
-  tierTopRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-  tierEmoji:     { fontSize: 28 },
-  tierNameRow:   { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
-  tierName:      { fontSize: 16, fontWeight: '700' },
-  tierMeta:      { fontSize: 12, marginTop: 1 },
-  currentPill:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
-  currentPillText: { fontSize: 10, fontWeight: '800', color: '#fff' },
-
-  tierBarTrack:  { height: 5, borderRadius: 3, overflow: 'hidden' },
-  tierBarFill:   { height: '100%', borderRadius: 3 },
-
-  // Info card
-  infoCard:      { borderRadius: 16, padding: 16, gap: 8, marginTop: 6 },
-  infoHeader:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoTitle:     { fontSize: 14, fontWeight: '700' },
-  infoBody:      { fontSize: 13, lineHeight: 20, opacity: 0.65 },
-  formulaRow:    { padding: 10, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.04)' },
-  formulaText:   { fontSize: 13, fontWeight: '600', textAlign: 'center' },
+  infoCard:   { borderRadius: 16, padding: 16, gap: 10, marginTop: 8 },
+  infoHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  infoIcon:   { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  infoTitle:  { fontSize: 14, fontWeight: '700' },
+  infoBody:   { fontSize: 13, lineHeight: 20, opacity: 0.65 },
+  formula:    { padding: 12, borderRadius: 10 },
+  formulaText:{ fontSize: 13, fontWeight: '600', textAlign: 'center', lineHeight: 20 },
 });

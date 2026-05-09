@@ -1,6 +1,6 @@
 # 🌱 EcoVerse
 
-EcoVerse is a mobile application that helps users track eco-friendly activities, calculate their CO₂ savings, and stay motivated through gamified rewards. Users log physical activities (walking, running, cycling) and household utility savings (electricity, water), earn EcoTokens, and track their environmental impact over time.
+EcoVerse is a mobile application that helps users track eco-friendly activities, calculate their CO₂ savings, and stay motivated through gamified rewards. Users log physical activities (walking, running, cycling) and household utility savings (electricity, water), earn EcoTokens, and track their environmental impact over time. A Community screen provides a global weekly leaderboard and opt-in weekly challenges.
 
 Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 
@@ -12,7 +12,8 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 - Import activities from Android Health Connect with duplicate prevention — both exercise sessions and daily pedometer step summaries
 - Provide real-time progress tracking across a dashboard, stats, and profile
 - Motivate sustained behaviour change through streaks, weekly goals, a global celebration system, and a leveling system
-- Offer AI-powered personalised eco-tips powered by Google Gemini
+- Provide a Community screen with a global leaderboard (ranked by weekly EcoScore) and opt-in weekly challenges with privacy-preserving anonymous display
+- Offer AI-powered personalised eco-tips powered by Google Gemini (food/diet suggestions excluded)
 - Enable bill scanning (OCR) to auto-populate electricity and water usage from utility bills
 - Translate cumulative CO₂ savings into relatable real-world equivalents
 - Sync all data to the cloud with Firebase for cross-session persistence
@@ -34,7 +35,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 | Charts | Victory Native v41 (Skia-based) + react-native-svg (donut chart) |
 | Date picker | `@react-native-community/datetimepicker` (native platform picker — Android Material calendar dialog) |
 | Health data | Android Health Connect (`expo-health-connect` config plugin + `react-native-health-connect`) |
-| AI tips | Google Gemini API (24h cached, data-aware prompts) |
+| AI tips | Google Gemini API (24h cached, data-aware prompts, food/diet excluded) |
 | OCR | Expo Camera + Google ML Kit / Vision API |
 | Primary platform | Android (minSdkVersion 26 / Android 8.0) |
 
@@ -58,6 +59,12 @@ app/
 │   │                    #   Row 2: Activity Distribution donut chart | CO₂ Impact Breakdown
 │   │                    #   Row 3: Monthly Activity comparison | Monthly Utilities |
 │   │                    #     8-Week CO₂ chart with press-to-reveal tooltip (WeeklyCO2Chart)
+│   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
+│   │                    #   Leaderboard: global ranking by weeklyEcoScore from /leaderboard
+│   │                    #     collection, eco-alias by default, sticky "You" row at bottom,
+│   │                    #     pull-to-refresh. Challenges: 5 weekly opt-in challenges
+│   │                    #     (Step Sprint, Power Saver, Green Commuter, Consistency Champion,
+│   │                    #     Water Warrior), progress bars, Join button, completion badges
 │   └── profile.tsx      # Profile — gradient hero, streak calendar, weekly goal progress,
 │                        #   level badge, level-up modal, What's Next card → future-vision
 │
@@ -86,11 +93,14 @@ app/
 │                        #   Accessible from Profile tab What's Next card
 ├── login.tsx            # Auth screen — email + Google Sign-In, inline error messages
 ├── settings.tsx         # Settings — theme, region, HC status, cloud sync timestamp,
+│                        #   leaderboard opt-in toggle (showOnLeaderboard, off by default),
 │                        #   Terms of Service, Privacy Policy, feedback link
 ├── edit-profile.tsx     # Edit name, weekly target, avatar
 └── _layout.tsx          # Root layout — auth state, Firestore listeners, freshLogin ref,
-                         #   weekly EcoScore snapshot writer + loader. snapshotParams ref
-                         #   populated from user doc data to avoid race condition with store
+                         #   weekly EcoScore snapshot writer + loader. readyFlags ref
+                         #   (userDoc + activities) and maybeWriteSnapshot() guarantee
+                         #   exactly one correct snapshot write per login session.
+                         #   snapshotParams ref ensures correct weeklyTarget/region values.
 
 src/
 ├── store/
@@ -103,13 +113,17 @@ src/
 │   └── themeStore.ts    # Zustand store — persisted theme mode (light/dark/system)
 │
 ├── services/
-│   ├── healthConnect.ts      # HC permission flow, polling, session fetch, daily pedometer
+│   ├── healthConnect.ts      # HC permission flow, polling, session fetch, daily pedometer.
+│   │                         #   fetchTodaySteps() deduped by dataOrigin (Math.max per origin)
+│   │                         #   fetchRecentActivities() walking steps also deduped by origin
 │   ├── healthSyncService.ts  # Bulk sync — merges sessions + pedometer days, commitSync
-│   │                         #   (stores local date string, not UTC, to fix display time bug)
+│   │                         #   (stores local date string, not UTC, to fix display time bug).
+│   │                         #   Calls persistWeeklyEcoScore() after commit so leaderboard
+│   │                         #   reflects HC imports immediately
 │   ├── aiSuggestions.ts      # Gemini API calls, 24h cache keyed to activity data hash.
 │   │                         #   System prompt explicitly excludes food/diet/food waste tips;
 │   │                         #   focuses on energy, water, transport, laundry, standby power,
-│   │                         #   thermostat, and packaging. Fallback tips are data-aware.
+│   │                         #   thermostat, and packaging. Fallback pool: 7 data-aware tips.
 │   ├── billOCR.ts            # Camera capture + OCR for electricity and water bills
 │   └── billService.ts        # Bill data extraction and L & kWh calculation
 │
@@ -119,7 +133,15 @@ src/
 │
 └── utils/
     ├── ecoLogic.ts           # CO₂ calculations, token formulas, EcoScore (capped at 100),
-    │                         #   streak logic, CATEGORY_COLORS, week/month range helpers
+    │                         #   streak logic, CATEGORY_COLORS, week/month range helpers.
+    │                         #   calculateEcoScore() exported for reuse by dashboard +
+    │                         #   persistWeeklyEcoScore(). persistWeeklyEcoScore() writes
+    │                         #   weeklyEcoScore to both /users/{uid} and /leaderboard/{uid}
+    │                         #   with merge:true after every activity save/edit/HC import.
+    ├── challengeData.ts      # 5 weekly challenges (Step Sprint, Power Saver, Green Commuter,
+    │                         #   Consistency Champion, Water Warrior). getChallengeProgress()
+    │                         #   derives live progress from activities array. getCurrentWeekId()
+    │                         #   uses Sunday-based local date key.
     ├── co2Equivalents.ts     # Real-world CO₂ equivalent lookup and formatter
     └── dateUtils.ts          # isToday, isThisWeek, localMidnightToday, localEndOfDay,
                               #   toLocalISOString (UTC→local for Health Connect dates)
@@ -186,6 +208,8 @@ EcoScore         = min(round(baseScore + consistencyBonus + varietyBonus), 100)
 
 > **Bug fix:** The original formula lacked a final `Math.min(100, …)` cap. With 5 unique categories `varietyBonus = (5/3) × 10 = 16.7`, which combined with a perfect base (70) and full consistency (20) produced a score of 107. The final `Math.min` cap is now applied in `calculateEcoScore()` in `ecoLogic.ts`.
 
+`calculateEcoScore()` is exported from `ecoLogic.ts` and called by both the dashboard and `persistWeeklyEcoScore()`.
+
 The EcoScore ring on the dashboard uses colour zones: red (<50), amber (50–74), green (≥75).
 
 ### Leveling System
@@ -223,13 +247,14 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
            ├── Step 3: Category preview
            ├── Step 4: Tokens & streaks
            ├── Step 5: Permissions (Health Connect, Camera)
-           ├── Step 6: Region selection           ├── Dashboard
-           └── Step 7: Ready                      ├── Activity Log ──▶ Add / Details / Edit
-                                                  ├── Stats
-                                                  └── Profile ──▶ Edit Profile
-                                                             └── Settings
-                                                                    ├── HC Setup
-                                                                    └── HC Sync (bulk import)
+           ├── Step 6: Region selection    ├── Dashboard
+           └── Step 7: Ready              ├── Activity Log ──▶ Add / Details / Edit
+                                          ├── Stats
+                                          ├── Community ──▶ Leaderboard / Challenges
+                                          └── Profile ──▶ Edit Profile
+                                                     └── Settings
+                                                            ├── HC Setup
+                                                            └── HC Sync (bulk import)
 ```
 
 ---
@@ -243,6 +268,8 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
     ├── displayName, email, photoURL
     ├── region, weeklyTarget
     ├── tokens, totalCarbonSaved
+    ├── weeklyEcoScore          ← written by persistWeeklyEcoScore() on every save/edit/sync
+    ├── showOnLeaderboard       ← written by Settings leaderboard toggle (default: false)
     ├── hasFinishedOnboarding
     ├── lastLogin
     ├── activities/{activityId}
@@ -250,19 +277,61 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
     │     ├── hcId (HC session ID or 'steps-YYYY-MM-DD' for pedometer days)
     │     ├── hcSource (originating app package name, e.g. 'com.strava')
     │     └── steps / distance / duration / kwhSaved / litersSaved / billId
-    ├── ecoScoreSnapshots/{YYYY-WNN}
-    │     ├── weekKey  (e.g. "2026-W09" — ISO week, Monday-based)
-    │     ├── score    (0–100, same formula as live EcoScore)
-    │     ├── label    (e.g. "W9" — used as chart axis label)
+    ├── ecoScoreSnapshots/{YYYY-MM-DD}   ← Sunday-based local date key (e.g. "2026-05-03")
+    │     ├── weekKey   (e.g. "2026-05-03" — Sunday date, local time)
+    │     ├── score     (0–100, same formula as live EcoScore)
+    │     ├── label     (e.g. "May 3" — used as chart axis label)
     │     └── updatedAt
+    ├── challengeProgress/{weekId}
+    │     ├── challengeId, joinedAt, currentValue, completed, rewardClaimed
     └── meta/healthSync
           ├── lastSyncedAt (ISO timestamp)
           └── importedIds   (array of HC session IDs + pedometer day IDs)
+
+  leaderboard/{uid}             ← public mirror, readable by any authenticated user
+    ├── weeklyEcoScore          ← mirrored from users/{uid} by persistWeeklyEcoScore()
+    ├── displayName             ← user's real name (shown only if showOnLeaderboard: true)
+    ├── photoURL
+    ├── showOnLeaderboard       ← mirrored from settings toggle
+    └── updatedAt
   ```
-- **Real-time listeners** in root `_layout.tsx` keep the Zustand store in sync. Activities always come from Firestore. After the initial activity snapshot loads, `_layout.tsx` also writes this week's EcoScore snapshot to `ecoScoreSnapshots/{YYYY-WNN}` (merge — idempotent) and loads the last 12 weekly snapshots into `activityStore.ecoScoreSnapshots` for the dashboard history chart.
+- **Real-time listeners** in root `_layout.tsx` keep the Zustand store in sync. After the initial activity snapshot loads, `_layout.tsx` writes this week's EcoScore snapshot to `ecoScoreSnapshots/{YYYY-MM-DD}` (merge — idempotent) and loads the last 12 weekly snapshots into `activityStore.ecoScoreSnapshots` for the dashboard history chart.
+- **EcoScore snapshot write guarantee:** Three refs (`activitiesForSnapshot`, `snapshotWritten`, `readyFlags`) and a `maybeWriteSnapshot()` helper ensure the snapshot is written exactly once per login, only after both the user doc listener and activities listener have fired, using the correct weeklyTarget and region values. Week keys use **Sunday-based local dates** (not ISO week numbers) to match the boundaries used throughout the app.
 - **Three-flag loading guard** (`authResolved` + `userDocReady` + `activitiesReady`) eliminates skeleton flash before login. A `freshLogin` ref skips the data-loading skeleton for new sign-ins.
-- **Firestore security rules:** A wildcard `match /{subcollection}/{document=**}` under `users/{userId}` covers all sub-collections.
+- **Firestore security rules:** `/users/{userId}` and all sub-collections are read/write by owner only. `/leaderboard/{userId}` is readable by any authenticated user, writable only by the document owner.
 - **Account deletion:** Zustand store cleared first (before `deleteUser`) so `onAuthStateChanged` sees clean state. No competing `router.replace` call in `settings.tsx`.
+
+---
+
+## 🏆 Community Screen
+
+Accessible via the fourth tab (users icon) in the bottom navigation bar. Two sections selectable via segmented control:
+
+### Leaderboard
+- Global ranking of all EcoVerse users by **weekly EcoScore** (resets every Sunday)
+- Data source: `/leaderboard` collection (public fields only — not the full user document)
+- **Privacy-by-default:** Users are shown by a deterministic eco-alias (e.g. *SolarFox·4821*) derived from their UID unless they have opted in to display their real name
+- **Opt-in name display:** Settings → "Show my name on leaderboard" toggle (off by default). Writes `showOnLeaderboard` to both `/users/{uid}` and `/leaderboard/{uid}` immediately on toggle
+- **Sticky "You" row:** Current user's rank and score pinned at the bottom of the screen regardless of scroll position
+- Pull-to-refresh supported
+- `persistWeeklyEcoScore()` in `ecoLogic.ts` writes `weeklyEcoScore` to both collections after every activity save, edit, or Health Connect sync
+
+### Weekly Challenges
+
+Five opt-in weekly challenges defined in `challengeData.ts`:
+
+| Challenge | Goal | Reward |
+|-----------|------|--------|
+| Step Sprint | Log 20,000 steps this week | 100 bonus tokens |
+| Power Saver | Save 10 kWh this week | 80 bonus tokens |
+| Green Commuter | Cycle or walk 15 km this week | 90 bonus tokens |
+| Consistency Champion | Log at least one activity every day | 120 bonus tokens |
+| Water Warrior | Save 200 litres this week | 70 bonus tokens |
+
+- Progress is calculated client-side from the user's activities array via `getChallengeProgress()`
+- Challenges are opt-in: users tap **Join** to begin tracking. Progress only counts after joining
+- On completion, reward tokens are credited and a completion badge is displayed
+- Week ID uses Sunday-based local date key (matching EcoScore week boundaries)
 
 ---
 
@@ -277,7 +346,8 @@ EcoVerse integrates with Android Health Connect to import steps, distance, and e
 
 ### Auto-fill Banner
 - When HC permissions are granted, the Add Activity screen shows a banner with pre-filled step/distance data
-- All date comparisons use **local midnight** (not UTC midnight) — `setHours(0,0,0,0)` not `setUTCHours` — to avoid yesterday's evening sessions appearing as today on UTC+1/+2/+3 devices
+- `fetchTodaySteps()` deduplicates by `dataOrigin` (Math.max per origin) to prevent Samsung Health + Google Fit double-counting
+- All date comparisons use **local midnight** (not UTC midnight) — `setHours(0,0,0,0)` not `setUTCHours`
 
 ### Backdating Activities
 - Date picker below the category grid defaults to today; any past date is selectable
@@ -287,17 +357,19 @@ EcoVerse integrates with Android Health Connect to import steps, distance, and e
 
 Accessible from Settings → Sync Activities. Merges two HC data sources:
 
-**1. Exercise Sessions** — structured workout records from Strava, Samsung Health, Google Fit etc. Originating app's package name (`hca.source`) stored as `hcSource` in Firestore, enabling "via Strava" display in details.tsx.
+**1. Exercise Sessions** — structured workout records from Strava, Samsung Health, Google Fit etc. Originating app's package name (`hca.source`) stored as `hcSource` in Firestore, enabling "via Strava" display in details.tsx. Steps for walking sessions deduped by `dataOrigin` (Math.max per origin) inside `fetchRecentActivities()`.
 
-**2. Daily Step Summaries** — `Steps` records aggregated per local calendar day. `fetchDailyStepSummaries()` buckets by `(localDate, dataOrigin)` and takes the **maximum single-origin total** to prevent cross-app double-counting (Samsung Health + Google Fit both write the same steps to HC).
+**2. Daily Step Summaries** — `Steps` records aggregated per local calendar day. `fetchDailyStepSummaries()` buckets by `(localDate, dataOrigin)` and takes the **maximum single-origin total** to prevent cross-app double-counting.
 
 **Deduplication logic:**
 - Exercise sessions: filtered by `importedIds` + ±2h temporal cross-check
 - Step summary days: suppressed if any HC walking session (new or previously imported) covers the same date; also suppressed for manual walking entries on the same date
 - `importedIds` stores both session IDs and `steps-YYYY-MM-DD` keys
 
+**Post-sync:** `commitSync()` calls `persistWeeklyEcoScore()` after the Firestore writeBatch completes, ensuring the leaderboard reflects imported activities immediately.
+
 ### Date/Time Display Fix
-Health Connect's `startTime` is a UTC ISO string. Storing it directly caused times to display shifted by the device's UTC offset (e.g. 2:00 AM instead of midnight in Cyprus UTC+2). Fixed in `commitSync()` by converting via `toLocalISOString(new Date(hca.startTime))` — formats as `YYYY-MM-DDTHH:MM:SS` without a trailing `Z`, so JavaScript treats it as local time throughout the app. Same fix applied to `add.tsx` for manual activity timestamps.
+Health Connect's `startTime` is a UTC ISO string. Storing it directly caused times to display shifted by the device's UTC offset. Fixed in `commitSync()` by converting via `toLocalISOString(new Date(hca.startTime))` — formats as `YYYY-MM-DDTHH:MM:SS` without a trailing `Z`.
 
 ---
 
@@ -309,7 +381,7 @@ Health Connect's `startTime` is a UTC ISO string. Storing it directly caused tim
 - **24h cache:** Keyed to a hash of the activity summary; only invalidated when data changes
 - **Rate-limit handling:** Shows cached tips with a "Quota reached" badge
 - **Force refresh:** Reload button bypasses cache
-- **Fallback tips:** Pool of 6 data-aware tips (3 shown), including thermostat adjustment and cold-water laundry as alternatives to the previously-appearing food waste tip. Tips reference the user's actual top category and missing categories.
+- **Fallback tips:** Pool of 7 data-aware tips (3 shown), including thermostat adjustment and cold-water laundry. Tips reference the user's actual top category and missing categories.
 - **Load timing fix:** Re-fetches when `activities.length` changes from 0 to N
 
 ---
@@ -356,8 +428,9 @@ Health Connect's `startTime` is a UTC ISO string. Storing it directly caused tim
 - **"Tap for insights"** hint label rendered below the ring in a column wrapper (10px, 0.35 opacity)
 
 ### Weekly EcoScore Snapshots
-- Written to `users/{uid}/ecoScoreSnapshots/{YYYY-WNN}` on every cold boot after initial activities load
-- **Race condition fix:** `snapshotParams` ref in `_layout.tsx` is populated directly from the user doc `onSnapshot` callback (`data.weeklyTarget`, `data.region`). The write uses ref values — not `store.userProfile` — because the activities listener may fire before `setUserProfile` has updated the Zustand store, which previously caused the snapshot to be computed with `weeklyTarget: 500` and `region: 'GLOBAL_AVG'` regardless of the user's actual settings, inflating scores to 100.
+- Written to `users/{uid}/ecoScoreSnapshots/{YYYY-MM-DD}` (Sunday-based local date key) on every cold boot after initial activities load
+- **Race condition fix (v2):** Three refs (`activitiesForSnapshot`, `snapshotWritten`, `readyFlags`) and a `maybeWriteSnapshot()` helper guarantee the snapshot is written exactly once per login session, only after **both** the user doc listener and activities listener have fired. Whichever fires second triggers the write. Refs reset in `onAuthStateChanged` on each auth change.
+- **Week boundary fix:** `getWeekKey()` in `_layout.tsx` uses Sunday-based local dates matching `getWeekRange()` in `ecoLogic.ts`. Previous ISO week number approach (Monday UTC) produced wrong-week attribution in UTC+2/+3 on Monday mornings.
 - `{ merge: true }` — idempotent, safe to re-run
 - Up to 12 snapshots loaded oldest-first into `activityStore.ecoScoreSnapshots`
 - Both write and load are fire-and-forget — network failure never blocks the app
@@ -383,13 +456,13 @@ Three swipeable rows, each with animated pill-shaped page indicators:
 - *This Week vs Last Week card:* Tokens and activity count comparison pills; CO₂ by category dual horizontal bars (last week faded, this week solid). CO₂ pill omitted from top-level comparison because utility bills logged monthly distort the weekly delta.
 
 **Row 2 — Breakdown**
-- *Activity Distribution donut chart:* SVG donut (react-native-svg) showing % of logged activities by category, with centre total and sorted legend. Built with react-native-svg rather than VictoryPie as it is already a dependency of Victory Native v41's Skia pipeline.
+- *Activity Distribution donut chart:* SVG donut (react-native-svg) showing % of logged activities by category, with centre total and sorted legend.
 - *CO₂ Impact Breakdown:* Stacked bar + per-category legend + dominant-category insight.
 
 **Row 3 — Monthly & Trends**
-- *Monthly Activity card:* Activities, tokens, and CO₂ comparison pills (this month vs last month) plus per-category CO₂ dual bars. Activity count per category is omitted — all-time distribution is already covered by the Activity Distribution donut in Row 2, making a monthly count breakdown redundant.
-- *Monthly Utilities card:* Electricity (kWh saved, CO₂ avoided) and Water (litres saved, CO₂ avoided) with diff badges and dual horizontal bars. Utilities are compared monthly (not weekly) because bills are not logged on a weekly cadence — a week with no bill entry would falsely show "CO₂ down 100%".
-- *8-Week CO₂ chart:* Extracted as `WeeklyCO2Chart` sub-component (required so `useChartPressState` is called at component top level). Victory Native v41 `CartesianChart` + `Bar`, current week highlighted in full tint colour. Press-to-reveal tooltip row above the chart shows week label + exact kg CO₂ value; a `SkiaCircle` dot marks the pressed bar top.
+- *Monthly Activity card:* Activities, tokens, and CO₂ comparison pills (this month vs last month) plus per-category CO₂ dual bars. Activity count per category is omitted — all-time distribution is covered by the donut in Row 2.
+- *Monthly Utilities card:* Electricity (kWh saved, CO₂ avoided) and Water (litres saved, CO₂ avoided) with diff badges and dual horizontal bars. Compared monthly (not weekly) because bills are not logged on a weekly cadence.
+- *8-Week CO₂ chart:* Extracted as `WeeklyCO2Chart` sub-component. Victory Native v41 `CartesianChart` + `Bar`, current week highlighted in full tint colour. Press-to-reveal tooltip shows week label + exact kg CO₂ value.
 
 ---
 
@@ -397,13 +470,14 @@ Three swipeable rows, each with animated pill-shaped page indicators:
 
 - **Theme:** Full light/dark mode with system-follow option, persisted via `themeStore`
 - **Login:** Soft green gradient (light) / deep forest green (dark). Inline error messages
-- **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal with 30-day token sparkline and weekly score history), CO₂ card with weekly total and transport-only week-on-week % comparison (walking/running/cycling only — utility bills excluded to avoid misleading swings), real-world CO₂ equivalent, quick stats row, recent activity, AI tips card
-- **Stats:** Three swipeable card rows with section labels and animated dot indicators (see Stats Screen section above)
-- **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + native action sheet with Duplicate and Delete options. Duplicate creates a copy dated to now and persists it to Firestore. Delete requires a second confirmation alert before removing from both Zustand and Firestore.
+- **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal), CO₂ card with weekly total and transport-only week-on-week % comparison, real-world CO₂ equivalent, quick stats row, recent activity, AI tips card
+- **Stats:** Three swipeable card rows with section labels and animated dot indicators
+- **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + custom bottom-sheet action sheet with Duplicate and Delete options.
+- **Community:** Segmented control top bar. Leaderboard with medal icons for top 3, eco-alias names, sticky "You" row. Challenges as cards with progress bars and Join/Joined button.
 - **Profile:** 3-stop gradient hero, level badge, streak calendar bottom sheet, goal progress bar
-- **Settings:** iOS-style uppercase section headers, coloured icon rows, live cloud sync timestamp, HC connection status, in-app Terms of Service and Privacy Policy modals
+- **Settings:** iOS-style uppercase section headers, coloured icon rows, live cloud sync timestamp, HC connection status, leaderboard opt-in toggle, in-app Terms of Service and Privacy Policy modals
 - **Onboarding:** 7-step pager with animated transitions, theme-aware backgrounds
-- **Health Connect Sync success screen:** Four-stage animation (circle scale → checkmark → stat cards → hint). Large bordered circle (120×120), 56px checkmark, green/cyan stat cards for tokens and CO₂
+- **Health Connect Sync success screen:** Four-stage animation (circle scale → checkmark → stat cards → hint)
 
 ---
 
@@ -447,10 +521,16 @@ npx expo run:android
 | Dashboard CO₂ week-on-week % misleading | Utility bills logged monthly; week with no bill shows "−100% CO₂" | `getWeekCarbonComparison()` filters to transport categories only (walking, running, cycling) |
 | Stats "CO₂ saved" pill misleading | Same as above — weekly CO₂ pill included utility bills | Pill removed from This Week vs Last Week card; per-category bars retained (absolute values, not delta) |
 | +Log button shows wrong theme tint on OS theme change | `android_ripple` causes Android to recreate the native `RippleDrawable` on re-render; during reconstruction it briefly renders the system default colour | Removed `android_ripple`; replaced with JS `({ pressed }) => [...]` style callback using opacity for press feedback |
-| Theme tint flashes opposite colour on cold boot | Zustand `persist` middleware rehydrates AsyncStorage asynchronously; a stale persisted `mode` (e.g. `'light'`) briefly applied before the correct value loaded | Added `_hydrated` flag to `themeStore`; `useAppTheme` falls back to OS scheme until hydration completes |
-| EcoScore snapshot writes 100 to Firestore but app shows 25 | `writeEcoScoreSnapshot()` read `weeklyTarget` and `region` from the Zustand store, which is not yet populated when the activities listener fires (two independent Firestore listeners race on cold boot) | Added `snapshotParams` ref in `_layout.tsx`, populated directly from the user doc `onSnapshot` callback; activities listener reads from ref, not store |
-| Gemini third tip frequently suggests food waste reduction | System prompt did not exclude food/diet domains; Gemini defaults to food suggestions when activity data is sparse | Added explicit prohibition in system prompt: no dietary changes, plant-based diets, food waste, or meal planning; constrained to energy, water, transport, laundry, standby, and thermostat domains |
-| "Go to Dashboard" after HC sync returns to Settings instead of dashboard | Post-sync success button used `router.back()`, which navigates to the previous screen (Settings → HC Sync); the user expected to land on the dashboard tab | Changed to `router.replace('/(tabs)')` so the tab navigator is the new route root; also removed `android_ripple` from the button |
+| Theme tint flashes opposite colour on cold boot | Zustand `persist` middleware rehydrates AsyncStorage asynchronously; stale persisted `mode` briefly applied | Added `_hydrated` flag to `themeStore`; `useAppTheme` falls back to OS scheme until hydration completes |
+| EcoScore snapshot writes 100 to Firestore but app shows correct value | `writeEcoScoreSnapshot()` read `weeklyTarget`/`region` from Zustand store before `setUserProfile` fired | `snapshotParams` ref populated from user doc `onSnapshot` callback; activities listener reads from ref, not store |
+| EcoScore snapshot still wrong on some cold boots (score vs snapshot mismatch) | Activities listener could fire before user doc listener, writing snapshot before snapshotParams was populated | `readyFlags` ref + `maybeWriteSnapshot()` helper: snapshot written only after both listeners have fired; `snapshotWritten` ref prevents duplicate writes |
+| EcoScore snapshot attributed to wrong week on Monday mornings (UTC+2/+3) | `getISOWeekKey()` used UTC Monday boundaries; app uses Sunday-based local week boundaries | Replaced with `getWeekKey()` using Sunday-based local time; labels show Sunday date (e.g. "May 3") |
+| Community leaderboard shows 0 for all users | `weeklyEcoScore` field never written to Firestore; leaderboard query returned everyone at 0 | `persistWeeklyEcoScore()` added to `ecoLogic.ts`; called in `add.tsx`, `edit.tsx`, and `health-connect-sync.tsx` after every activity change |
+| Leaderboard query fails with insufficient permissions | `/users` collection is owner-only; cross-user reads blocked | Added `/leaderboard` top-level collection with public-read rules; `persistWeeklyEcoScore()` mirrors 4 fields there |
+| HC auto-fill banner shows double steps (e.g. 7744 instead of 3872) | `fetchTodaySteps()` performed raw reduce sum across all `Steps` records; Samsung Health + Google Fit both write same steps | `fetchTodaySteps()` now buckets by `dataOrigin` and takes `Math.max` per origin |
+| Walking session import inflates step count | `fetchRecentActivities()` inner `Steps` query used raw reduce sum for session step count | Same origin-bucketing fix applied in `fetchRecentActivities()` |
+| Gemini third tip consistently suggests food waste or plant-based diet | System prompt did not exclude food/diet domains | Explicit prohibition added to system prompt; fallback pool expanded from 5 to 7 entries (food waste entry replaced) |
+| "Go to Dashboard" after HC sync returns to Settings | Post-sync success button used `router.back()` | Changed to `router.replace('/(tabs)')` |
 
 ---
 
@@ -461,11 +541,9 @@ npx expo run:android
 | Direction | Summary |
 |-----------|---------|
 | EcoToken Marketplace | Redeem tokens for partner discounts, municipal bill credits, public transport perks |
-| Friend Accountability | Opt-in EcoScore sharing, shared weekly challenges, gentle activity nudges |
+| Friend Accountability | Opt-in friend circles with EcoScore sharing, shared weekly challenges, gentle activity nudges |
 | Municipal & Civic Integration | Smart meter auto-sync, city-wide EcoScore dashboards, Green Deal-aligned community challenges |
 | Predictive AI Coach | Behaviour-pattern ML model, proactive nudges, smart goal calibration, carbon forecasting |
-
-Designed to satisfy supervisor feedback ("show what the app can do beyond tracking") without misrepresenting current functionality.
 
 ---
 

@@ -1,33 +1,32 @@
 // settings.tsx
+import {
+  View, StyleSheet, Pressable, ScrollView,
+  Alert, Modal, AppState, AppStateStatus, Linking, Switch,
+} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
-import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
-import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
-import { auth, db } from '@/src/firebase/config';
-import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
-import { formatSyncDate, getSyncState } from '@/src/services/healthSyncService';
-import { useActivityStore } from '@/src/store/activityStore';
 import { useThemeStore } from '@/src/store/themeStore';
 import { Ionicons } from '@expo/vector-icons';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import {
-  deleteUser,
   GoogleAuthProvider, reauthenticateWithCredential,
-  signOut,
+  signOut, deleteUser,
 } from 'firebase/auth';
-import { deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
-import { useEffect, useRef, useState } from 'react';
-import {
-  Alert,
-  AppState, AppStateStatus, Linking,
-  Modal,
-  Pressable, ScrollView,
-  StyleSheet,
-  Switch,
-  View,
-} from 'react-native';
+import { auth, db } from '@/src/firebase/config';
+import { useEffect, useState, useRef } from 'react';
+import { checkHealthPermissions, PermissionStatus } from '@/src/services/healthConnect';
+import { getSyncState, formatSyncDate } from '@/src/services/healthSyncService';
+import { doc, onSnapshot, updateDoc, deleteDoc } from 'firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useActivityStore } from '@/src/store/activityStore';
+import { TERMS_OF_SERVICE } from '@/src/content/termsOfService';
+import { PRIVACY_POLICY } from '@/src/content/privacyPolicy';
+import {
+  getNotifPermStatus, requestNotifPermission, applyNotifSettings,
+  DEFAULT_NOTIF_SETTINGS, type NotifSettings, type NotifPermStatus,
+} from '@/src/services/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FEEDBACK_FORM_URL = 'https://forms.google.com';
 
@@ -152,6 +151,10 @@ export default function SettingsScreen() {
   const [hcStatus,   setHcStatus]     = useState<PermissionStatus>('not_asked');
   const [lastSynced, setLastSynced]   = useState<string | null>(null);
   const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
+  const [notifPerm,      setNotifPerm]      = useState<NotifPermStatus>('not_asked');
+  const [notifSettings,  setNotifSettings]  = useState<NotifSettings>(DEFAULT_NOTIF_SETTINGS);
+  const [notifModal,     setNotifModal]     = useState(false);
+  const [timePickerFor,  setTimePickerFor]  = useState<keyof NotifSettings | null>(null);
 
   const [cloudSyncTime,   setCloudSyncTime]   = useState<string>('Syncing…');
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
@@ -197,6 +200,13 @@ export default function SettingsScreen() {
       checkHealthPermissions().then(setHcStatus);
       getSyncState().then(s => setLastSynced(s.lastSyncedAt));
     };
+    // Load saved notification settings from AsyncStorage
+    AsyncStorage.getItem('notifSettings').then(raw => {
+      if (raw) {
+        try { setNotifSettings(JSON.parse(raw)); } catch {}
+      }
+    });
+    getNotifPermStatus().then(setNotifPerm);
     recheck();
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
       if (state === 'active') recheck();
@@ -219,7 +229,7 @@ export default function SettingsScreen() {
       await updateDoc(doc(db, 'users', uid), { showOnLeaderboard: value });
       // Mirror to leaderboard collection so it's reflected in community screen
       const { setDoc } = await import('firebase/firestore');
-      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value, displayName: userProfile?.displayName || null, photoURL: userProfile?.photoURL || null }, { merge: true });
+      await setDoc(doc(db, 'leaderboard', uid), { showOnLeaderboard: value }, { merge: true });
     }
   };
 
@@ -293,6 +303,36 @@ export default function SettingsScreen() {
     );
   };
 
+  // ── Notification helpers ───────────────────────────────────────────────────
+  const saveNotifSettings = async (updated: NotifSettings) => {
+    setNotifSettings(updated);
+    await AsyncStorage.setItem('notifSettings', JSON.stringify(updated));
+    const currentStreak = 0; // pass real streak if available from store
+    await applyNotifSettings(updated, currentStreak);
+  };
+
+  const handleNotifToggle = (key: keyof NotifSettings, value: boolean) => {
+    saveNotifSettings({ ...notifSettings, [key]: value });
+  };
+
+  const handleTimeChange = (key: keyof NotifSettings, hhmm: string) => {
+    saveNotifSettings({ ...notifSettings, [key]: hhmm });
+  };
+
+  const handleRequestNotifPerm = async () => {
+    const status = await requestNotifPermission();
+    setNotifPerm(status);
+    if (status === 'granted') {
+      await applyNotifSettings(notifSettings, 0);
+    } else {
+      Alert.alert(
+        'Notifications blocked',
+        'To enable notifications, go to your device Settings → Apps → EcoVerse → Notifications.',
+        [{ text: 'OK' }],
+      );
+    }
+  };
+
   const handleFeedback = () => {
     Linking.openURL(FEEDBACK_FORM_URL).catch(() => {
       Alert.alert('Could not open feedback form', 'Please try again later.');
@@ -356,10 +396,81 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Notifications">
-          <Row icon="notifications-outline" iconColor="#FFC107" label="Activity reminders"
-            badge="Soon" chevron={false} separator={true} />
-          <Row icon="trophy-outline" iconColor="#FF7043" label="Weekly goal alerts"
-            badge="Soon" chevron={false} separator={false} />
+          {notifPerm !== 'granted' ? (
+            // Not yet granted — show one-tap enable row
+            <Row
+              icon="notifications-outline"
+              iconColor="#FFC107"
+              label={notifPerm === 'denied' ? 'Notifications blocked' : 'Enable notifications'}
+              value={notifPerm === 'denied' ? 'Open Settings' : 'Tap to allow'}
+              onPress={handleRequestNotifPerm}
+              separator={false}
+            />
+          ) : (
+            <>
+              <Row
+                icon="notifications-outline" iconColor="#FFC107"
+                label="Daily activity reminder"
+                chevron={false} separator={true}
+                rightNode={
+                  <Switch
+                    value={notifSettings.dailyReminder}
+                    onValueChange={v => handleNotifToggle('dailyReminder', v)}
+                    trackColor={{ true: colors.tint, false: colors.surfaceMuted }}
+                    thumbColor="#fff"
+                  />
+                }
+              />
+              {notifSettings.dailyReminder && (
+                <Row
+                  icon="time-outline" iconColor="#FFC107"
+                  label="Reminder time"
+                  value={notifSettings.dailyReminderTime}
+                  onPress={() => { setTimePickerFor('dailyReminderTime'); setNotifModal(true); }}
+                  separator={true}
+                />
+              )}
+              <Row
+                icon="trophy-outline" iconColor="#FF7043"
+                label="Weekly goal recap (Sunday)"
+                chevron={false} separator={true}
+                rightNode={
+                  <Switch
+                    value={notifSettings.weeklyGoalAlert}
+                    onValueChange={v => handleNotifToggle('weeklyGoalAlert', v)}
+                    trackColor={{ true: colors.tint, false: colors.surfaceMuted }}
+                    thumbColor="#fff"
+                  />
+                }
+              />
+              <Row
+                icon="footsteps-outline" iconColor="#29B6F6"
+                label={'Missed yesterday nudge'}
+                chevron={false} separator={true}
+                rightNode={
+                  <Switch
+                    value={notifSettings.missedDayNudge}
+                    onValueChange={v => handleNotifToggle('missedDayNudge', v)}
+                    trackColor={{ true: colors.tint, false: colors.surfaceMuted }}
+                    thumbColor="#fff"
+                  />
+                }
+              />
+              <Row
+                icon="flame-outline" iconColor="#EF5350"
+                label="Streak at-risk alert"
+                chevron={false} separator={false}
+                rightNode={
+                  <Switch
+                    value={notifSettings.streakAtRiskAlert}
+                    onValueChange={v => handleNotifToggle('streakAtRiskAlert', v)}
+                    trackColor={{ true: colors.tint, false: colors.surfaceMuted }}
+                    thumbColor="#fff"
+                  />
+                }
+              />
+            </>
+          )}
         </Section>
 
         <Section title="Data & Privacy">
@@ -481,6 +592,52 @@ export default function SettingsScreen() {
                     <Ionicons name={t.icon as any} size={18} color={t.color} />
                   </View>
                   <ThemedText style={[styles.sheetOptionLabel, { color: colors.text }]}>{t.label}</ThemedText>
+                  {selected
+                    ? <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
+                    : <View style={[styles.radioCircle, { borderColor: colors.text + '25' }]} />}
+                </Pressable>
+              );
+            })}
+            <View style={{ height: 12 }} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* ── Time picker modal (simple HH/MM drum) ── */}
+      <Modal visible={notifModal} transparent animationType="slide">
+        <Pressable style={[styles.overlay, { backgroundColor: overlayBg }]} onPress={() => setNotifModal(false)}>
+          <Pressable style={[styles.sheet, { backgroundColor: modalBg }]} onPress={e => e.stopPropagation()}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.text + '20' }]} />
+            <ThemedText style={[styles.sheetTitle, { color: colors.text }]}>Set reminder time</ThemedText>
+            <ThemedText style={[styles.sheetSubtitle, { color: colors.text }]}>
+              Choose when you'd like to receive this notification each day.
+            </ThemedText>
+            {[
+              { label: '8:00 AM',  value: '08:00' },
+              { label: '12:00 PM', value: '12:00' },
+              { label: '6:00 PM',  value: '18:00' },
+              { label: '7:00 PM',  value: '19:00' },
+              { label: '8:00 PM',  value: '20:00' },
+              { label: '9:00 PM',  value: '21:00' },
+            ].map((opt, i, arr) => {
+              const currentVal = timePickerFor ? (notifSettings[timePickerFor] as string) : '';
+              const selected   = currentVal === opt.value;
+              return (
+                <Pressable
+                  key={opt.value}
+                  onPress={() => {
+                    if (timePickerFor) handleTimeChange(timePickerFor, opt.value);
+                    setNotifModal(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.sheetOption,
+                    selected && { backgroundColor: colors.tint + '12' },
+                    pressed  && { opacity: 0.6 },
+                    i < arr.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.text + '12' },
+                  ]}
+                >
+                  <Ionicons name="time-outline" size={18} color={selected ? colors.tint : colors.text} style={{ opacity: 0.6 }} />
+                  <ThemedText style={[styles.sheetOptionLabel, { color: colors.text }]}>{opt.label}</ThemedText>
                   {selected
                     ? <Ionicons name="checkmark-circle" size={20} color={colors.tint} />
                     : <View style={[styles.radioCircle, { borderColor: colors.text + '25' }]} />}
