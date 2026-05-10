@@ -16,12 +16,14 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   limit,
   orderBy,
   query,
+  setDoc,
   updateDoc,
 } from 'firebase/firestore';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -39,6 +41,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { sendMissedChallengeNotification } from '@/src/services/notificationService';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -245,20 +248,50 @@ export default function CommunityScreen() {
   const fetchChallengeState = useCallback(async () => {
     if (!currentUid) return;
     try {
-      const weekId = getCurrentWeekId();
-      const snap = await getDoc(doc(db, 'users', currentUid, 'challengeProgress', weekId));
+      const currentWeekId = getCurrentWeekId();
+      const progressRef = doc(db, 'users', currentUid, 'challengeProgress', currentWeekId);
+      const snap = await getDoc(progressRef);
+
       if (snap.exists()) {
         const data = snap.data();
         setJoinedIds(data.joinedIds ?? []);
         setProgressMap(data.progress ?? {});
         setCompletedIds(data.completedIds ?? []);
+      } else {
+        // No document for this week — could mean the week just rolled over.
+        // Check if there's a stale document from a previous week and clean it up.
+        // We do this by checking all challengeProgress docs and removing joined
+        // challenges from any week that isn't the current one.
+        // For simplicity we just reset local state — Firestore old docs are
+        // left in place (they're harmless and provide a history trail).
+        setJoinedIds([]);
+        setProgressMap({});
+        setCompletedIds([]);
+
+        // Check previous week's doc to see if user had joined-but-incomplete
+        // challenges, and fire a notification for any that expired.
+        const prevSunday = new Date();
+        prevSunday.setDate(prevSunday.getDate() - prevSunday.getDay() - 7);
+        prevSunday.setHours(0, 0, 0, 0);
+        const prevWeekId = `${prevSunday.getFullYear()}-${String(prevSunday.getMonth() + 1).padStart(2, '0')}-${String(prevSunday.getDate()).padStart(2, '0')}`;
+        const prevSnap = await getDoc(doc(db, 'users', currentUid, 'challengeProgress', prevWeekId));
+        if (prevSnap.exists()) {
+          const prev = prevSnap.data();
+          const prevJoined: string[]    = prev.joinedIds   ?? [];
+          const prevCompleted: string[] = prev.completedIds ?? [];
+          const missedIds = prevJoined.filter(id => !prevCompleted.includes(id));
+          if (missedIds.length > 0) {
+            // Fire a single "you had unfinished challenges" notification
+            await sendMissedChallengeNotification(missedIds.length).catch(() => {});
+          }
+        }
       }
     } catch (e) { console.warn('Challenge state error:', e); }
   }, [currentUid]);
 
   useEffect(() => {
     if (!currentUid) return;
-    
+
     fetchLeaderboard();
     fetchChallengeState();
     fetchChallengesForWeek().then(setLiveChallenges);
@@ -276,7 +309,7 @@ export default function CommunityScreen() {
     const newProgress: Record<string, number> = { ...progressMap };
     liveChallenges.forEach(ch => { if (!joinedIds.includes(ch.id)) return; newProgress[ch.id] = getChallengeProgress(ch, weekActivities); });
     setProgressMap(newProgress);
-  }, [activities, joinedIds]);
+  }, [activities, joinedIds, liveChallenges]);
 
   const handleJoin = async (challengeId: string) => {
     if (!currentUid || joiningId) return;
@@ -285,8 +318,7 @@ export default function CommunityScreen() {
       const weekId = getCurrentWeekId();
       const progressRef = doc(db, 'users', currentUid, 'challengeProgress', weekId);
       await updateDoc(progressRef, { joinedIds: arrayUnion(challengeId) }).catch(async () => {
-        const { setDoc } = await import('firebase/firestore');
-        await setDoc(progressRef, { joinedIds: [challengeId], progress: {}, completedIds: [] });
+        await setDoc(progressRef, { joinedIds: [challengeId], progress: {}, completedIds: [], weekId });
       });
       setJoinedIds(prev => [...prev, challengeId]);
     } catch (e) { console.warn('Join challenge error:', e); }
@@ -301,7 +333,6 @@ export default function CommunityScreen() {
       const progressRef = doc(db, 'users', currentUid, 'challengeProgress', weekId);
       await updateDoc(progressRef, { joinedIds: arrayRemove(challengeId) }).catch(() => {});
       setJoinedIds(prev => prev.filter(id => id !== challengeId));
-      // Clear progress for this challenge from local state
       setProgressMap(prev => { const n = { ...prev }; delete n[challengeId]; return n; });
     } catch (e) { console.warn('Leave challenge error:', e); }
     finally { setLeavingId(null); }
@@ -375,6 +406,7 @@ export default function CommunityScreen() {
     const current   = progressMap[ch.id] ?? 0;
     const pct       = Math.min(current / ch.goal.target, 1);
     const isJoining = joiningId === ch.id;
+    const isLeaving = leavingId === ch.id;
 
     return (
       <View
@@ -471,11 +503,11 @@ export default function CommunityScreen() {
                 <TouchableOpacity
                   style={[styles.leaveBtn, { borderColor: colors.text + '25' }]}
                   onPress={() => handleLeave(ch.id)}
-                  disabled={leavingId === ch.id}
+                  disabled={isLeaving}
                   activeOpacity={0.7}
                 >
-                  {leavingId === ch.id ? (
-                    <ActivityIndicator size="small" color={colors.text} />
+                  {isLeaving ? (
+                    <ActivityIndicator size="small" color={colors.text} style={{ transform: [{ scale: 0.7 }] }} />
                   ) : (
                     <Text style={[styles.leaveBtnText, { color: colors.text }]}>Leave</Text>
                   )}
@@ -775,7 +807,7 @@ const styles = StyleSheet.create({
   statusTagText:    { fontSize: 11, fontWeight: '600' },
   joinedRow:        { flexDirection: 'row', alignItems: 'center', gap: 6 },
   leaveBtn:         { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
-  leaveBtnText:     { fontSize: 11, fontWeight: '600', opacity: 0.6 },
+  leaveBtnText:     { fontSize: 11, fontWeight: '600', opacity: 0.55 },
 
   privacyNote:      { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4, marginTop: 4 },
   privacyText:      { fontSize: 12, flex: 1, lineHeight: 16, opacity: 0.6 },

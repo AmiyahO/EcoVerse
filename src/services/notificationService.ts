@@ -247,3 +247,27 @@ export async function sendGoalReachedNotification(weeklyTarget: number) {
     trigger: null, // fire immediately
   });
 }
+// ── Missed challenge notification ────────────────────────────────────────────
+/**
+ * Called on the first app open of a new week when the user had joined-but-
+ * incomplete challenges in the previous week.
+ * Fires a single one-shot notification immediately (or within 5 seconds).
+ */
+export async function sendMissedChallengeNotification(missedCount: number) {
+  const perm = await getNotifPermStatus();
+  if (perm !== 'granted') return;
+
+  const body = missedCount === 1
+    ? "You had 1 challenge that didn't complete last week. A new week has started — jump back in!"
+    : `You had ${missedCount} challenges that didn't complete last week. Fresh challenges are waiting!`;
+
+  await Notifications.scheduleNotificationAsync({
+    identifier: 'ev_missed_challenge',
+    content: {
+      title: "🌿 Last week's challenges expired",
+      body,
+      data: { type: 'missed_challenge' },
+    },
+    trigger: null, // fire immediately
+  });
+}

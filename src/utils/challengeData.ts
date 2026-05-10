@@ -4,79 +4,88 @@
 // (filtered to the current weekId). If Firestore is empty or unavailable,
 // it falls back to CHALLENGES (the static array below), so the UI always
 // has something to show.
-//
-// TO UPDATE CHALLENGES EACH WEEK without a rebuild:
-//   Write documents to Firestore under /challenges/{id} with the shape below.
-//   Add a `weekId` field (e.g. "2026-05-11") matching getCurrentWeekId().
-//   The app fetches them on mount and shows them instead of the static set.
-export type ChallengeMetric = 'steps' | 'co2' | 'tokens' | 'distance' | 'kwh';
+export type ChallengeMetric = 'steps' | 'co2' | 'tokens' | 'distance' | 'kwh' | 'activities' | 'litres';
+
+export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
+export type ChallengeType       = 'weekly' | 'monthly' | 'special';
 
 export interface Challenge {
-  id:           string;
-  title:        string;
-  description:  string;
-  icon:         string;         // FontAwesome6 free solid icon name
-  color:        string;         // accent colour
+  id:            string;
+  title:         string;
+  description:   string;
+  icon:          string;              // FontAwesome6 free solid icon name
+  color:         string;             // accent colour
+  difficulty:    ChallengeDifficulty;
+  challengeType: ChallengeType;
   goal: {
-    metric:  ChallengeMetric;
-    target:  number;
-    // Which activity categories contribute to this metric
+    metric:     ChallengeMetric;
+    target:     number;
     categories?: string[];
   };
-  rewardTokens: number;
-  badgeLabel:   string;
+  rewardTokens:  number;
+  badgeLabel:    string;
 }
 
 export const CHALLENGES: Challenge[] = [
   {
-    id:          'step-sprint',
-    title:       'Step Sprint',
-    description: 'Log 20,000 steps this week through walking or running.',
-    icon:        'person-walking',
-    color:       '#4CAF50',
-    goal:        { metric: 'steps', target: 20000, categories: ['walking', 'running'] },
-    rewardTokens: 100,
-    badgeLabel:  'Pavement Pounder',
+    id:            'step-sprint',
+    title:         'Step Sprint',
+    description:   'Log 20,000 steps this week through walking or running.',
+    icon:          'person-walking',
+    color:         '#4CAF50',
+    difficulty:    'easy',
+    challengeType: 'weekly',
+    goal:          { metric: 'steps', target: 20000, categories: ['walking', 'running'] },
+    rewardTokens:  100,
+    badgeLabel:    'Pavement Pounder',
   },
   {
-    id:          'power-saver',
-    title:       'Power Saver',
-    description: 'Save 10 kWh of electricity this week.',
-    icon:        'bolt',
-    color:       '#FFC107',
-    goal:        { metric: 'kwh', target: 10, categories: ['electricity'] },
-    rewardTokens: 80,
-    badgeLabel:  'Grid Guardian',
+    id:            'green-commuter',
+    title:         'Green Commuter',
+    description:   'Walk or cycle a combined 15 km this week.',
+    icon:          'bicycle',
+    color:         '#29B6F6',
+    difficulty:    'easy',
+    challengeType: 'weekly',
+    goal:          { metric: 'distance', target: 15, categories: ['walking', 'cycling'] },
+    rewardTokens:  90,
+    badgeLabel:    'Trail Blazer',
   },
   {
-    id:          'green-commuter',
-    title:       'Green Commuter',
-    description: 'Walk or cycle a combined 15 km this week.',
-    icon:        'bicycle',
-    color:       '#29B6F6',
-    goal:        { metric: 'distance', target: 15, categories: ['walking', 'cycling'] },
-    rewardTokens: 90,
-    badgeLabel:  'Trail Blazer',
+    id:            'consistency-champion',
+    title:         'Consistency Champion',
+    description:   'Log at least one activity every day this week.',
+    icon:          'fire',
+    color:         '#FF7043',
+    difficulty:    'medium',
+    challengeType: 'weekly',
+    goal:          { metric: 'activities', target: 7, categories: ['walking', 'running', 'cycling'] },
+    rewardTokens:  120,
+    badgeLabel:    'Iron Streak',
   },
   {
-    id:          'consistency-champion',
-    title:       'Consistency Champion',
-    description: 'Log at least one activity every day this week.',
-    icon:        'fire',
-    color:       '#FF7043',
-    goal:        { metric: 'tokens', target: 7, categories: [] }, // uses activeDays logic
-    rewardTokens: 120,
-    badgeLabel:  'Iron Streak',
+    id:            'two-wheel-hero',
+    title:         'Two-Wheel Hero',
+    description:   'Cycle 20 km this week.',
+    icon:          'bicycle',
+    color:         '#26A69A',
+    difficulty:    'medium',
+    challengeType: 'weekly',
+    goal:          { metric: 'distance', target: 20, categories: ['cycling'] },
+    rewardTokens:  110,
+    badgeLabel:    'Pedal Pioneer',
   },
   {
-    id:          'water-warrior',
-    title:       'Water Warrior',
-    description: 'Save 500 litres of water this week.',
-    icon:        'droplet',
-    color:       '#26C6DA',
-    goal:        { metric: 'distance', target: 500, categories: ['water'] }, // litres — handled in getChallengeProgress
-    rewardTokens: 70,
-    badgeLabel:  'H₂O Hero',
+    id:            'marathon-mood',
+    title:         'Marathon Mood',
+    description:   'Reach 50,000 steps this week through movement activities.',
+    icon:          'shoe-prints',
+    color:         '#66BB6A',
+    difficulty:    'hard',
+    challengeType: 'weekly',
+    goal:          { metric: 'steps', target: 50000, categories: ['walking', 'running'] },
+    rewardTokens:  150,
+    badgeLabel:    'Step Sovereign',
   },
 ];
 
@@ -103,28 +112,27 @@ export function getChallengeProgress(ch: Challenge, weekActivities: any[]): numb
       return relevant.reduce((s, a) => s + (a.steps ?? 0), 0);
 
     case 'distance':
-      // Green Commuter — km for walking/cycling
-      if (ch.goal.categories?.includes('walking') || ch.goal.categories?.includes('cycling')) {
-        return relevant.reduce((s, a) => s + (a.distance ?? (a.steps ? a.steps * 0.00078 : 0)), 0);
-      }
-      // Water Warrior — litres
-      if (ch.goal.categories?.includes('water')) {
-        return relevant.reduce((s, a) => s + (a.litersSaved ?? 0), 0);
-      }
-      return 0;
+      return relevant.reduce((s, a) => s + (a.distance ?? (a.steps ? a.steps * 0.00078 : 0)), 0);
 
     case 'kwh':
       return relevant.reduce((s, a) => s + (a.kwhSaved ?? 0), 0);
 
+    case 'litres':
+      return relevant.reduce((s, a) => s + (a.litersSaved ?? 0), 0);
+
     case 'co2':
       return relevant.reduce((s, a) => s + (a.co2Saved ?? 0), 0);
 
-    case 'tokens':
-      // Consistency Champion — count unique active days this week
-      if (ch.id === 'consistency-champion') {
-        const days = new Set(weekActivities.map(a => a.date?.slice(0, 10)));
+    case 'activities':
+      // Consistency Champion variant: count unique active days (one per day counts)
+      if (ch.goal.target <= 7) {
+        const days = new Set(relevant.map((a: any) => a.date?.slice(0, 10)));
         return days.size;
       }
+      // Eco Explorer variant: count total activity logs
+      return relevant.length;
+
+    case 'tokens':
       return relevant.reduce((s, a) => s + (a.tokensEarned ?? 0), 0);
 
     default:
@@ -145,7 +153,8 @@ export async function fetchChallengesForWeek(): Promise<Challenge[]> {
     const db = getFirestore();
     const weekId = getCurrentWeekId();
 
-    // Try week-specific challenges first
+    // Fetch all challenges for this weekId (includes both weekly and monthly
+    // if the Cloud Function wrote monthly ones this week)
     const weekQ = query(
       collection(db, 'challenges'),
       where('weekId', '==', weekId),
@@ -153,14 +162,12 @@ export async function fetchChallengesForWeek(): Promise<Challenge[]> {
     const weekSnap = await getDocs(weekQ);
 
     if (!weekSnap.empty) {
-      return weekSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
-    }
-
-    // Fall back to always-active challenges (no weekId field)
-    const allQ = query(collection(db, 'challenges'), where('weekId', '==', null));
-    const allSnap = await getDocs(allQ);
-    if (!allSnap.empty) {
-      return allSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
+      const all = weekSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
+      // Sort: weekly first, then monthly, then special — keeps layout predictable
+      return all.sort((a, b) => {
+        const order: Record<string, number> = { weekly: 0, monthly: 1, special: 2 };
+        return (order[a.challengeType] ?? 9) - (order[b.challengeType] ?? 9);
+      });
     }
 
     // Final fallback: static local array

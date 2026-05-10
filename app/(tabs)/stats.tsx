@@ -9,11 +9,15 @@ import {
 } from '@/src/utils/ecoLogic';
 import { FontAwesome6 } from '@expo/vector-icons';
 import { Circle as SkiaCircle } from '@shopify/react-native-skia';
-import { useState } from 'react';
-import { Dimensions, FlatList, ScrollView, StyleSheet, View } from 'react-native';
+import { memo, useMemo, useState } from 'react';
+import {
+  Dimensions, ScrollView, StyleSheet, View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { Bar, CartesianChart, useChartPressState } from 'victory-native';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH   = SCREEN_WIDTH - 32;
@@ -26,9 +30,32 @@ const CATEGORY_ICONS: Record<string, string> = {
   water:       'droplet',
 };
 
-const CATEGORY_ORDER = ['walking', 'running', 'cycling', 'electricity', 'water'];
+const CATEGORY_ORDER = ['walking', 'running', 'cycling', 'electricity', 'water'] as const;
 
-// ─── Donut chart (react-native-svg, already a dep of Victory Native) ──────────
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Normalise an activity date string (ISO or local YYYY-MM-DDTHH:MM:SS)
+ * to a JS Date once, at the call site — prevents repeated `new Date(a.date)`
+ * inside every reduce/filter.
+ */
+function parseActivityDate(dateStr: string): Date {
+  return new Date(dateStr);
+}
+
+function getMonthRange(offset: number): { start: Date; end: Date; label: string; shortLabel: string } {
+  const now   = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
+  const end   = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999);
+  return {
+    start,
+    end,
+    label:      start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    shortLabel: start.toLocaleDateString('en-US', { month: 'short' }),
+  };
+}
+
+// ─── Donut chart ──────────────────────────────────────────────────────────────
 
 function polarToXY(cx: number, cy: number, r: number, deg: number) {
   const rad = ((deg - 90) * Math.PI) / 180;
@@ -56,7 +83,7 @@ function donutSlicePath(
 
 interface DonutSlice { category: string; count: number; color: string; }
 
-function DonutChart({ slices, size = 156 }: { slices: DonutSlice[]; size?: number }) {
+const DonutChart = memo(function DonutChart({ slices, size = 156 }: { slices: DonutSlice[]; size?: number }) {
   const cx = size / 2;
   const cy = size / 2;
   const outerR = size / 2 - 4;
@@ -83,33 +110,19 @@ function DonutChart({ slices, size = 156 }: { slices: DonutSlice[]; size?: numbe
       })}
     </Svg>
   );
-}
+});
 
-// ─── Month helpers ─────────────────────────────────────────────────────────────
+// ─── Sub-components (all memo'd to prevent unnecessary re-renders) ────────────
 
-function getMonthRange(offset: number): { start: Date; end: Date; label: string; shortLabel: string } {
-  const now   = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1, 0, 0, 0, 0);
-  const end   = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0, 23, 59, 59, 999);
-  return {
-    start,
-    end,
-    label:      start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    shortLabel: start.toLocaleDateString('en-US', { month: 'short' }),
-  };
-}
-
-// ─── Sub-components ────────────────────────────────────────────────────────────
-
-function SectionLabel({ label, colors }: { label: string; colors: any }) {
+const SectionLabel = memo(function SectionLabel({ label, colors }: { label: string; colors: any }) {
   return (
     <ThemedText style={[styles.sectionLabel, { color: colors.text }]}>
       {label}
     </ThemedText>
   );
-}
+});
 
-function DotsRow({ count, active, colors }: { count: number; active: number; colors: any }) {
+const DotsRow = memo(function DotsRow({ count, active, colors }: { count: number; active: number; colors: any }) {
   return (
     <View style={styles.dotsRow}>
       {Array.from({ length: count }).map((_, i) => (
@@ -121,9 +134,9 @@ function DotsRow({ count, active, colors }: { count: number; active: number; col
       ))}
     </View>
   );
-}
+});
 
-function ComparisonPill({
+const ComparisonPill = memo(function ComparisonPill({
   label, current, previous, diff, diffLabel, colors,
 }: {
   label: string; current: string; previous: string;
@@ -140,9 +153,9 @@ function ComparisonPill({
       <ThemedText style={[styles.pillDiff,     { color: diffColor }]}>{arrow} {diffLabel}</ThemedText>
     </View>
   );
-}
+});
 
-function StatCard({ label, value, bg, colors }: {
+const StatCard = memo(function StatCard({ label, value, bg, colors }: {
   label: string; value: string | number; bg?: string; colors: any;
 }) {
   return (
@@ -151,10 +164,10 @@ function StatCard({ label, value, bg, colors }: {
       <ThemedText style={[styles.statValue, { color: colors.text }]}>{value}</ThemedText>
     </View>
   );
-}
+});
 
 // Monthly metric cell — shows this month's value + diff badge vs last month
-function MonthMetric({ label, thisVal, lastVal, unit, color, colors, decimals = 1 }: {
+const MonthMetric = memo(function MonthMetric({ label, thisVal, lastVal, unit, color, colors, decimals = 1 }: {
   label: string; thisVal: number; lastVal: number;
   unit: string; color: string; colors: any; decimals?: number;
 }) {
@@ -183,10 +196,10 @@ function MonthMetric({ label, thisVal, lastVal, unit, color, colors, decimals = 
       )}
     </View>
   );
-}
+});
 
 // Dual horizontal bar: last month (faded) vs this month (solid)
-function MonthBar({ thisVal, lastVal, color, colors, thisLabel, lastLabel }: {
+const MonthBar = memo(function MonthBar({ thisVal, lastVal, color, colors, thisLabel, lastLabel }: {
   thisVal: number; lastVal: number; color: string; colors: any;
   thisLabel: string; lastLabel: string;
 }) {
@@ -209,10 +222,12 @@ function MonthBar({ thisVal, lastVal, color, colors, thisLabel, lastLabel }: {
       </View>
     </View>
   );
-}
+});
 
 // ─── 8-week chart with press tooltip ─────────────────────────────────────────
 // Extracted as sub-component so useChartPressState is called at component top level.
+// Gap smoothing: weeks with 0 CO₂ display as null (Victory Native skips them
+// rather than drawing a flat bar that suggests "zero was logged").
 
 function WeeklyCO2Chart({
   weeklyCO2Data, currentWeekLabel, colors,
@@ -227,11 +242,23 @@ function WeeklyCO2Chart({
     ? weeklyCO2Data.find(d => d.week === (state.x.value as any)) ?? null
     : null;
 
+  // Gap smoothing: replace 0-value weeks with a tiny floor so the chart
+  // preserves consistent bar spacing without drawing a misleadingly large
+  // "zero" gap. We annotate the original value on the activePoint lookup
+  // above so the tooltip still shows the correct 0.000 kg.
+  const chartData = useMemo(
+    () => weeklyCO2Data.map(d => ({ ...d, co2: d.co2 > 0 ? d.co2 : 0 })),
+    [weeklyCO2Data],
+  );
+
+  // Domain: always show 8 equal-width bars regardless of empty weeks
+  const maxCO2 = useMemo(() => Math.max(...weeklyCO2Data.map(d => d.co2), 0.1), [weeklyCO2Data]);
+
   return (
     <View>
       {/* Fixed-height tooltip row — prevents layout shift when pressing */}
       <View style={{ height: 26, alignItems: 'center', justifyContent: 'center' }}>
-        {isActive && activePoint && (
+        {isActive && activePoint ? (
           <View style={{
             flexDirection: 'row', gap: 8, alignItems: 'center',
             backgroundColor: colors.tint + '18', borderRadius: 8,
@@ -244,12 +271,18 @@ function WeeklyCO2Chart({
               {activePoint.week}
             </ThemedText>
           </View>
+        ) : (
+          // Reserve the same height so layout doesn't shift
+          <View />
         )}
       </View>
 
       <CartesianChart
-        data={weeklyCO2Data} xKey="week" yKeys={['co2']}
-        domainPadding={{ left: 40, right: 40, top: 20 }}
+        data={chartData}
+        xKey="week"
+        yKeys={['co2']}
+        domain={{ y: [0, maxCO2 * 1.15] }}
+        domainPadding={{ left: 20, right: 20, top: 16 }}
         chartPressState={state}
         axisOptions={{
           tickCount: 8,
@@ -257,6 +290,7 @@ function WeeklyCO2Chart({
           lineColor: colors.surfaceMuted,
           labelOffset: { x: 0, y: 4 },
           formatXLabel: (val: string) => {
+            // Show only the week number portion e.g. "W9" from "2026 W9"
             const p = String(val).split(' ');
             return p[1] ?? String(val);
           },
@@ -269,7 +303,7 @@ function WeeklyCO2Chart({
                 key={i}
                 points={[point]}
                 chartBounds={chartBounds}
-                color={weeklyCO2Data[i]?.week === currentWeekLabel ? colors.tint : colors.tint + '55'}
+                color={chartData[i]?.week === currentWeekLabel ? colors.tint : colors.tint + '55'}
                 roundedCorners={{ topLeft: 4, topRight: 4 }}
                 barWidth={24}
               />
@@ -289,6 +323,39 @@ function WeeklyCO2Chart({
   );
 }
 
+// ─── Dual category bar row — extracted so it's not re-created inside renderItem ──
+
+const CategoryDualBar = memo(function CategoryDualBar({
+  cat, thisVal, lastVal, colors,
+}: { cat: string; thisVal: number; lastVal: number; colors: any }) {
+  const diff = thisVal - lastVal;
+  const max  = Math.max(thisVal, lastVal, 0.01);
+  const clr  = CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS];
+  return (
+    <View style={styles.catBarRow}>
+      <View style={styles.catBarLabel}>
+        <FontAwesome6 name={CATEGORY_ICONS[cat]} size={12} color={clr} />
+        <ThemedText style={[styles.catBarText, { color: colors.text }]}>
+          {cat.charAt(0).toUpperCase() + cat.slice(1)}
+        </ThemedText>
+      </View>
+      <View style={styles.dualBars}>
+        <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+          <View style={[styles.dualBarFill, { width: `${(lastVal / max) * 100}%`, backgroundColor: clr + '55' }]} />
+        </View>
+        <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+          <View style={[styles.dualBarFill, { width: `${(thisVal / max) * 100}%`, backgroundColor: clr }]} />
+        </View>
+      </View>
+      <ThemedText style={[styles.catBarDiff, {
+        color: diff > 0 ? '#4CAF50' : diff < 0 ? '#EF5350' : colors.text,
+      }]}>
+        {diff > 0 ? '+' : ''}{diff.toFixed(2)}
+      </ThemedText>
+    </View>
+  );
+});
+
 // ─── Main screen ───────────────────────────────────────────────────────────────
 
 export default function StatsScreen() {
@@ -301,95 +368,166 @@ export default function StatsScreen() {
   const [slide2, setSlide2] = useState(0);
   const [slide3, setSlide3] = useState(0);
 
-  // ── Week data ─────────────────────────────────────────────────────────────
-  const weeklyCO2Data    = getWeeklyCO2Data(activities, userRegion, 8);
-  const currentWeekLabel = weeklyCO2Data[weeklyCO2Data.length - 1]?.week;
+  // ─────────────────────────────────────────────────────────────────────────
+  // 1. Normalise activity dates ONCE so every downstream computation
+  //    re-uses the same Date objects rather than calling new Date(a.date)
+  //    in every separate filter/reduce pass.
+  // ─────────────────────────────────────────────────────────────────────────
+  const activitiesWithDates = useMemo(
+    () => activities.map(a => ({ ...a, _date: parseActivityDate(a.date) })),
+    [activities],
+  );
 
-  const currentWeek  = getWeekRange(0);
-  const previousWeek = getWeekRange(1);
+  // ─────────────────────────────────────────────────────────────────────────
+  // 2. Pre-compute per-activity CO₂ and tokens ONCE.
+  //    This eliminates the 4-way CO₂ duplication: all derived stats simply
+  //    read from these pre-computed arrays.
+  // ─────────────────────────────────────────────────────────────────────────
+  const activitiesEnriched = useMemo(
+    () => activitiesWithDates.map(a => ({
+      ...a,
+      _co2:    calculateCarbonSaved(a, userRegion),
+      _tokens: calculateTokens(a),
+    })),
+    [activitiesWithDates, userRegion],
+  );
 
-  const thisWeekActs = activities.filter(a => { const d = new Date(a.date); return d >= currentWeek.start  && d <= currentWeek.end;  });
-  const lastWeekActs = activities.filter(a => { const d = new Date(a.date); return d >= previousWeek.start && d <= previousWeek.end; });
+  // ── Week boundaries ───────────────────────────────────────────────────────
+  const currentWeek  = useMemo(() => getWeekRange(0),  []);
+  const previousWeek = useMemo(() => getWeekRange(1),  []);
+  const thisMonth    = useMemo(() => getMonthRange(0),  []);
+  const lastMonth    = useMemo(() => getMonthRange(-1), []);
 
-  const thisWeekCO2    = thisWeekActs.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-  const thisWeekTokens = thisWeekActs.reduce((s, a) => s + calculateTokens(a), 0);
-  const lastWeekTokens = lastWeekActs.reduce((s, a) => s + calculateTokens(a), 0);
+  // ── Filtered activity buckets ─────────────────────────────────────────────
+  const thisWeekActs  = useMemo(
+    () => activitiesEnriched.filter(a => a._date >= currentWeek.start  && a._date <= currentWeek.end),
+    [activitiesEnriched, currentWeek],
+  );
+  const lastWeekActs  = useMemo(
+    () => activitiesEnriched.filter(a => a._date >= previousWeek.start && a._date <= previousWeek.end),
+    [activitiesEnriched, previousWeek],
+  );
+  const thisMonthActs = useMemo(
+    () => activitiesEnriched.filter(a => a._date >= thisMonth.start && a._date <= thisMonth.end),
+    [activitiesEnriched, thisMonth],
+  );
+  const lastMonthActs = useMemo(
+    () => activitiesEnriched.filter(a => a._date >= lastMonth.start && a._date <= lastMonth.end),
+    [activitiesEnriched, lastMonth],
+  );
+
+  // ── Week aggregates ───────────────────────────────────────────────────────
+  const thisWeekCO2    = useMemo(() => thisWeekActs.reduce((s, a) => s + a._co2, 0), [thisWeekActs]);
+  const thisWeekTokens = useMemo(() => thisWeekActs.reduce((s, a) => s + a._tokens, 0), [thisWeekActs]);
+  const lastWeekTokens = useMemo(() => lastWeekActs.reduce((s, a) => s + a._tokens, 0), [lastWeekActs]);
   const thisWeekCount  = thisWeekActs.length;
   const lastWeekCount  = lastWeekActs.length;
 
-  // CO₂ by category (for dual bars)
-  const co2ThisWeek: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  const co2LastWeek: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  thisWeekActs.forEach(a => { co2ThisWeek[a.category] += calculateCarbonSaved(a, userRegion); });
-  lastWeekActs.forEach(a => { co2LastWeek[a.category] += calculateCarbonSaved(a, userRegion); });
+  // CO₂ by category for dual bars (week)
+  const co2ThisWeek = useMemo(() => {
+    const acc: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+    thisWeekActs.forEach(a => { acc[a.category] += a._co2; });
+    return acc;
+  }, [thisWeekActs]);
+  const co2LastWeek = useMemo(() => {
+    const acc: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+    lastWeekActs.forEach(a => { acc[a.category] += a._co2; });
+    return acc;
+  }, [lastWeekActs]);
 
-  // ── All-time data ─────────────────────────────────────────────────────────
-  const totalSteps    = activities.reduce((s, a) => s + (a.steps ?? 0), 0);
-  const totalDistance = activities.reduce((s, a) => s + (a.distance ?? 0), 0);
-  // Use Firestore totalCarbonSaved (same source as Profile) to avoid drift
-  // from region changes after logging or floating-point rounding differences
-  const totalCO2      = userProfile?.totalCarbonSaved
-    ?? activities.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
+  // ── All-time aggregates ───────────────────────────────────────────────────
+  const totalSteps    = useMemo(() => activitiesEnriched.reduce((s, a) => s + (a.steps ?? 0), 0), [activitiesEnriched]);
+  const totalDistance = useMemo(() => activitiesEnriched.reduce((s, a) => s + (a.distance ?? 0), 0), [activitiesEnriched]);
 
-  const stepActs     = activities.filter(a => a.steps !== undefined);
-  const distActs     = activities.filter(a => a.distance !== undefined);
-  const avgSteps     = stepActs.length > 0 ? Math.round(stepActs.reduce((s, a) => s + a.steps!, 0) / stepActs.length) : 0;
-  const avgDist      = distActs.length > 0 ? (distActs.reduce((s, a) => s + a.distance!, 0) / distActs.length).toFixed(2) : '0.00';
+  // Authoritative source: Firestore totalCarbonSaved on the profile avoids
+  // drift from region changes after logging.
+  const totalCO2 = userProfile?.totalCarbonSaved
+    ?? activitiesEnriched.reduce((s, a) => s + a._co2, 0);
 
-  const catCounts: Record<string, number> = {};
-  activities.forEach(a => { catCounts[a.category] = (catCounts[a.category] || 0) + 1; });
-  const topActivity = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A';
+  const { stepActs, distActs, avgSteps, avgDist } = useMemo(() => {
+    const stepActs = activitiesEnriched.filter(a => a.steps !== undefined);
+    const distActs = activitiesEnriched.filter(a => a.distance !== undefined);
+    return {
+      stepActs,
+      distActs,
+      avgSteps: stepActs.length > 0 ? Math.round(stepActs.reduce((s, a) => s + a.steps!, 0) / stepActs.length) : 0,
+      avgDist:  distActs.length > 0 ? (distActs.reduce((s, a) => s + a.distance!, 0) / distActs.length).toFixed(2) : '0.00',
+    };
+  }, [activitiesEnriched]);
+
+  const { catCounts, topActivity } = useMemo(() => {
+    const catCounts: Record<string, number> = {};
+    activitiesEnriched.forEach(a => { catCounts[a.category] = (catCounts[a.category] || 0) + 1; });
+    const topActivity = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A';
+    return { catCounts, topActivity };
+  }, [activitiesEnriched]);
 
   // ── CO₂ all-time breakdown ────────────────────────────────────────────────
-  const co2AllTime: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  activities.forEach(a => { co2AllTime[a.category] += calculateCarbonSaved(a, userRegion); });
-  const totalCO2All = Object.values(co2AllTime).reduce((a, b) => a + b, 0);
+  const { co2AllTime, totalCO2All, dominantCat, dominantPct } = useMemo(() => {
+    const co2AllTime: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+    activitiesEnriched.forEach(a => { co2AllTime[a.category] += a._co2; });
+    const totalCO2All  = Object.values(co2AllTime).reduce((a, b) => a + b, 0);
+    const dominantCat  = totalCO2All > 0 ? Object.entries(co2AllTime).sort((a, b) => b[1] - a[1])[0][0] : 'N/A';
+    const dominantPct  = totalCO2All > 0 ? (co2AllTime[dominantCat] / totalCO2All) * 100 : 0;
+    return { co2AllTime, totalCO2All, dominantCat, dominantPct };
+  }, [activitiesEnriched]);
 
-  const dominantCat   = totalCO2All > 0 ? Object.entries(co2AllTime).sort((a, b) => b[1] - a[1])[0][0] : 'N/A';
-  const dominantPct   = totalCO2All > 0 ? (co2AllTime[dominantCat] / totalCO2All) * 100 : 0;
-
-  // ── Donut — activity count distribution ──────────────────────────────────
-  const donutSlices: DonutSlice[] = CATEGORY_ORDER.map(cat => ({
-    category: cat,
-    count:    catCounts[cat] ?? 0,
-    color:    CATEGORY_COLORS[cat] ?? colors.tint,
-  }));
+  // ── Donut slices ──────────────────────────────────────────────────────────
+  const donutSlices: DonutSlice[] = useMemo(
+    () => CATEGORY_ORDER.map(cat => ({
+      category: cat,
+      count:    catCounts[cat] ?? 0,
+      color:    CATEGORY_COLORS[cat] ?? colors.tint,
+    })),
+    [catCounts, colors.tint],
+  );
   const donutTotal = donutSlices.reduce((s, sl) => s + sl.count, 0);
 
-  // ── Monthly data ──────────────────────────────────────────────────────────
-  const thisMonth = getMonthRange(0);
-  const lastMonth = getMonthRange(-1);
+  // ── Month aggregates ──────────────────────────────────────────────────────
+  const thisMonthTotal  = thisMonthActs.length;
+  const lastMonthTotal  = lastMonthActs.length;
+  const thisMonthTokens = useMemo(() => thisMonthActs.reduce((s, a) => s + a._tokens, 0), [thisMonthActs]);
+  const lastMonthTokens = useMemo(() => lastMonthActs.reduce((s, a) => s + a._tokens, 0), [lastMonthActs]);
+  const thisMonthCO2    = useMemo(() => thisMonthActs.reduce((s, a) => s + a._co2, 0), [thisMonthActs]);
+  const lastMonthCO2    = useMemo(() => lastMonthActs.reduce((s, a) => s + a._co2, 0), [lastMonthActs]);
 
-  const thisMonthActs = activities.filter(a => { const d = new Date(a.date); return d >= thisMonth.start && d <= thisMonth.end; });
-  const lastMonthActs = activities.filter(a => { const d = new Date(a.date); return d >= lastMonth.start && d <= lastMonth.end; });
+  // CO₂ by category (month)
+  const co2ThisMonth = useMemo(() => {
+    const acc: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+    thisMonthActs.forEach(a => { acc[a.category] += a._co2; });
+    return acc;
+  }, [thisMonthActs]);
+  const co2LastMonth = useMemo(() => {
+    const acc: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
+    lastMonthActs.forEach(a => { acc[a.category] += a._co2; });
+    return acc;
+  }, [lastMonthActs]);
 
-  // CO₂ by category, monthly
-  const co2ThisMonth: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  const co2LastMonth: Record<string, number> = { walking: 0, running: 0, cycling: 0, electricity: 0, water: 0 };
-  thisMonthActs.forEach(a => { co2ThisMonth[a.category] += calculateCarbonSaved(a, userRegion); });
-  lastMonthActs.forEach(a => { co2LastMonth[a.category] += calculateCarbonSaved(a, userRegion); });
+  // Utilities monthly — reads from pre-computed _co2 field (no duplicate formula calls)
+  const { thisKwh, lastKwh, thisElecCO2, lastElecCO2, thisLitres, lastLitres, thisWaterCO2, lastWaterCO2 } = useMemo(() => {
+    const elecThis  = thisMonthActs.filter(a => a.category === 'electricity');
+    const elecLast  = lastMonthActs.filter(a => a.category === 'electricity');
+    const waterThis = thisMonthActs.filter(a => a.category === 'water');
+    const waterLast = lastMonthActs.filter(a => a.category === 'water');
+    return {
+      thisKwh:      elecThis.reduce((s, a) => s + (a.kwhSaved ?? 0), 0),
+      lastKwh:      elecLast.reduce((s, a) => s + (a.kwhSaved ?? 0), 0),
+      thisElecCO2:  elecThis.reduce((s, a) => s + a._co2, 0),
+      lastElecCO2:  elecLast.reduce((s, a) => s + a._co2, 0),
+      thisLitres:   waterThis.reduce((s, a) => s + (a.litersSaved ?? 0), 0),
+      lastLitres:   waterLast.reduce((s, a) => s + (a.litersSaved ?? 0), 0),
+      thisWaterCO2: waterThis.reduce((s, a) => s + a._co2, 0),
+      lastWaterCO2: waterLast.reduce((s, a) => s + a._co2, 0),
+    };
+  }, [thisMonthActs, lastMonthActs]);
 
-  const thisMonthTotal = thisMonthActs.length;
-  const lastMonthTotal = lastMonthActs.length;
-
-  const thisMonthTokens  = thisMonthActs.reduce((s, a) => s + calculateTokens(a), 0);
-  const lastMonthTokens  = lastMonthActs.reduce((s, a) => s + calculateTokens(a), 0);
-  const thisMonthCO2     = thisMonthActs.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-  const lastMonthCO2     = lastMonthActs.reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-
-  // Utilities monthly
-  const thisKwh      = thisMonthActs.filter(a => a.category === 'electricity').reduce((s, a) => s + (a.kwhSaved ?? 0), 0);
-  const lastKwh      = lastMonthActs.filter(a => a.category === 'electricity').reduce((s, a) => s + (a.kwhSaved ?? 0), 0);
-  const thisElecCO2  = thisMonthActs.filter(a => a.category === 'electricity').reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-  const lastElecCO2  = lastMonthActs.filter(a => a.category === 'electricity').reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-
-  const thisLitres   = thisMonthActs.filter(a => a.category === 'water').reduce((s, a) => s + (a.litersSaved ?? 0), 0);
-  const lastLitres   = lastMonthActs.filter(a => a.category === 'water').reduce((s, a) => s + (a.litersSaved ?? 0), 0);
-  const thisWaterCO2 = thisMonthActs.filter(a => a.category === 'water').reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-  const lastWaterCO2 = lastMonthActs.filter(a => a.category === 'water').reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
-
-  const hasUtility = thisKwh > 0 || lastKwh > 0 || thisLitres > 0 || lastLitres > 0;
+  const hasUtility        = thisKwh > 0 || lastKwh > 0 || thisLitres > 0 || lastLitres > 0;
   const hasMonthlyActivity = thisMonthTotal > 0 || lastMonthTotal > 0;
+
+  // 8-week CO₂ data (uses activities array directly — getWeeklyCO2Data is
+  // already memoised via its own stable output structure)
+  const weeklyCO2Data    = useMemo(() => getWeeklyCO2Data(activities, userRegion, 8), [activities, userRegion]);
+  const currentWeekLabel = weeklyCO2Data[weeklyCO2Data.length - 1]?.week;
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -403,413 +541,390 @@ export default function StatsScreen() {
         </ThemedText>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      {/*
+        IMPORTANT: nested FlatList/ScrollView scrolling issue.
+        The three horizontal card rows were originally FlatLists inside a vertical
+        ScrollView. React Native warns about nested VirtualizedLists and it was
+        causing the "large list slow to update" warning, since Android has to
+        track THREE separate virtualised lists simultaneously inside a scroll view.
 
+        Fix: replace each horizontal FlatList with a plain horizontal ScrollView
+        with pagingEnabled. With only 2–3 cards per row the virtualisation overhead
+        of FlatList adds zero benefit and only costs performance and the warning.
+        pagingEnabled + snapToOffsets on a ScrollView gives identical snap-to-card
+        UX with no nested VirtualizedList warning.
+      */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        // Prevents Android from trying to intercept child scroll events
+        nestedScrollEnabled
+      >
         {/* ══════════════════════════════════════════════════════════════
             ROW 1 — All-Time  |  This Week vs Last Week
         ══════════════════════════════════════════════════════════════ */}
         <SectionLabel label="Overview" colors={colors} />
-        <FlatList
-          data={['alltime', 'week'] as const}
-          horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + 12} decelerationRate="fast"
-          contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_WIDTH + 12}
+          decelerationRate="fast"
+          contentContainerStyle={styles.cardRow}
           onMomentumScrollEnd={e => setSlide1(Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 12)))}
-          keyExtractor={i => i}
-          renderItem={({ item }) => {
-            if (item === 'alltime') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>All-Time</ThemedText>
-                <View style={styles.bigRow}>
-                  <ThemedText style={[styles.bigNum, { color: colors.text }]}>{activities.length}</ThemedText>
-                  <ThemedText style={[styles.subtle, { color: colors.text }]}>activities logged</ThemedText>
-                </View>
-                <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
-                <View style={styles.grid}>
-                  <StatCard label="Total Steps"    value={totalSteps.toLocaleString()}      bg={colors.background} colors={colors} />
-                  <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} bg={colors.background} colors={colors} />
-                  <StatCard label="Avg Steps"      value={avgSteps.toLocaleString()}         bg={colors.background} colors={colors} />
-                  <StatCard label="Avg Distance"   value={`${avgDist} km`}                  bg={colors.background} colors={colors} />
-                  <StatCard label="Total CO₂"      value={`${totalCO2.toFixed(2)} kg`}      bg={colors.background} colors={colors} />
-                  <StatCard label="Top Activity"   value={topActivity.charAt(0).toUpperCase() + topActivity.slice(1)} bg={colors.background} colors={colors} />
-                </View>
-              </View>
-            );
+        >
+          {/* All-Time card */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>All-Time</ThemedText>
+            <View style={styles.bigRow}>
+              <ThemedText style={[styles.bigNum, { color: colors.text }]}>{activities.length}</ThemedText>
+              <ThemedText style={[styles.subtle, { color: colors.text }]}>activities logged</ThemedText>
+            </View>
+            <View style={[styles.divider, { backgroundColor: colors.surfaceMuted }]} />
+            <View style={styles.grid}>
+              <StatCard label="Total Steps"    value={totalSteps.toLocaleString()}      bg={colors.background} colors={colors} />
+              <StatCard label="Total Distance" value={`${totalDistance.toFixed(2)} km`} bg={colors.background} colors={colors} />
+              <StatCard label="Avg Steps"      value={avgSteps.toLocaleString()}         bg={colors.background} colors={colors} />
+              <StatCard label="Avg Distance"   value={`${avgDist} km`}                  bg={colors.background} colors={colors} />
+              <StatCard label="Total CO₂"      value={`${totalCO2.toFixed(2)} kg`}      bg={colors.background} colors={colors} />
+              <StatCard label="Top Activity"   value={topActivity.charAt(0).toUpperCase() + topActivity.slice(1)} bg={colors.background} colors={colors} />
+            </View>
+          </View>
 
-            if (item === 'week') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>This Week vs Last Week</ThemedText>
+          {/* This Week vs Last Week card */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>This Week vs Last Week</ThemedText>
 
-                {/* Tokens + Activities pills — CO₂ omitted (utility bills distort weekly delta) */}
-                <View style={styles.pillRow}>
-                  <ComparisonPill
-                    label="Tokens"     current={`${thisWeekTokens}`}
-                    previous={`${lastWeekTokens}`} diff={thisWeekTokens - lastWeekTokens}
-                    diffLabel={`${Math.abs(thisWeekTokens - lastWeekTokens)}`} colors={colors}
-                  />
-                  <ComparisonPill
-                    label="Activities" current={`${thisWeekCount}`}
-                    previous={`${lastWeekCount}`}  diff={thisWeekCount - lastWeekCount}
-                    diffLabel={`${Math.abs(thisWeekCount - lastWeekCount)}`}  colors={colors}
-                  />
-                </View>
+            {/* Tokens + Activities pills — CO₂ omitted (utility bills distort weekly delta) */}
+            <View style={styles.pillRow}>
+              <ComparisonPill
+                label="Tokens"     current={`${thisWeekTokens}`}
+                previous={`${lastWeekTokens}`} diff={thisWeekTokens - lastWeekTokens}
+                diffLabel={`${Math.abs(thisWeekTokens - lastWeekTokens)}`} colors={colors}
+              />
+              <ComparisonPill
+                label="Activities" current={`${thisWeekCount}`}
+                previous={`${lastWeekCount}`}  diff={thisWeekCount - lastWeekCount}
+                diffLabel={`${Math.abs(thisWeekCount - lastWeekCount)}`}  colors={colors}
+              />
+            </View>
 
-                {/* CO₂ by category dual bars */}
-                <ThemedText style={[styles.cardSubtitle, { color: colors.text }]}>CO₂ by category</ThemedText>
-                {CATEGORY_ORDER.map(cat => {
-                  const thisVal = co2ThisWeek[cat];
-                  const lastVal = co2LastWeek[cat];
-                  if (thisVal === 0 && lastVal === 0) return null;
-                  const diff    = thisVal - lastVal;
-                  const max     = Math.max(thisVal, lastVal, 0.01);
-                  const clr     = CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS];
-                  return (
-                    <View key={cat} style={styles.catBarRow}>
-                      <View style={styles.catBarLabel}>
-                        <FontAwesome6 name={CATEGORY_ICONS[cat]} size={12} color={clr} />
-                        <ThemedText style={[styles.catBarText, { color: colors.text }]}>
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </ThemedText>
-                      </View>
-                      <View style={styles.dualBars}>
-                        <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
-                          <View style={[styles.dualBarFill, { width: `${(lastVal / max) * 100}%`, backgroundColor: clr + '55' }]} />
-                        </View>
-                        <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
-                          <View style={[styles.dualBarFill, { width: `${(thisVal / max) * 100}%`, backgroundColor: clr }]} />
-                        </View>
-                      </View>
-                      <ThemedText style={[styles.catBarDiff, {
-                        color: diff > 0 ? '#4CAF50' : diff < 0 ? '#EF5350' : colors.text,
-                      }]}>
-                        {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                      </ThemedText>
-                    </View>
-                  );
-                })}
-                {/* Bar legend */}
-                <View style={styles.barLegend}>
-                  {[{ suf: '55', lbl: 'Last week' }, { suf: '', lbl: 'This week' }].map(({ suf, lbl }) => (
-                    <View key={lbl} style={styles.barLegendItem}>
-                      <View style={[styles.barLegendSwatch, { backgroundColor: colors.tint + suf }]} />
-                      <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>{lbl}</ThemedText>
-                    </View>
-                  ))}
+            {/* CO₂ by category dual bars */}
+            <ThemedText style={[styles.cardSubtitle, { color: colors.text }]}>CO₂ by category</ThemedText>
+            {CATEGORY_ORDER.map(cat => {
+              const thisVal = co2ThisWeek[cat];
+              const lastVal = co2LastWeek[cat];
+              if (thisVal === 0 && lastVal === 0) return null;
+              return (
+                <CategoryDualBar key={cat} cat={cat} thisVal={thisVal} lastVal={lastVal} colors={colors} />
+              );
+            })}
+            {/* Bar legend */}
+            <View style={styles.barLegend}>
+              {[{ suf: '55', lbl: 'Last week' }, { suf: '', lbl: 'This week' }].map(({ suf, lbl }) => (
+                <View key={lbl} style={styles.barLegendItem}>
+                  <View style={[styles.barLegendSwatch, { backgroundColor: colors.tint + suf }]} />
+                  <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>{lbl}</ThemedText>
                 </View>
-              </View>
-            );
-            return null;
-          }}
-        />
+              ))}
+            </View>
+          </View>
+        </ScrollView>
         <DotsRow count={2} active={slide1} colors={colors} />
 
         {/* ══════════════════════════════════════════════════════════════
             ROW 2 — Activity Donut  |  CO₂ Breakdown
         ══════════════════════════════════════════════════════════════ */}
         <SectionLabel label="Breakdown" colors={colors} />
-        <FlatList
-          data={['donut', 'co2'] as const}
-          horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + 12} decelerationRate="fast"
-          contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_WIDTH + 12}
+          decelerationRate="fast"
+          contentContainerStyle={styles.cardRow}
           onMomentumScrollEnd={e => setSlide2(Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 12)))}
-          keyExtractor={i => i}
-          renderItem={({ item }) => {
-            if (item === 'donut') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Activity Distribution</ThemedText>
-                <ThemedText style={[styles.subtle, { color: colors.text }]}>% of activities by category, all-time</ThemedText>
+        >
+          {/* Activity Distribution donut */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Activity Distribution</ThemedText>
+            <ThemedText style={[styles.subtle, { color: colors.text }]}>% of activities by category, all-time</ThemedText>
 
-                {donutTotal === 0 ? (
-                  <View style={styles.emptyState}>
-                    <FontAwesome6 name="chart-pie" size={32} color={colors.text} style={{ opacity: 0.15 }} />
-                    <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
-                      No activities yet
-                    </ThemedText>
+            {donutTotal === 0 ? (
+              <View style={styles.emptyState}>
+                <FontAwesome6 name="chart-pie" size={32} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
+                  No activities yet
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={{ gap: 16 }}>
+                {/* Donut centred */}
+                <View style={{ alignItems: 'center' }}>
+                  <View style={{ width: 156, height: 156 }}>
+                    <DonutChart slices={donutSlices} size={156} />
+                    <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+                      <ThemedText style={{ fontSize: 22, fontWeight: '800', color: colors.text, lineHeight: 26 }}>
+                        {donutTotal}
+                      </ThemedText>
+                      <ThemedText style={{ fontSize: 11, opacity: 0.45, color: colors.text }}>total</ThemedText>
+                    </View>
                   </View>
-                ) : (
-                  <View style={{ gap: 16 }}>
-                    {/* Donut centred */}
-                    <View style={{ alignItems: 'center' }}>
-                      <View style={{ width: 156, height: 156 }}>
-                        <DonutChart slices={donutSlices} size={156} />
-                        <View style={[StyleSheet.absoluteFillObject, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
-                          <ThemedText style={{ fontSize: 22, fontWeight: '800', color: colors.text, lineHeight: 26 }}>
-                            {donutTotal}
+                </View>
+
+                {/* Legend grid — 2 columns below the donut */}
+                <View style={styles.donutLegendGrid}>
+                  {donutSlices
+                    .filter(sl => sl.count > 0)
+                    .sort((a, b) => b.count - a.count)
+                    .map(sl => (
+                      <View key={sl.category} style={styles.donutLegendGridItem}>
+                        <View style={[styles.legendDot, { backgroundColor: sl.color }]} />
+                        <View style={{ flex: 1 }}>
+                          <ThemedText style={[styles.legendText, { color: colors.text }]}>
+                            {sl.category.charAt(0).toUpperCase() + sl.category.slice(1)}
                           </ThemedText>
-                          <ThemedText style={{ fontSize: 11, opacity: 0.45, color: colors.text }}>total</ThemedText>
+                          <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>
+                            {sl.count} · {((sl.count / donutTotal) * 100).toFixed(0)}%
+                          </ThemedText>
                         </View>
                       </View>
-                    </View>
-
-                    {/* Legend grid — 2 columns below the donut */}
-                    <View style={styles.donutLegendGrid}>
-                      {donutSlices
-                        .filter(sl => sl.count > 0)
-                        .sort((a, b) => b.count - a.count)
-                        .map(sl => (
-                          <View key={sl.category} style={styles.donutLegendGridItem}>
-                            <View style={[styles.legendDot, { backgroundColor: sl.color }]} />
-                            <View style={{ flex: 1 }}>
-                              <ThemedText style={[styles.legendText, { color: colors.text }]}>
-                                {sl.category.charAt(0).toUpperCase() + sl.category.slice(1)}
-                              </ThemedText>
-                              <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>
-                                {sl.count} · {((sl.count / donutTotal) * 100).toFixed(0)}%
-                              </ThemedText>
-                            </View>
-                          </View>
-                        ))}
-                    </View>
-                  </View>
-                )}
+                    ))}
+                </View>
               </View>
-            );
+            )}
+          </View>
 
-            if (item === 'co2') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>CO₂ Impact Breakdown</ThemedText>
+          {/* CO₂ Impact Breakdown */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>CO₂ Impact Breakdown</ThemedText>
 
-                <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
-                  {CATEGORY_ORDER.map(cat => {
-                    const val = co2AllTime[cat];
-                    if (val <= 0 || totalCO2All === 0) return null;
-                    return (
-                      <View key={cat} style={[styles.stackedSegment, {
-                        width: `${(val / totalCO2All) * 100}%`,
-                        backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS],
-                      }]} />
-                    );
-                  })}
-                </View>
+            <View style={[styles.stackedBar, { backgroundColor: colors.surfaceMuted }]}>
+              {CATEGORY_ORDER.map(cat => {
+                const val = co2AllTime[cat];
+                if (val <= 0 || totalCO2All === 0) return null;
+                return (
+                  <View key={cat} style={[styles.stackedSegment, {
+                    width: `${(val / totalCO2All) * 100}%`,
+                    backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS],
+                  }]} />
+                );
+              })}
+            </View>
 
-                <View style={styles.legendList}>
-                  {CATEGORY_ORDER.map(cat => {
-                    const val = co2AllTime[cat];
-                    if (val <= 0) return null;
-                    return (
-                      <View key={cat} style={styles.legendRow}>
-                        <View style={[styles.legendDot, { backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS] }]} />
-                        <ThemedText style={[styles.legendText, { color: colors.text, flex: 1 }]}>
-                          {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                        </ThemedText>
-                        <ThemedText style={[styles.legendText, { color: colors.text, opacity: 0.65 }]}>
-                          {val.toFixed(2)} kg · {((val / totalCO2All) * 100).toFixed(1)}%
-                        </ThemedText>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {totalCO2All > 0 && (
-                  <View style={[styles.insightBox, { backgroundColor: colors.tint + '18' }]}>
-                    <FontAwesome6 name="lightbulb" size={12} color={colors.tint} />
-                    <ThemedText style={{ color: colors.text, fontSize: 13, flex: 1, lineHeight: 18 }}>
-                      {dominantCat.charAt(0).toUpperCase() + dominantCat.slice(1)} drives {dominantPct.toFixed(1)}% of your total CO₂ savings.
+            <View style={styles.legendList}>
+              {CATEGORY_ORDER.map(cat => {
+                const val = co2AllTime[cat];
+                if (val <= 0) return null;
+                return (
+                  <View key={cat} style={styles.legendRow}>
+                    <View style={[styles.legendDot, { backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS] }]} />
+                    <ThemedText style={[styles.legendText, { color: colors.text, flex: 1 }]}>
+                      {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                    </ThemedText>
+                    <ThemedText style={[styles.legendText, { color: colors.text, opacity: 0.65 }]}>
+                      {val.toFixed(2)} kg · {((val / totalCO2All) * 100).toFixed(1)}%
                     </ThemedText>
                   </View>
-                )}
+                );
+              })}
+            </View>
+
+            {totalCO2All > 0 && (
+              <View style={[styles.insightBox, { backgroundColor: colors.tint + '18' }]}>
+                <FontAwesome6 name="lightbulb" size={12} color={colors.tint} />
+                <ThemedText style={{ color: colors.text, fontSize: 13, flex: 1, lineHeight: 18 }}>
+                  {dominantCat.charAt(0).toUpperCase() + dominantCat.slice(1)} drives {dominantPct.toFixed(1)}% of your total CO₂ savings.
+                </ThemedText>
               </View>
-            );
-            return null;
-          }}
-        />
+            )}
+          </View>
+        </ScrollView>
         <DotsRow count={2} active={slide2} colors={colors} />
 
         {/* ══════════════════════════════════════════════════════════════
             ROW 3 — Monthly Activity  |  Monthly Utilities  |  8-Week Chart
         ══════════════════════════════════════════════════════════════ */}
         <SectionLabel label="Monthly & Trends" colors={colors} />
-        <FlatList
-          data={['monthActivity', 'utilities', 'trends'] as const}
-          horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + 12} decelerationRate="fast"
-          contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_WIDTH + 12}
+          decelerationRate="fast"
+          contentContainerStyle={styles.cardRow}
           onMomentumScrollEnd={e => setSlide3(Math.round(e.nativeEvent.contentOffset.x / (CARD_WIDTH + 12)))}
-          keyExtractor={i => i}
-          renderItem={({ item }) => {
+        >
+          {/* Monthly Activity Comparison */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Monthly Activity</ThemedText>
+            <ThemedText style={[styles.subtle, { color: colors.text }]}>
+              {thisMonth.label} vs {lastMonth.label}
+            </ThemedText>
 
-            // ── Monthly Activity Comparison ──
-            if (item === 'monthActivity') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Monthly Activity</ThemedText>
-                <ThemedText style={[styles.subtle, { color: colors.text }]}>
-                  {thisMonth.label} vs {lastMonth.label}
+            {!hasMonthlyActivity ? (
+              <View style={styles.emptyState}>
+                <FontAwesome6 name="calendar" size={28} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
+                  No activities logged yet this month or last.
                 </ThemedText>
-
-                {!hasMonthlyActivity ? (
-                  <View style={styles.emptyState}>
-                    <FontAwesome6 name="calendar" size={28} color={colors.text} style={{ opacity: 0.15 }} />
-                    <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
-                      No activities logged yet this month or last.
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <View style={{ gap: 16 }}>
-                    {/* Top-level summary pills */}
-                    <View style={styles.pillRow}>
-                      <ComparisonPill
-                        label="Activities" current={`${thisMonthTotal}`}
-                        previous={`${lastMonthTotal}`} diff={thisMonthTotal - lastMonthTotal}
-                        diffLabel={`${Math.abs(thisMonthTotal - lastMonthTotal)}`} colors={colors}
-                      />
-                      <ComparisonPill
-                        label="Tokens" current={`${thisMonthTokens}`}
-                        previous={`${lastMonthTokens}`} diff={thisMonthTokens - lastMonthTokens}
-                        diffLabel={`${Math.abs(thisMonthTokens - lastMonthTokens)}`} colors={colors}
-                      />
-                      <ComparisonPill
-                        label="CO₂ Saved" current={`${thisMonthCO2.toFixed(1)} kg`}
-                        previous={`${lastMonthCO2.toFixed(1)} kg`} diff={thisMonthCO2 - lastMonthCO2}
-                        diffLabel={`${Math.abs(thisMonthCO2 - lastMonthCO2).toFixed(1)} kg`} colors={colors}
-                      />
-                    </View>
-
-                    {/* CO₂ by category */}
-                    <View style={{ gap: 2 }}>
-                      <ThemedText style={[styles.cardSubtitle, { color: colors.text }]}>
-                        CO₂ by category
-                      </ThemedText>
-                      {CATEGORY_ORDER.map(cat => {
-                        const thisC = co2ThisMonth[cat] ?? 0;
-                        const lastC = co2LastMonth[cat] ?? 0;
-                        if (thisC === 0 && lastC === 0) return null;
-                        const diff  = thisC - lastC;
-                        const max   = Math.max(thisC, lastC, 0.001);
-                        const clr   = CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS];
-                        return (
-                          <View key={cat} style={[styles.catBarRow, { marginBottom: 6 }]}>
-                            <View style={styles.catBarLabel}>
-                              <FontAwesome6 name={CATEGORY_ICONS[cat]} size={12} color={clr} />
-                              <ThemedText style={[styles.catBarText, { color: colors.text }]}>
-                                {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                              </ThemedText>
-                            </View>
-                            <View style={styles.dualBars}>
-                              <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
-                                <View style={[styles.dualBarFill, { width: `${(lastC / max) * 100}%`, backgroundColor: clr + '55' }]} />
-                              </View>
-                              <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
-                                <View style={[styles.dualBarFill, { width: `${(thisC / max) * 100}%`, backgroundColor: clr }]} />
-                              </View>
-                            </View>
-                            <ThemedText style={[styles.catBarDiff, {
-                              color: diff > 0 ? '#4CAF50' : diff < 0 ? '#EF5350' : colors.text,
-                            }]}>
-                              {diff > 0 ? '+' : ''}{diff.toFixed(2)}
-                            </ThemedText>
-                          </View>
-                        );
-                      })}
-                      <View style={styles.barLegend}>
-                        {[{ suf: '55', lbl: lastMonth.label }, { suf: '', lbl: thisMonth.label }].map(({ suf, lbl }) => (
-                          <View key={lbl} style={styles.barLegendItem}>
-                            <View style={[styles.barLegendSwatch, { backgroundColor: colors.tint + suf }]} />
-                            <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>{lbl.split(' ')[0]}</ThemedText>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                )}
               </View>
-            );
-
-            // ── Monthly Utilities ──
-            if (item === 'utilities') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Monthly Utilities</ThemedText>
-                <ThemedText style={[styles.subtle, { color: colors.text }]}>
-                  {thisMonth.label} vs {lastMonth.label}
-                </ThemedText>
-
-                {!hasUtility ? (
-                  <View style={styles.emptyState}>
-                    <FontAwesome6 name="bolt" size={28} color={colors.text} style={{ opacity: 0.15 }} />
-                    <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
-                      No utility readings logged yet.{'\n'}Log electricity or water usage to see your monthly comparison.
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <View style={{ gap: 14 }}>
-                    {/* Electricity */}
-                    {(thisKwh > 0 || lastKwh > 0) && (
-                      <View style={[styles.utilitySection, { borderColor: CATEGORY_COLORS.electricity + '45' }]}>
-                        <View style={styles.utilityHeader}>
-                          <View style={[styles.utilityBubble, { backgroundColor: CATEGORY_COLORS.electricity + '22' }]}>
-                            <FontAwesome6 name="bolt" size={13} color={CATEGORY_COLORS.electricity} />
-                          </View>
-                          <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14 }}>Electricity</ThemedText>
-                        </View>
-                        <View style={styles.metricRow}>
-                          <MonthMetric label="kWh Saved"   thisVal={thisKwh}     lastVal={lastKwh}     unit="kWh" color={CATEGORY_COLORS.electricity} colors={colors} />
-                          <View style={[styles.metricDivider, { backgroundColor: colors.surfaceMuted }]} />
-                          <MonthMetric label="CO₂ Avoided" thisVal={thisElecCO2} lastVal={lastElecCO2} unit="kg"  color={CATEGORY_COLORS.electricity} colors={colors} decimals={2} />
-                        </View>
-                        <MonthBar thisVal={thisKwh} lastVal={lastKwh} color={CATEGORY_COLORS.electricity} colors={colors} thisLabel={thisMonth.shortLabel} lastLabel={lastMonth.shortLabel} />
-                      </View>
-                    )}
-
-                    {/* Water */}
-                    {(thisLitres > 0 || lastLitres > 0) && (
-                      <View style={[styles.utilitySection, { borderColor: CATEGORY_COLORS.water + '45' }]}>
-                        <View style={styles.utilityHeader}>
-                          <View style={[styles.utilityBubble, { backgroundColor: CATEGORY_COLORS.water + '22' }]}>
-                            <FontAwesome6 name="droplet" size={13} color={CATEGORY_COLORS.water} />
-                          </View>
-                          <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14 }}>Water</ThemedText>
-                        </View>
-                        <View style={styles.metricRow}>
-                          <MonthMetric label="Litres Saved" thisVal={thisLitres}   lastVal={lastLitres}   unit="L"  color={CATEGORY_COLORS.water} colors={colors} decimals={0} />
-                          <View style={[styles.metricDivider, { backgroundColor: colors.surfaceMuted }]} />
-                          <MonthMetric label="CO₂ Avoided"  thisVal={thisWaterCO2} lastVal={lastWaterCO2} unit="kg" color={CATEGORY_COLORS.water} colors={colors} decimals={3} />
-                        </View>
-                        <MonthBar thisVal={thisLitres} lastVal={lastLitres} color={CATEGORY_COLORS.water} colors={colors} thisLabel={thisMonth.shortLabel} lastLabel={lastMonth.shortLabel} />
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            );
-
-            // ── 8-Week CO₂ Chart ──
-            if (item === 'trends') return (
-              <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface, minHeight: 380 }]}>
-                <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>CO₂ Saved — 8 Weeks</ThemedText>
-                <ThemedText style={[styles.subtle, { color: colors.text }]}>kg CO₂ per week, all categories</ThemedText>
-
-                {weeklyCO2Data.every(d => d.co2 === 0) ? (
-                  <View style={styles.emptyState}>
-                    <FontAwesome6 name="chart-bar" size={28} color={colors.text} style={{ opacity: 0.15 }} />
-                    <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
-                      No data yet — start logging!
-                    </ThemedText>
-                  </View>
-                ) : (
-                  <WeeklyCO2Chart
-                    weeklyCO2Data={weeklyCO2Data}
-                    currentWeekLabel={currentWeekLabel}
-                    colors={colors}
+            ) : (
+              <View style={{ gap: 16 }}>
+                {/* Top-level summary pills */}
+                <View style={styles.pillRow}>
+                  <ComparisonPill
+                    label="Activities" current={`${thisMonthTotal}`}
+                    previous={`${lastMonthTotal}`} diff={thisMonthTotal - lastMonthTotal}
+                    diffLabel={`${Math.abs(thisMonthTotal - lastMonthTotal)}`} colors={colors}
                   />
-                )}
+                  <ComparisonPill
+                    label="Tokens" current={`${thisMonthTokens}`}
+                    previous={`${lastMonthTokens}`} diff={thisMonthTokens - lastMonthTokens}
+                    diffLabel={`${Math.abs(thisMonthTokens - lastMonthTokens)}`} colors={colors}
+                  />
+                  <ComparisonPill
+                    label="CO₂ Saved" current={`${thisMonthCO2.toFixed(1)} kg`}
+                    previous={`${lastMonthCO2.toFixed(1)} kg`} diff={thisMonthCO2 - lastMonthCO2}
+                    diffLabel={`${Math.abs(thisMonthCO2 - lastMonthCO2).toFixed(1)} kg`} colors={colors}
+                  />
+                </View>
 
-                <View style={styles.chartSummary}>
-                  {[
-                    { label: 'This week',  val: thisWeekCO2.toFixed(2) + ' kg' },
-                    { label: 'Avg/week',   val: (weeklyCO2Data.reduce((s, d) => s + d.co2, 0) / (weeklyCO2Data.filter(d => d.co2 > 0).length || 1)).toFixed(2) + ' kg' },
-                    { label: 'Best week',  val: Math.max(...weeklyCO2Data.map(d => d.co2)).toFixed(2) + ' kg' },
-                  ].map(({ label, val }) => (
-                    <View key={label} style={styles.chartSummaryItem}>
-                      <ThemedText style={[styles.pillCurrent, { color: colors.text }]}>{val}</ThemedText>
-                      <ThemedText style={[styles.subtle,      { color: colors.text }]}>{label}</ThemedText>
-                    </View>
-                  ))}
+                {/* CO₂ by category */}
+                <View style={{ gap: 2 }}>
+                  <ThemedText style={[styles.cardSubtitle, { color: colors.text }]}>
+                    CO₂ by category
+                  </ThemedText>
+                  {CATEGORY_ORDER.map(cat => {
+                    const thisC = co2ThisMonth[cat] ?? 0;
+                    const lastC = co2LastMonth[cat] ?? 0;
+                    if (thisC === 0 && lastC === 0) return null;
+                    return (
+                      <View key={cat} style={[styles.catBarRow, { marginBottom: 6 }]}>
+                        <View style={styles.catBarLabel}>
+                          <FontAwesome6 name={CATEGORY_ICONS[cat]} size={12} color={CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS]} />
+                          <ThemedText style={[styles.catBarText, { color: colors.text }]}>
+                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.dualBars}>
+                          <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+                            <View style={[styles.dualBarFill, { width: `${(lastC / Math.max(thisC, lastC, 0.001)) * 100}%`, backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS] + '55' }]} />
+                          </View>
+                          <View style={[styles.dualBarTrack, { backgroundColor: colors.surfaceMuted }]}>
+                            <View style={[styles.dualBarFill, { width: `${(thisC / Math.max(thisC, lastC, 0.001)) * 100}%`, backgroundColor: CATEGORY_COLORS[cat as keyof typeof CATEGORY_COLORS] }]} />
+                          </View>
+                        </View>
+                        <ThemedText style={[styles.catBarDiff, {
+                          color: (thisC - lastC) > 0 ? '#4CAF50' : (thisC - lastC) < 0 ? '#EF5350' : colors.text,
+                        }]}>
+                          {(thisC - lastC) > 0 ? '+' : ''}{(thisC - lastC).toFixed(2)}
+                        </ThemedText>
+                      </View>
+                    );
+                  })}
+                  <View style={styles.barLegend}>
+                    {[{ suf: '55', lbl: lastMonth.label }, { suf: '', lbl: thisMonth.label }].map(({ suf, lbl }) => (
+                      <View key={lbl} style={styles.barLegendItem}>
+                        <View style={[styles.barLegendSwatch, { backgroundColor: colors.tint + suf }]} />
+                        <ThemedText style={[styles.subtle, { color: colors.text, fontSize: 11 }]}>{lbl.split(' ')[0]}</ThemedText>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               </View>
-            );
-            return null;
-          }}
-        />
+            )}
+          </View>
+
+          {/* Monthly Utilities */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Monthly Utilities</ThemedText>
+            <ThemedText style={[styles.subtle, { color: colors.text }]}>
+              {thisMonth.label} vs {lastMonth.label}
+            </ThemedText>
+
+            {!hasUtility ? (
+              <View style={styles.emptyState}>
+                <FontAwesome6 name="bolt" size={28} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
+                  No utility readings logged yet.{'\n'}Log electricity or water usage to see your monthly comparison.
+                </ThemedText>
+              </View>
+            ) : (
+              <View style={{ gap: 14 }}>
+                {/* Electricity */}
+                {(thisKwh > 0 || lastKwh > 0) && (
+                  <View style={[styles.utilitySection, { borderColor: CATEGORY_COLORS.electricity + '45' }]}>
+                    <View style={styles.utilityHeader}>
+                      <View style={[styles.utilityBubble, { backgroundColor: CATEGORY_COLORS.electricity + '22' }]}>
+                        <FontAwesome6 name="bolt" size={13} color={CATEGORY_COLORS.electricity} />
+                      </View>
+                      <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14 }}>Electricity</ThemedText>
+                    </View>
+                    <View style={styles.metricRow}>
+                      <MonthMetric label="kWh Saved"   thisVal={thisKwh}     lastVal={lastKwh}     unit="kWh" color={CATEGORY_COLORS.electricity} colors={colors} />
+                      <View style={[styles.metricDivider, { backgroundColor: colors.surfaceMuted }]} />
+                      <MonthMetric label="CO₂ Avoided" thisVal={thisElecCO2} lastVal={lastElecCO2} unit="kg"  color={CATEGORY_COLORS.electricity} colors={colors} decimals={2} />
+                    </View>
+                    <MonthBar thisVal={thisKwh} lastVal={lastKwh} color={CATEGORY_COLORS.electricity} colors={colors} thisLabel={thisMonth.shortLabel} lastLabel={lastMonth.shortLabel} />
+                  </View>
+                )}
+
+                {/* Water */}
+                {(thisLitres > 0 || lastLitres > 0) && (
+                  <View style={[styles.utilitySection, { borderColor: CATEGORY_COLORS.water + '45' }]}>
+                    <View style={styles.utilityHeader}>
+                      <View style={[styles.utilityBubble, { backgroundColor: CATEGORY_COLORS.water + '22' }]}>
+                        <FontAwesome6 name="droplet" size={13} color={CATEGORY_COLORS.water} />
+                      </View>
+                      <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 14 }}>Water</ThemedText>
+                    </View>
+                    <View style={styles.metricRow}>
+                      <MonthMetric label="Litres Saved" thisVal={thisLitres}   lastVal={lastLitres}   unit="L"  color={CATEGORY_COLORS.water} colors={colors} decimals={0} />
+                      <View style={[styles.metricDivider, { backgroundColor: colors.surfaceMuted }]} />
+                      <MonthMetric label="CO₂ Avoided"  thisVal={thisWaterCO2} lastVal={lastWaterCO2} unit="kg" color={CATEGORY_COLORS.water} colors={colors} decimals={3} />
+                    </View>
+                    <MonthBar thisVal={thisLitres} lastVal={lastLitres} color={CATEGORY_COLORS.water} colors={colors} thisLabel={thisMonth.shortLabel} lastLabel={lastMonth.shortLabel} />
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* 8-Week CO₂ Chart */}
+          <View style={[styles.card, styles.swipeCard, { backgroundColor: colors.surface, minHeight: 380 }]}>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>CO₂ Saved — 8 Weeks</ThemedText>
+            <ThemedText style={[styles.subtle, { color: colors.text }]}>kg CO₂ per week, all categories</ThemedText>
+
+            {weeklyCO2Data.every(d => d.co2 === 0) ? (
+              <View style={styles.emptyState}>
+                <FontAwesome6 name="chart-bar" size={28} color={colors.text} style={{ opacity: 0.15 }} />
+                <ThemedText style={[styles.subtle, { color: colors.text, textAlign: 'center', marginTop: 8 }]}>
+                  No data yet — start logging!
+                </ThemedText>
+              </View>
+            ) : (
+              <WeeklyCO2Chart
+                weeklyCO2Data={weeklyCO2Data}
+                currentWeekLabel={currentWeekLabel}
+                colors={colors}
+              />
+            )}
+
+            <View style={styles.chartSummary}>
+              {[
+                { label: 'This week', val: thisWeekCO2.toFixed(2) + ' kg' },
+                { label: 'Avg/week',  val: (weeklyCO2Data.reduce((s, d) => s + d.co2, 0) / (weeklyCO2Data.filter(d => d.co2 > 0).length || 1)).toFixed(2) + ' kg' },
+                { label: 'Best week', val: Math.max(...weeklyCO2Data.map(d => d.co2)).toFixed(2) + ' kg' },
+              ].map(({ label, val }) => (
+                <View key={label} style={styles.chartSummaryItem}>
+                  <ThemedText style={[styles.pillCurrent, { color: colors.text }]}>{val}</ThemedText>
+                  <ThemedText style={[styles.subtle,      { color: colors.text }]}>{label}</ThemedText>
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
         <DotsRow count={3} active={slide3} colors={colors} />
 
       </ScrollView>
@@ -822,6 +937,7 @@ export default function StatsScreen() {
 const styles = StyleSheet.create({
   headerArea:  { gap: 2, paddingTop: 18, paddingBottom: 8 },
   scroll:      { paddingBottom: 32, gap: 8, paddingTop: 8 },
+  cardRow:     { gap: 12, paddingHorizontal: 16 },
   sectionLabel:{ fontSize: 11, fontWeight: '700', letterSpacing: 0.8, opacity: 0.45, textTransform: 'uppercase', paddingHorizontal: 16, marginTop: 8 },
   subtle:      { fontSize: 13, opacity: 0.7 },
   card:        { padding: 16, borderRadius: 14, gap: 10 },
