@@ -28,6 +28,10 @@ export type Activity = {
   billId?: string;
   source?: 'manual' | 'health_connect';
   date: string;
+  /** CO₂ saved in kg — stored at log time so CO₂ challenges can read it directly. */
+  co2Saved?: number;
+  /** EcoTokens earned — stored at log time for tokens-based challenge progress. */
+  tokensEarned?: number;
 };
 
 function getCurrentWeekKey(): string {

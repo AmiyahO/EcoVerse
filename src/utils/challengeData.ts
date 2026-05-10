@@ -6,7 +6,7 @@
 // has something to show.
 export type ChallengeMetric = 'steps' | 'co2' | 'tokens' | 'distance' | 'kwh' | 'activities' | 'litres';
 
-export type ChallengeDifficulty = 'easy' | 'medium' | 'hard';
+export type ChallengeDifficulty = 'easy' | 'medium' | 'hard' | 'epic';
 export type ChallengeType       = 'weekly' | 'monthly' | 'special';
 
 export interface Challenge {
@@ -87,6 +87,30 @@ export const CHALLENGES: Challenge[] = [
     rewardTokens:  150,
     badgeLabel:    'Step Sovereign',
   },
+  {
+    id:            'century-quest',
+    title:         'The Century Quest',
+    description:   'Log 100,000 steps this week. The ultimate movement challenge.',
+    icon:          'ranking-star',
+    color:         '#FF6F00',
+    difficulty:    'epic',
+    challengeType: 'weekly',
+    goal:          { metric: 'steps', target: 100000, categories: ['walking', 'running'] },
+    rewardTokens:  500,
+    badgeLabel:    'Century Legend',
+  },
+  {
+    id:            'distance-dynamo',
+    title:         'Distance Dynamo',
+    description:   'Cover a combined 50 km through eco-friendly movement this week.',
+    icon:          'trophy',
+    color:         '#FF6F00',
+    difficulty:    'epic',
+    challengeType: 'weekly',
+    goal:          { metric: 'distance', target: 50, categories: ['walking', 'running', 'cycling'] },
+    rewardTokens:  450,
+    badgeLabel:    'Distance Dynamo',
+  },
 ];
 
 // ── Week identifier (ISO year-week, e.g. "2026-W19") ─────────────────────────
@@ -121,7 +145,8 @@ export function getChallengeProgress(ch: Challenge, weekActivities: any[]): numb
       return relevant.reduce((s, a) => s + (a.litersSaved ?? 0), 0);
 
     case 'co2':
-      return relevant.reduce((s, a) => s + (a.co2Saved ?? 0), 0);
+      // co2Saved is stored on each Activity at log time (add.tsx writes it to Firestore)
+      return relevant.reduce((s, a) => s + ((a as any).co2Saved ?? 0), 0);
 
     case 'activities':
       // Consistency Champion variant: count unique active days (one per day counts)

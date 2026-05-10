@@ -74,6 +74,13 @@ const MEDAL: Record<number, { color: string; bg: string; icon: string; label: st
   3: { color: '#8B4513', bg: '#FDF3EC', icon: 'medal',   label: '3rd' },
 };
 
+const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
+  easy:   { bg: '#E8F5E9', text: '#2E7D32' },
+  medium: { bg: '#FFF3E0', text: '#E65100' },
+  hard:   { bg: '#FCE4EC', text: '#C62828' },
+  epic:   { bg: '#EDE7F6', text: '#4527A0' },
+};
+
 function scoreColor(score: number) {
   if (score >= 75) return '#43A047';
   if (score >= 50) return '#FB8C00';
@@ -317,9 +324,35 @@ export default function CommunityScreen() {
     try {
       const weekId = getCurrentWeekId();
       const progressRef = doc(db, 'users', currentUid, 'challengeProgress', weekId);
-      await updateDoc(progressRef, { joinedIds: arrayUnion(challengeId) }).catch(async () => {
-        await setDoc(progressRef, { joinedIds: [challengeId], progress: {}, completedIds: [], weekId });
-      });
+
+      // Cache challenge metadata alongside the join so the Achievements screen
+      // can display badges for challenges that may no longer exist in Firestore
+      // (e.g. from previous weeks after the rotation function replaces them).
+      const ch = liveChallenges.find(c => c.id === challengeId);
+      const titleCache = ch ? {
+        [`challengeTitles.${challengeId}`]: {
+          title:        ch.title,
+          badgeLabel:   ch.badgeLabel,
+          icon:         ch.icon,
+          color:        ch.color,
+          difficulty:   ch.difficulty,
+          rewardTokens: ch.rewardTokens,
+        },
+      } : {};
+
+      await updateDoc(progressRef, { joinedIds: arrayUnion(challengeId), ...titleCache })
+        .catch(async () => {
+          await setDoc(progressRef, {
+            joinedIds: [challengeId],
+            progress: {},
+            completedIds: [],
+            weekId,
+            challengeTitles: ch ? { [challengeId]: {
+              title: ch.title, badgeLabel: ch.badgeLabel, icon: ch.icon,
+              color: ch.color, difficulty: ch.difficulty, rewardTokens: ch.rewardTokens,
+            }} : {},
+          });
+        });
       setJoinedIds(prev => [...prev, challengeId]);
     } catch (e) { console.warn('Join challenge error:', e); }
     finally { setJoiningId(null); }
@@ -432,12 +465,21 @@ export default function CommunityScreen() {
                 <Text style={[styles.challengeTitle, { color: colors.text }]} numberOfLines={1}>
                   {ch.title}
                 </Text>
-                {completed && (
-                  <View style={styles.completedPill}>
-                    <FontAwesome6 name="circle-check" size={10} color="#43A047" solid />
-                    <Text style={styles.completedPillText}>Done</Text>
-                  </View>
-                )}
+                <View style={styles.cardBadgeRow}>
+                  {ch.difficulty && (
+                    <View style={[styles.difficultyBadge, { backgroundColor: DIFFICULTY_COLORS[ch.difficulty]?.bg ?? '#eee' }]}>
+                      <Text style={[styles.difficultyText, { color: DIFFICULTY_COLORS[ch.difficulty]?.text ?? '#666' }]}>
+                        {ch.difficulty.charAt(0).toUpperCase() + ch.difficulty.slice(1)}
+                      </Text>
+                    </View>
+                  )}
+                  {completed && (
+                    <View style={styles.completedPill}>
+                      <FontAwesome6 name="circle-check" size={10} color="#43A047" solid />
+                      <Text style={styles.completedPillText}>Done</Text>
+                    </View>
+                  )}
+                </View>
               </View>
               <Text style={[styles.challengeDesc, { color: colors.text }]}>{ch.description}</Text>
             </View>
@@ -678,7 +720,7 @@ export default function CommunityScreen() {
             <View style={[styles.summaryDivider, { backgroundColor: colors.surfaceMuted }]} />
             <View style={styles.summaryStat}>
               <Text style={[styles.summaryNum, { color: '#FB8C00' }]}>
-                {CHALLENGES.length - joinedIds.length}
+                {liveChallenges.length - joinedIds.length}
               </Text>
               <Text style={[styles.summaryLabel, { color: colors.text }]}>Available</Text>
             </View>
@@ -803,6 +845,9 @@ const styles = StyleSheet.create({
 
   joinBtn:          { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   joinBtnText:      { color: '#fff', fontSize: 13, fontWeight: '800' },
+  cardBadgeRow:     { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  difficultyBadge:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 },
+  difficultyText:   { fontSize: 10, fontWeight: '700' },
   statusTag:        { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, borderWidth: 1 },
   statusTagText:    { fontSize: 11, fontWeight: '600' },
   joinedRow:        { flexDirection: 'row', alignItems: 'center', gap: 6 },

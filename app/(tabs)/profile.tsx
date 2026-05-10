@@ -320,6 +320,38 @@ export default function ProfileScreen() {
           <FontAwesome6 name="chevron-right" size={13} color={colors.text} style={{ opacity: 0.3 }} />
         </Pressable>
 
+        <Pressable
+  style={({ pressed }) => [
+    styles.visionCard,
+    {
+      backgroundColor: colors.surface,
+      opacity: pressed ? 0.8 : 1,
+    },
+  ]}
+  onPress={() => router.push('/achievements')}
+>
+  <View style={[styles.visionIcon, { backgroundColor: '#F59E0B22' }]}>
+    <FontAwesome6 name="trophy" size={16} color="#F59E0B" />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <ThemedText style={[styles.visionTitle, { color: colors.text }]}>
+      Achievements
+    </ThemedText>
+
+    <ThemedText style={[styles.visionSub, { color: colors.text }]}>
+      View badges, milestones and completed challenges
+    </ThemedText>
+  </View>
+
+  <FontAwesome6
+    name="chevron-right"
+    size={13}
+    color={colors.text}
+    style={{ opacity: 0.3 }}
+  />
+</Pressable>
+
       </ScrollView>
 
       <StreakCalendarSheet

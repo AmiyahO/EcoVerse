@@ -368,7 +368,7 @@ export default function ActivityScreen() {
           sections={sections}
           keyExtractor={item => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ gap: 0, paddingBottom: 16 }}
+          contentContainerStyle={{ gap: 0, paddingBottom: 5 }}
           stickySectionHeadersEnabled={false}
           renderSectionHeader={({ section }) => (
             <ThemedText style={[styles.sectionHeader, { color: colors.text }]}>

@@ -14,6 +14,7 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from 'firebase/auth';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,8 +36,10 @@ export default function LoginScreen() {
   const [loading, setLoading]           = useState(false);
   const [authError, setAuthError]       = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passFocused, setPassFocused]   = useState(false);
+  const [emailFocused, setEmailFocused]   = useState(false);
+  const [passFocused, setPassFocused]     = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
+  const [resetLoading, setResetLoading]     = useState(false);
 
   const fadeAnim  = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -111,6 +114,8 @@ export default function LoginScreen() {
           photoURL: null, createdAt: serverTimestamp(), lastLogin: serverTimestamp(),
           tokens: 0, totalCarbonSaved: 0, hasFinishedOnboarding: false,
         });
+        // Send verification email — best-effort, don't block onboarding if it fails
+        sendEmailVerification(cred.user).catch(() => {});
         setEmail(''); setPassword('');
       } else {
         const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -151,25 +156,30 @@ export default function LoginScreen() {
     }
   };
 
-  const handleForgotPassword = () => {
-    if (!email.trim()) {
-      Alert.alert('Enter your email', 'Type your email above, then tap "Forgot password" to reset it.');
+  const handleForgotPassword = async () => {
+    const trimmed = email.trim();
+    if (!trimmed) {
+      // Email field is empty — show inline message asking them to enter it
+      setAuthError('Enter your email address above, then tap "Forgot password".');
       return;
     }
-    Alert.alert('Reset password', `Send a reset link to ${email.trim()}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Send',
-        onPress: async () => {
-          try {
-            await sendPasswordResetEmail(auth, email.trim());
-            Alert.alert('Sent!', 'Check your inbox for a password reset link.');
-          } catch {
-            Alert.alert('Error', 'Could not send reset email. Check the address and try again.');
-          }
-        },
-      },
-    ]);
+    setResetLoading(true);
+    setAuthError('');
+    try {
+      await sendPasswordResetEmail(auth, trimmed);
+      setResetEmailSent(true);
+      // Clear after 6 seconds so it doesn't linger if they switch to Sign Up
+      setTimeout(() => setResetEmailSent(false), 6000);
+    } catch (error: any) {
+      const msg =
+        error.code === 'auth/user-not-found'     ? 'No account found with this email.' :
+        error.code === 'auth/invalid-email'       ? 'Please enter a valid email address.' :
+        error.code === 'auth/too-many-requests'   ? 'Too many attempts. Please wait and try again.' :
+        'Could not send reset email. Please try again.';
+      setAuthError(msg);
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   // ── Dark: deep forest. Light: clean white/mint — clearly distinct ──────────
@@ -243,7 +253,7 @@ export default function LoginScreen() {
             }]}>
               <Pressable
                 style={[styles.modeBtn, !isSignUp && { backgroundColor: colors.tint }]}
-                onPress={() => { setIsSignUp(false); setEmail(''); setPassword(''); setAuthError(''); }}
+                onPress={() => { setIsSignUp(false); setEmail(''); setPassword(''); setAuthError(''); setResetEmailSent(false); }}
               >
                 <Text style={[styles.modeBtnText, {
                   color: !isSignUp ? '#fff' : (isDark ? 'rgba(255,255,255,0.5)' : '#777'),
@@ -251,7 +261,7 @@ export default function LoginScreen() {
               </Pressable>
               <Pressable
                 style={[styles.modeBtn, isSignUp && { backgroundColor: colors.tint }]}
-                onPress={() => { setIsSignUp(true); setEmail(''); setPassword(''); setAuthError(''); }}
+                onPress={() => { setIsSignUp(true); setEmail(''); setPassword(''); setAuthError(''); setResetEmailSent(false); }}
               >
                 <Text style={[styles.modeBtnText, {
                   color: isSignUp ? '#fff' : (isDark ? 'rgba(255,255,255,0.5)' : '#777'),
@@ -316,9 +326,25 @@ export default function LoginScreen() {
 
             {/* Forgot password */}
             {!isSignUp && (
-              <Pressable onPress={handleForgotPassword} style={styles.forgotBtn}>
-                <Text style={[styles.forgotText, { color: colors.tint }]}>Forgot password?</Text>
-              </Pressable>
+              resetEmailSent ? (
+                <View style={[styles.resetSentBox, { backgroundColor: colors.tint + '18', borderColor: colors.tint + '40' }]}>
+                  <Ionicons name="checkmark-circle-outline" size={15} color={colors.tint} />
+                  <Text style={[styles.resetSentText, { color: colors.tint }]}>
+                    Reset link sent — check your inbox
+                  </Text>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={handleForgotPassword}
+                  style={styles.forgotBtn}
+                  disabled={resetLoading}
+                >
+                  {resetLoading
+                    ? <ActivityIndicator size="small" color={colors.tint} />
+                    : <Text style={[styles.forgotText, { color: colors.tint }]}>Forgot password?</Text>
+                  }
+                </Pressable>
+              )
             )}
 
             {/* Primary CTA */}
@@ -411,7 +437,9 @@ const styles = StyleSheet.create({
   input:     { flex: 1, fontSize: 15, height: 52 },
   eyeBtn:    { padding: 4 },
 
-  forgotBtn:  { alignSelf: 'flex-end', marginTop: -4 },
+  forgotBtn:    { alignSelf: 'flex-end', marginTop: -4 },
+  resetSentBox: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 10, borderWidth: 1, alignSelf: 'stretch' },
+  resetSentText: { fontSize: 13, fontWeight: '500', flex: 1 },
   errorBox:   { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderRadius: 10, marginTop: -4 },
   errorText:  { color: '#FF5252', fontSize: 13, flex: 1, lineHeight: 18 },
   forgotText: { fontSize: 13, fontWeight: '500' },
