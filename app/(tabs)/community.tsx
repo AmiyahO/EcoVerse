@@ -755,23 +755,31 @@ function getWeekLabel(): string {
 
 function formatProgress(ch: Challenge, value: number): string {
   switch (ch.goal.metric) {
-    case 'steps':    return `${Math.round(value).toLocaleString()} steps`;
-    case 'co2':      return `${value.toFixed(2)} kg CO₂`;
-    case 'tokens':   return `${Math.round(value)} tokens`;
-    case 'distance': return `${value.toFixed(1)} km`;
-    case 'kwh':      return `${value.toFixed(1)} kWh`;
-    default:         return String(Math.round(value));
+    case 'steps':      return `${Math.round(value).toLocaleString()} steps`;
+    case 'co2':        return `${value.toFixed(2)} kg CO₂`;
+    case 'tokens':     return `${Math.round(value)} tokens`;
+    case 'distance':   return `${value.toFixed(1)} km`;
+    case 'kwh':        return `${value.toFixed(1)} kWh`;
+    case 'litres':     return `${Math.round(value).toLocaleString()} L`;
+    case 'activities': return ch.goal.target <= 7
+      ? `${Math.round(value)} / ${ch.goal.target} days`
+      : `${Math.round(value)} activities`;
+    default:           return String(Math.round(value));
   }
 }
 
 function formatGoal(ch: Challenge): string {
   switch (ch.goal.metric) {
-    case 'steps':    return `${ch.goal.target.toLocaleString()} steps`;
-    case 'co2':      return `${ch.goal.target} kg CO₂`;
-    case 'tokens':   return `${ch.goal.target} tokens`;
-    case 'distance': return `${ch.goal.target} km`;
-    case 'kwh':      return `${ch.goal.target} kWh`;
-    default:         return String(ch.goal.target);
+    case 'steps':      return `${ch.goal.target.toLocaleString()} steps`;
+    case 'co2':        return `${ch.goal.target} kg CO₂`;
+    case 'tokens':     return `${ch.goal.target} tokens`;
+    case 'distance':   return `${ch.goal.target} km`;
+    case 'kwh':        return `${ch.goal.target} kWh`;
+    case 'litres':     return `${ch.goal.target.toLocaleString()} L`;
+    case 'activities': return ch.goal.target <= 7
+      ? `${ch.goal.target} days`
+      : `${ch.goal.target} activities`;
+    default:           return String(ch.goal.target);
   }
 }
 

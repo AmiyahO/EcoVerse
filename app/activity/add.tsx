@@ -252,12 +252,16 @@ export default function AddActivityScreen() {
       date: toLocalISOString(selectedDate),
     };
 
-    const newActivityData = Object.fromEntries(
-      Object.entries(rawData).filter(([, v]) => v !== undefined)
-    );
-
     const tokensEarned = calculateFinalTokens(rawData as any, streak);
     const carbonSaved  = calculateCarbonSaved(rawData as any, userRegion);
+
+    const newActivityData = Object.fromEntries(
+      Object.entries({
+        ...rawData,
+        co2Saved:     carbonSaved,
+        tokensEarned: tokensEarned,
+      }).filter(([, v]) => v !== undefined)
+    );
 
     await addDoc(collection(db, 'users', auth.currentUser.uid, 'activities'), newActivityData);
     await updateDoc(doc(db, 'users', auth.currentUser.uid), {
