@@ -1,24 +1,20 @@
 // app/achievements.tsx
-// Displays two sections:
-//   1. Challenge Badges  — one badge per completed challenge, pulled from all
-//      challengeProgress sub-collection documents (all weeks of history).
-//   2. Milestone Badges  — static achievements unlocked by cumulative stats
-//      (total tokens, streak, activity count, CO₂ saved).
-//
-// Designed as a push-navigated screen, accessible from the Profile tab.
-
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { db } from '@/src/firebase/config';
 import { useActivityStore } from '@/src/store/activityStore';
 import { CHALLENGES, type Challenge } from '@/src/utils/challengeData';
 import { calculateStreak } from '@/src/utils/ecoLogic';
+import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { getAuth } from 'firebase/auth';
 import { collection, getDocs } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,26 +23,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W } = Dimensions.get('window');
-const BADGE_SIZE = (SCREEN_W - 56) / 3; // 3-column grid with 20px side padding + 8px gaps
+// 2-column grid for milestones: more space for rich cards
+const MILESTONE_COL = (SCREEN_W - 52) / 2;
 
-// ── Difficulty colours (mirrors community.tsx) ────────────────────────────────
-const DIFFICULTY_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  easy:   { bg: '#E8F5E9', text: '#2E7D32', border: '#A5D6A7' },
-  medium: { bg: '#FFF3E0', text: '#E65100', border: '#FFCC80' },
-  hard:   { bg: '#FCE4EC', text: '#C62828', border: '#EF9A9A' },
-  epic:   { bg: '#EDE7F6', text: '#4527A0', border: '#CE93D8' },
+// ── Difficulty meta ────────────────────────────────────────────────────────────
+const DIFFICULTY: Record<string, { label: string; color: string; bg: string }> = {
+  easy:   { label: 'Easy',   color: '#2E7D32', bg: '#E8F5E9' },
+  medium: { label: 'Medium', color: '#E65100', bg: '#FFF3E0' },
+  hard:   { label: 'Hard',   color: '#C62828', bg: '#FCE4EC' },
+  epic:   { label: 'Epic',   color: '#4527A0', bg: '#EDE7F6' },
 };
 
-// ── Milestone definitions ─────────────────────────────────────────────────────
-interface Milestone {
-  id:          string;
-  title:       string;
-  description: string;
-  icon:        string;
-  color:       string;
-  check:       (stats: MilestoneStats) => boolean;
-}
-
+// ── Milestone definitions ──────────────────────────────────────────────────────
 interface MilestoneStats {
   totalTokens:     number;
   totalActivities: number;
@@ -54,190 +42,338 @@ interface MilestoneStats {
   totalCO2:        number;
 }
 
+interface Milestone {
+  id:          string;
+  title:       string;
+  description: string;
+  icon:        string;
+  color:       string;
+  /** Returns 0–1 fractional progress, clamped. Used for locked hints. */
+  progress:    (s: MilestoneStats) => number;
+  check:       (s: MilestoneStats) => boolean;
+}
+
 const MILESTONES: Milestone[] = [
   {
     id: 'first_step',
     title: 'First Step',
-    description: 'Log your very first activity.',
+    description: 'Log your very first activity',
     icon: 'seedling', color: '#4CAF50',
+    progress: s => Math.min(s.totalActivities / 1, 1),
     check: s => s.totalActivities >= 1,
   },
   {
     id: 'token_100',
     title: 'Token Starter',
-    description: 'Earn 100 EcoTokens in total.',
+    description: 'Earn 100 EcoTokens',
     icon: 'leaf', color: '#43A047',
+    progress: s => Math.min(s.totalTokens / 100, 1),
     check: s => s.totalTokens >= 100,
   },
   {
     id: 'token_500',
     title: 'Token Collector',
-    description: 'Earn 500 EcoTokens in total.',
+    description: 'Earn 500 EcoTokens',
     icon: 'star', color: '#FBC02D',
+    progress: s => Math.min(s.totalTokens / 500, 1),
     check: s => s.totalTokens >= 500,
   },
   {
     id: 'token_1000',
     title: 'Token Hoarder',
-    description: 'Earn 1,000 EcoTokens in total.',
+    description: 'Earn 1,000 EcoTokens',
     icon: 'star', color: '#F57F17',
+    progress: s => Math.min(s.totalTokens / 1000, 1),
     check: s => s.totalTokens >= 1000,
   },
   {
     id: 'token_5000',
     title: 'EcoVerse Legend',
-    description: 'Earn 5,000 EcoTokens. Incredible.',
+    description: 'Earn 5,000 EcoTokens',
     icon: 'trophy', color: '#FF6F00',
+    progress: s => Math.min(s.totalTokens / 5000, 1),
     check: s => s.totalTokens >= 5000,
   },
   {
     id: 'streak_3',
     title: 'Heat Wave',
-    description: 'Keep a 3-day streak.',
+    description: 'Keep a 3-day streak',
     icon: 'fire', color: '#FF7043',
+    progress: s => Math.min(s.currentStreak / 3, 1),
     check: s => s.currentStreak >= 3,
   },
   {
     id: 'streak_7',
     title: 'Weekly Warrior',
-    description: 'Keep a 7-day streak.',
+    description: 'Keep a 7-day streak',
     icon: 'fire-flame-curved', color: '#F4511E',
+    progress: s => Math.min(s.currentStreak / 7, 1),
     check: s => s.currentStreak >= 7,
   },
   {
     id: 'streak_30',
     title: 'Solar Flare',
-    description: 'Keep a 30-day streak.',
+    description: 'Keep a 30-day streak',
     icon: 'sun', color: '#FFB300',
+    progress: s => Math.min(s.currentStreak / 30, 1),
     check: s => s.currentStreak >= 30,
   },
   {
     id: 'activities_10',
     title: 'Getting Started',
-    description: 'Log 10 activities.',
+    description: 'Log 10 activities',
     icon: 'bolt', color: '#29B6F6',
+    progress: s => Math.min(s.totalActivities / 10, 1),
     check: s => s.totalActivities >= 10,
   },
   {
     id: 'activities_50',
     title: 'Eco Veteran',
-    description: 'Log 50 activities.',
+    description: 'Log 50 activities',
     icon: 'circle-check', color: '#0288D1',
+    progress: s => Math.min(s.totalActivities / 50, 1),
     check: s => s.totalActivities >= 50,
   },
   {
     id: 'activities_100',
     title: 'Century Club',
-    description: 'Log 100 activities.',
+    description: 'Log 100 activities',
     icon: 'medal', color: '#7B1FA2',
+    progress: s => Math.min(s.totalActivities / 100, 1),
     check: s => s.totalActivities >= 100,
   },
   {
     id: 'co2_1',
     title: 'Carbon Cutter',
-    description: 'Save 1 kg of CO₂.',
+    description: 'Save 1 kg of CO₂',
     icon: 'leaf', color: '#66BB6A',
+    progress: s => Math.min(s.totalCO2 / 1, 1),
     check: s => s.totalCO2 >= 1,
   },
   {
     id: 'co2_10',
     title: 'Climate Conscious',
-    description: 'Save 10 kg of CO₂.',
+    description: 'Save 10 kg of CO₂',
     icon: 'globe', color: '#2E7D32',
+    progress: s => Math.min(s.totalCO2 / 10, 1),
     check: s => s.totalCO2 >= 10,
   },
   {
     id: 'co2_50',
     title: 'CO₂ Crusader',
-    description: 'Save 50 kg of CO₂.',
+    description: 'Save 50 kg of CO₂',
     icon: 'earth-americas', color: '#1B5E20',
+    progress: s => Math.min(s.totalCO2 / 50, 1),
     check: s => s.totalCO2 >= 50,
   },
 ];
 
 // ── Completed challenge record ─────────────────────────────────────────────────
 interface CompletedChallenge {
-  challengeId: string;
-  weekId:      string;
-  title:       string;
-  badgeLabel:  string;
-  icon:        string;
-  color:       string;
-  difficulty?: string;
+  challengeId:  string;
+  weekId:       string;
+  title:        string;
+  badgeLabel:   string;
+  icon:         string;
+  color:        string;
+  difficulty?:  string;
   rewardTokens: number;
 }
 
-// ── Badge component ────────────────────────────────────────────────────────────
-function Badge({
-  icon,
-  color,
-  label,
-  sublabel,
-  difficulty,
-  locked,
+// ── Challenge badge card (horizontal, full-width) ─────────────────────────────
+function ChallengeBadgeCard({
+  cc,
   colors: c,
+  isDark,
 }: {
-  icon:       string;
-  color:      string;
-  label:      string;
-  sublabel?:  string;
-  difficulty?: string;
-  locked:     boolean;
-  colors:     any;
+  cc: CompletedChallenge;
+  colors: any;
+  isDark: boolean;
 }) {
-  const dc = difficulty ? DIFFICULTY_COLORS[difficulty] : null;
+  const dc = cc.difficulty ? DIFFICULTY[cc.difficulty] : null;
 
   return (
-    <View style={[badgeStyles.item, { width: BADGE_SIZE }]}>
-      <View
-        style={[
-          badgeStyles.iconWrap,
-          {
-            backgroundColor: locked ? (c.surfaceMuted ?? '#eee') : color + '18',
-            borderColor:     locked ? (c.surfaceMuted ?? '#ddd') : color + '55',
-            borderStyle:     locked ? 'dashed' : 'solid',
-          },
-        ]}
-      >
-        {locked ? (
-          <FontAwesome6 name="lock" size={20} color={c.text + '40'} />
-        ) : (
-          <FontAwesome6 name={icon} size={22} color={color} solid />
-        )}
+    <View style={[
+      cardStyles.wrap,
+      { backgroundColor: c.surface },
+    ]}>
+      {/* Left accent stripe */}
+      <View style={[cardStyles.accent, { backgroundColor: cc.color }]} />
 
-        {/* Difficulty pip for challenge badges */}
-        {!locked && dc && (
-          <View style={[badgeStyles.pip, { backgroundColor: dc.border }]} />
-        )}
+      {/* Icon */}
+      <View style={[cardStyles.iconCircle, { backgroundColor: cc.color + '20' }]}>
+        <FontAwesome6 name={cc.icon} size={22} color={cc.color} solid />
       </View>
 
-      <Text
-        style={[badgeStyles.label, { color: locked ? c.text + '50' : c.text }]}
-        numberOfLines={2}
-      >
-        {locked ? '???' : label}
-      </Text>
-
-      {sublabel ? (
-        <Text style={[badgeStyles.sublabel, { color: c.text + '55' }]} numberOfLines={1}>
-          {locked ? '' : sublabel}
+      {/* Text */}
+      <View style={{ flex: 1, gap: 3 }}>
+        <View style={cardStyles.topRow}>
+          <Text style={[cardStyles.badgeTitle, { color: c.text }]} numberOfLines={1}>
+            {cc.badgeLabel}
+          </Text>
+          {dc && (
+            <View style={[cardStyles.diffPill, { backgroundColor: isDark ? dc.color + '22' : dc.bg }]}>
+              <Text style={[cardStyles.diffText, { color: dc.color }]}>{dc.label}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[cardStyles.challengeName, { color: c.text }]} numberOfLines={1}>
+          {cc.title}
         </Text>
-      ) : null}
+        <Text style={[cardStyles.weekLabel, { color: c.text }]}>
+          Week of {formatWeekId(cc.weekId)}
+        </Text>
+      </View>
+
+      {/* Right: reward */}
+      <View style={[cardStyles.rewardBubble, { backgroundColor: '#43A047' + '15' }]}>
+        <FontAwesome6 name="leaf" size={10} color="#43A047" solid />
+        <Text style={cardStyles.rewardText}>+{cc.rewardTokens}</Text>
+      </View>
     </View>
   );
 }
 
+const cardStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    overflow: 'hidden',
+    gap: 12,
+    paddingRight: 14,
+    paddingVertical: 14,
+  },
+  accent:       { width: 4, alignSelf: 'stretch' },
+  iconCircle:   { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  topRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  badgeTitle:   { fontSize: 14, fontWeight: '700' },
+  challengeName:{ fontSize: 12, opacity: 0.6 },
+  weekLabel:    { fontSize: 11, opacity: 0.4, fontWeight: '500' },
+  diffPill:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
+  diffText:     { fontSize: 10, fontWeight: '700' },
+  rewardBubble: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
+  rewardText:   { fontSize: 11, fontWeight: '800', color: '#43A047' },
+});
+
+// ── Milestone badge card (2-column grid) ──────────────────────────────────────
+function MilestoneBadge({
+  m,
+  unlocked,
+  pct,
+  colors: c,
+  isDark,
+}: {
+  m: Milestone;
+  unlocked: boolean;
+  pct: number;  // 0–1, for locked progress hint
+  colors: any;
+  isDark: boolean;
+}) {
+  return (
+    <View
+      style={[
+        milestoneStyles.card,
+        {
+          width: MILESTONE_COL,
+          backgroundColor: unlocked
+            ? (isDark ? m.color + '18' : m.color + '10')
+            : c.surface,
+          borderColor: unlocked ? m.color + '50' : c.surfaceMuted,
+          borderWidth: unlocked ? 1.5 : 1,
+        },
+      ]}
+    >
+      {/* Icon area */}
+      <View style={[
+        milestoneStyles.iconWrap,
+        {
+          backgroundColor: unlocked ? m.color + '22' : (isDark ? '#ffffff0a' : '#0000000a'),
+          borderColor:     unlocked ? m.color + '55' : (isDark ? '#ffffff18' : '#00000015'),
+          borderStyle:     unlocked ? 'solid' : 'dashed',
+        },
+      ]}>
+        {unlocked ? (
+          <FontAwesome6 name={m.icon} size={24} color={m.color} solid />
+        ) : (
+          <FontAwesome6 name="lock" size={18} color={c.text + '25'} />
+        )}
+      </View>
+
+      {/* Title / description */}
+      <Text
+        style={[milestoneStyles.title, { color: unlocked ? c.text : c.text + '55' }]}
+        numberOfLines={1}
+      >
+        {unlocked ? m.title : '???'}
+      </Text>
+      <Text
+        style={[milestoneStyles.desc, { color: unlocked ? c.text : c.text + '35' }]}
+        numberOfLines={2}
+      >
+        {m.description}
+      </Text>
+
+      {/* Locked progress bar */}
+      {!unlocked && pct > 0 && (
+        <View style={[milestoneStyles.progressTrack, { backgroundColor: isDark ? '#ffffff10' : '#00000010' }]}>
+          <View style={[milestoneStyles.progressFill, { width: `${pct * 100}%`, backgroundColor: m.color + '80' }]} />
+        </View>
+      )}
+
+      {/* Unlocked checkmark */}
+      {unlocked && (
+        <View style={[milestoneStyles.check, { backgroundColor: m.color + '20' }]}>
+          <FontAwesome6 name="check" size={9} color={m.color} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+const milestoneStyles = StyleSheet.create({
+  card: {
+    padding: 14,
+    borderRadius: 16,
+    gap: 6,
+    alignItems: 'flex-start',
+  },
+  iconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  title:         { fontSize: 13, fontWeight: '700', lineHeight: 17 },
+  desc:          { fontSize: 11, lineHeight: 15 },
+  progressTrack: { height: 3, width: '100%', borderRadius: 2, overflow: 'hidden', marginTop: 2 },
+  progressFill:  { height: '100%', borderRadius: 2 },
+  check: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function AchievementsScreen() {
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
   const { activities, userProfile } = useActivityStore();
   const auth = getAuth();
   const uid  = auth.currentUser?.uid;
 
-  const [loading, setLoading]                   = useState(true);
-  const [completedChallenges, setCompleted]     = useState<CompletedChallenge[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [completedChallenges, setCompleted] = useState<CompletedChallenge[]>([]);
 
-  // ── Load all historical completions from Firestore ───────────────────────────
   useEffect(() => {
     if (!uid) { setLoading(false); return; }
 
@@ -250,32 +386,29 @@ export default function AchievementsScreen() {
         const earned: CompletedChallenge[] = [];
 
         for (const weekDoc of progressSnap.docs) {
-          const data = weekDoc.data();
-          const weekId: string      = weekDoc.id;
-          const completed: string[] = data.completedIds ?? [];
-          const titles: Record<string, any> = data.challengeTitles ?? {};
+          const data                           = weekDoc.data();
+          const weekId: string                 = weekDoc.id;
+          const completed: string[]            = data.completedIds ?? [];
+          const titles: Record<string, any>    = data.challengeTitles ?? {};
 
           for (const challengeId of completed) {
-            // Try to resolve metadata from cached titles (written at join time),
-            // then fall back to the static CHALLENGES array for FYP fallback.
-            const cached = titles[challengeId];
+            const cached   = titles[challengeId];
             const fallback = CHALLENGES.find(c => c.id === challengeId);
-            const meta = cached ?? fallback;
+            const meta     = cached ?? fallback;
 
             earned.push({
               challengeId,
               weekId,
-              title:        meta?.title      ?? 'Challenge',
-              badgeLabel:   meta?.badgeLabel ?? 'Completed',
-              icon:         meta?.icon       ?? 'trophy',
-              color:        meta?.color      ?? '#4CAF50',
-              difficulty:   meta?.difficulty ?? undefined,
+              title:        meta?.title        ?? 'Challenge',
+              badgeLabel:   meta?.badgeLabel   ?? 'Completed',
+              icon:         meta?.icon         ?? 'trophy',
+              color:        meta?.color        ?? '#4CAF50',
+              difficulty:   meta?.difficulty   ?? undefined,
               rewardTokens: meta?.rewardTokens ?? 0,
             });
           }
         }
 
-        // Newest completions first
         earned.sort((a, b) => b.weekId.localeCompare(a.weekId));
         setCompleted(earned);
       } catch (e) {
@@ -286,7 +419,7 @@ export default function AchievementsScreen() {
     })();
   }, [uid]);
 
-  // ── Milestone stats ───────────────────────────────────────────────────────────
+  // ── Stats ──────────────────────────────────────────────────────────────────
   const stats: MilestoneStats = {
     totalTokens:     userProfile?.tokens ?? 0,
     totalActivities: activities.length,
@@ -294,14 +427,22 @@ export default function AchievementsScreen() {
     totalCO2:        userProfile?.totalCarbonSaved ?? 0,
   };
 
+  const totalTokens = userProfile?.tokens ?? 0;
+  const { level } = getLevelInfo(totalTokens);
+  const rank       = getRankInfo(level);
+
   const unlockedMilestoneIds = new Set(
     MILESTONES.filter(m => m.check(stats)).map(m => m.id)
   );
 
-  const unlockedCount  = unlockedMilestoneIds.size + completedChallenges.length;
-  const totalBadges    = MILESTONES.length + completedChallenges.length;
+  const unlockedMilestones = unlockedMilestoneIds.size;
+  const totalMilestones    = MILESTONES.length;
+  const totalBadges        = unlockedMilestones + completedChallenges.length;
+  const totalPossible      = totalMilestones + completedChallenges.length;
+  const overallPct         = totalPossible > 0
+    ? Math.round((totalBadges / totalPossible) * 100)
+    : 0;
 
-  // ── Render ────────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top']}>
@@ -316,70 +457,125 @@ export default function AchievementsScreen() {
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Achievements</Text>
-          <View style={[styles.countPill, { backgroundColor: colors.tint + '18' }]}>
-            <Text style={[styles.countText, { color: colors.tint }]}>
-              {unlockedCount} / {totalBadges}
-            </Text>
-          </View>
+        {/* ── Header ── */}
+        <View style={styles.headerRow}>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, { backgroundColor: colors.surface, opacity: pressed ? 0.7 : 1 }]}
+          >
+            <FontAwesome6 name="chevron-left" size={14} color={colors.text} />
+          </Pressable>
+          <Text style={[styles.screenTitle, { color: colors.text }]}>Achievements</Text>
+          <View style={{ width: 36 }} />
         </View>
 
-        <Text style={[styles.headerSub, { color: colors.text }]}>
-          Badges you've earned across challenges and milestones
-        </Text>
+        {/* ── Hero banner ── */}
+        <LinearGradient
+          colors={isDark
+            ? [rank.color + '35', rank.color + '15', colors.surface]
+            : [rank.color + '25', rank.color + '08', colors.surface]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.heroBanner, { borderColor: rank.color + '30' }]}
+        >
+          {/* Rank glow circle */}
+          <View style={[styles.rankGlow, { backgroundColor: rank.color + '20' }]}>
+            <Text style={styles.rankEmoji}>{rank.emoji}</Text>
+          </View>
 
-        {/* ── Challenge Badges ─────────────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Challenge Badges
-        </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.heroRank, { color: rank.color }]}>
+              {rank.name} · Lv {level}
+            </Text>
+            <Text style={[styles.heroCount, { color: colors.text }]}>
+              {totalBadges} badges earned
+            </Text>
+          </View>
+
+          {/* Completion arc */}
+          <View style={[styles.pctBubble, { borderColor: rank.color + '40', backgroundColor: isDark ? rank.color + '20' : rank.color + '12' }]}>
+            <Text style={[styles.pctNum, { color: rank.color }]}>{overallPct}%</Text>
+            <Text style={[styles.pctLabel, { color: rank.color }]}>done</Text>
+          </View>
+        </LinearGradient>
+
+        {/* ── Stat pills row ── */}
+        <View style={styles.pillsRow}>
+          {[
+            { icon: 'trophy',     label: 'Challenges',  val: completedChallenges.length, color: '#FFB300' },
+            { icon: 'star',       label: 'Milestones',  val: `${unlockedMilestones}/${totalMilestones}`, color: colors.tint },
+            { icon: 'fire',       label: 'Streak',      val: stats.currentStreak,  color: '#FF7043' },
+          ].map(p => (
+            <View key={p.label} style={[styles.statPill, { backgroundColor: colors.surface }]}>
+              <FontAwesome6 name={p.icon} size={14} color={p.color} solid />
+              <Text style={[styles.statPillVal, { color: colors.text }]}>{p.val}</Text>
+              <Text style={[styles.statPillLabel, { color: colors.text }]}>{p.label}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* ── Challenge Badges ── */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Challenge Badges</Text>
+          {completedChallenges.length > 0 && (
+            <View style={[styles.countChip, { backgroundColor: colors.tint + '18' }]}>
+              <Text style={[styles.countChipText, { color: colors.tint }]}>
+                {completedChallenges.length}
+              </Text>
+            </View>
+          )}
+        </View>
 
         {completedChallenges.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
-            <Text style={{ fontSize: 36, marginBottom: 8 }}>🏆</Text>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              No badges yet
-            </Text>
+            <View style={[styles.emptyIcon, { backgroundColor: '#FFB30015' }]}>
+              <Text style={{ fontSize: 28 }}>🏆</Text>
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>No badges yet</Text>
             <Text style={[styles.emptySub, { color: colors.text }]}>
-              Complete a weekly challenge to earn your first badge
+              Complete a weekly challenge in the Community tab to earn your first badge
             </Text>
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View style={styles.cardList}>
             {completedChallenges.map((cc, i) => (
-              <Badge
+              <ChallengeBadgeCard
                 key={`${cc.challengeId}-${cc.weekId}-${i}`}
-                icon={cc.icon}
-                color={cc.color}
-                label={cc.badgeLabel}
-                sublabel={`Week of ${formatWeekId(cc.weekId)}`}
-                difficulty={cc.difficulty}
-                locked={false}
+                cc={cc}
                 colors={colors}
+                isDark={isDark}
               />
             ))}
           </View>
         )}
 
-        {/* ── Milestone Badges ─────────────────────────────────────────────── */}
-        <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 28 }]}>
-          Milestones
-        </Text>
-        <Text style={[styles.sectionSub, { color: colors.text }]}>
-          {unlockedMilestoneIds.size} of {MILESTONES.length} unlocked
-        </Text>
+        {/* ── Milestone Badges ── */}
+        <View style={[styles.sectionHeader, { marginTop: 28 }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Milestones</Text>
+          <View style={[styles.countChip, { backgroundColor: colors.tint + '18' }]}>
+            <Text style={[styles.countChipText, { color: colors.tint }]}>
+              {unlockedMilestones}/{totalMilestones}
+            </Text>
+          </View>
+        </View>
 
-        <View style={styles.grid}>
+        {/* Milestone progress bar */}
+        <View style={[styles.milestoneBar, { backgroundColor: isDark ? '#ffffff10' : '#00000010' }]}>
+          <View style={[
+            styles.milestoneBarFill,
+            { width: `${(unlockedMilestones / totalMilestones) * 100}%`, backgroundColor: colors.tint },
+          ]} />
+        </View>
+
+        <View style={styles.milestoneGrid}>
           {MILESTONES.map(m => (
-            <Badge
+            <MilestoneBadge
               key={m.id}
-              icon={m.icon}
-              color={m.color}
-              label={m.title}
-              sublabel={m.description}
-              locked={!unlockedMilestoneIds.has(m.id)}
+              m={m}
+              unlocked={unlockedMilestoneIds.has(m.id)}
+              pct={m.progress(stats)}
               colors={colors}
+              isDark={isDark}
             />
           ))}
         </View>
@@ -392,7 +588,6 @@ export default function AchievementsScreen() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatWeekId(weekId: string): string {
-  // "2026-05-11" → "11 May 2026"
   try {
     const d = new Date(weekId + 'T00:00:00');
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -405,49 +600,54 @@ function formatWeekId(weekId: string): string {
 const styles = StyleSheet.create({
   root:          { flex: 1 },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  scroll:        { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32 },
+  scroll:        { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
 
-  header:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  title:      { fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  headerSub:  { fontSize: 13, opacity: 0.5, marginBottom: 24 },
-  countPill:  { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
-  countText:  { fontSize: 13, fontWeight: '700' },
+  // Header
+  headerRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backBtn:     { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  screenTitle: { fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
 
-  sectionTitle: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
-  sectionSub:   { fontSize: 12, opacity: 0.5, marginBottom: 14 },
-
-  grid: {
+  // Hero
+  heroBanner: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 8,
-  },
-
-  emptyCard:  { borderRadius: 16, padding: 28, alignItems: 'center', marginBottom: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  emptySub:   { fontSize: 13, opacity: 0.5, textAlign: 'center', lineHeight: 18 },
-});
-
-const badgeStyles = StyleSheet.create({
-  item:     { alignItems: 'center', gap: 6 },
-  iconWrap: {
-    width: BADGE_SIZE - 12,
-    height: BADGE_SIZE - 12,
-    borderRadius: 18,
-    borderWidth: 1.5,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 14,
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 12,
   },
-  pip: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  label:    { fontSize: 11, fontWeight: '600', textAlign: 'center', lineHeight: 14 },
-  sublabel: { fontSize: 9, textAlign: 'center', lineHeight: 12 },
+  rankGlow:   { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rankEmoji:  { fontSize: 26 },
+  heroRank:   { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
+  heroCount:  { fontSize: 13, opacity: 0.55, marginTop: 2 },
+  pctBubble:  { width: 58, height: 58, borderRadius: 18, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 0 },
+  pctNum:     { fontSize: 17, fontWeight: '900', lineHeight: 20 },
+  pctLabel:   { fontSize: 9, fontWeight: '600', opacity: 0.8 },
+
+  // Pills row
+  pillsRow:      { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  statPill:      { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', gap: 4 },
+  statPillVal:   { fontSize: 16, fontWeight: '800' },
+  statPillLabel: { fontSize: 10, opacity: 0.5, fontWeight: '500' },
+
+  // Section
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle:  { fontSize: 17, fontWeight: '700' },
+  countChip:     { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  countChipText: { fontSize: 12, fontWeight: '700' },
+
+  // Challenge cards
+  cardList: { gap: 8, marginBottom: 8 },
+
+  // Empty
+  emptyCard:  { borderRadius: 16, padding: 28, alignItems: 'center', marginBottom: 8 },
+  emptyIcon:  { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  emptySub:   { fontSize: 13, opacity: 0.5, textAlign: 'center', lineHeight: 19 },
+
+  // Milestone grid
+  milestoneBar:     { height: 4, borderRadius: 2, overflow: 'hidden', marginBottom: 14 },
+  milestoneBarFill: { height: '100%', borderRadius: 2 },
+  milestoneGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 });
