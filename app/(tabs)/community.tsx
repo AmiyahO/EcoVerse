@@ -198,7 +198,8 @@ export default function CommunityScreen() {
   const [loadingLB, setLoadingLB]         = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
 
-  const [liveChallenges, setLiveChallenges] = useState<Challenge[]>(CHALLENGES);
+  const [liveChallenges, setLiveChallenges] = useState<Challenge[]>([]);
+  const [loadingChallenges, setLoadingChallenges] = useState(true);
   const [joinedIds, setJoinedIds]         = useState<string[]>([]);
   const [progressMap, setProgressMap]     = useState<Record<string, number>>({});
   const [completedIds, setCompletedIds]   = useState<string[]>([]);
@@ -301,7 +302,7 @@ export default function CommunityScreen() {
 
     fetchLeaderboard();
     fetchChallengeState();
-    fetchChallengesForWeek().then(setLiveChallenges);
+    fetchChallengesForWeek().then(challenges => { setLiveChallenges(challenges); setLoadingChallenges(false); });
   }, [currentUid, fetchLeaderboard, fetchChallengeState]);
 
   useEffect(() => {
@@ -375,7 +376,7 @@ export default function CommunityScreen() {
     setRefreshing(true);
     fetchLeaderboard();
     fetchChallengeState();
-    fetchChallengesForWeek().then(setLiveChallenges);
+    fetchChallengesForWeek().then(challenges => { setLiveChallenges(challenges); setLoadingChallenges(false); });
   };
 
   const switchTab = (tab: 'leaderboard' | 'challenges') => {
@@ -730,7 +731,9 @@ export default function CommunityScreen() {
             New challenges every Sunday
           </Text>
 
-          {liveChallenges.map(renderChallenge)}
+          {loadingChallenges ? (
+            <ActivityIndicator color={colors.tint} size="large" style={{ marginTop: 32 }} />
+          ) : liveChallenges.map(renderChallenge)}
 
           <View style={styles.privacyNote}>
             <FontAwesome6 name="shield-halved" size={11} color={colors.tint} />

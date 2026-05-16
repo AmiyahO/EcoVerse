@@ -54,7 +54,7 @@ export default function ProfileScreen() {
   const setCelebrated = useActivityStore(s => s.setCelebrated);
   const [calendarVisible, setCalendarVisible] = useState(false);
 
-  const dynamicTarget = profile?.weeklyTarget || 500;
+  const dynamicTarget = Math.max(profile?.weeklyTarget || 500, 1); // never 0
   const prevTarget = useRef<number | null>(null);
   const resetTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -186,13 +186,17 @@ export default function ProfileScreen() {
             </Pressable>
 
             {/* XP progress track */}
-            <View style={styles.xpTrack}>
+            <View style={[styles.xpTrack, { shadowColor: rank.color, shadowOpacity: 0.4, shadowRadius: 6, shadowOffset: { width: 0, height: 0 } }]}>
               <View
                 style={[
                   styles.xpFill,
                   {
                     width: `${Math.round(xpProgress * 100)}%`,
                     backgroundColor: rank.color,
+                    shadowColor: rank.color,
+                    shadowOpacity: 0.8,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 0 },
                   },
                 ]}
               />
@@ -297,6 +301,29 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* ── Achievements Card ── */}
+        <Pressable
+          style={({ pressed }) => [styles.visionCard, {
+            backgroundColor: colors.surface,
+            borderColor: '#FFD16630',
+            opacity: pressed ? 0.8 : 1,
+          }]}
+          onPress={() => router.push('/achievements')}
+        >
+          <View style={[styles.visionIcon, { backgroundColor: '#FFD16618' }]}>
+            <FontAwesome6 name="trophy" size={18} color="#FFD166" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <ThemedText style={[styles.visionTitle, { color: colors.text }]}>
+              Achievements
+            </ThemedText>
+            <ThemedText style={[styles.visionSub, { color: colors.text }]}>
+              Badges, milestones – challenge trophies
+            </ThemedText>
+          </View>
+          <FontAwesome6 name="chevron-right" size={13} color={colors.text} style={{ opacity: 0.3 }} />
+        </Pressable>
+
         {/* ── What's Next card ── */}
         <Pressable
           style={({ pressed }) => [styles.visionCard, {
@@ -385,14 +412,14 @@ const styles = StyleSheet.create({
   },
   xpTrack: {
     width: '100%',
-    height: 8,
-    borderRadius: 4,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: 'rgba(255,255,255,0.25)',
     overflow: 'hidden',
   },
   xpFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 6,
   },
   xpLabel: {
     fontSize: 11,
