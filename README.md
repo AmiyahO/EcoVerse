@@ -55,6 +55,12 @@ app/
 │   │                    #   CO₂ card, quick stats, recent activity, AI eco-tips
 │   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards,
 │   │                    #   long-press action sheet (duplicate / delete with haptic feedback)
+│   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
+│   │                    #   Leaderboard: podium for top 3, global ranking by weeklyEcoScore
+│   │                    #     from /leaderboard collection, eco-alias by default (opt-in real
+│   │                    #     name), sticky "You" row at bottom, pull-to-refresh
+│   │                    #   Challenges: 5 weekly opt-in challenges with progress bars,
+│   │                    #     summary strip (Joined/Completed/Available), completion badges
 │   ├── stats.tsx        # Stats — gradient hero banner (total CO₂ + EcoTokens from
 │   │                    #   userProfile.tokens + distance + top activity) + featured full-width
 │   │                    #   8-week CO₂ bar chart + 3 swipeable rows:
@@ -65,12 +71,6 @@ app/
 │   │                    #   WeeklyCO2Chart: transparent View responder overlay for instant
 │   │                    #     bar tap (no Victory Native pan gesture). Index from locationX
 │   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
-│   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
-│   │                    #   Leaderboard: podium for top 3, global ranking by weeklyEcoScore
-│   │                    #     from /leaderboard collection, eco-alias by default (opt-in real
-│   │                    #     name), sticky "You" row at bottom, pull-to-refresh
-│   │                    #   Challenges: 5 weekly opt-in challenges with progress bars,
-│   │                    #     summary strip (Joined/Completed/Available), completion badges
 │   └── profile.tsx      # Profile — gradient hero, streak calendar, weekly goal progress,
 │                        #   level badge (tappable → /leveling), level-up modal,
 │                        #   What's Next card → future-vision
@@ -275,6 +275,8 @@ Cumulative CO₂ savings are translated into a relatable real-world comparison d
 
 ## 🧭 Navigation Flow
 
+> **Tab bar labels:** Activity Log tab is labelled **'Log'**, Stats tab is labelled **'Progress'**.
+
 ```
 Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
            ├── Step 1: Welcome
@@ -284,8 +286,8 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
            ├── Step 5: Permissions (Health Connect, notifications, camera)
            ├── Step 6: Region selection    ├── Dashboard
            └── Step 7: Ready              ├── Activity Log ──▶ Add / Details / Edit
-                                          ├── Stats
                                           ├── Community ──▶ Leaderboard / Challenges
+                                          ├── Stats
                                           └── Profile ──▶ Edit Profile
                                                      │   ├── Rank pill → Leveling screen
                                                      │   └── What's Next → Future Vision

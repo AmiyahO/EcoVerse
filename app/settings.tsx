@@ -507,7 +507,7 @@ export default function SettingsScreen() {
           <Row
             icon="people-outline"
             iconColor="#4CAF50"
-            label="Show name on leaderboard"
+            label="Show profile on leaderboard"
             chevron={false}
             separator={false}
             rightNode={
