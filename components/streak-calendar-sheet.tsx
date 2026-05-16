@@ -40,9 +40,10 @@ interface Props {
   onClose: () => void;
   activities: any[];
   streak: number;
+  longestStreak?: number;
 }
 
-export default function StreakCalendarSheet({ visible, onClose, activities, streak }: Props) {
+export default function StreakCalendarSheet({ visible, onClose, activities, streak, longestStreak = 0 }: Props) {
   const { colors, scheme } = useAppTheme();
 
   const today = new Date();
@@ -116,6 +117,14 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
                 }]}>
                   {streak > 0 ? `${streak}-day streak` : 'No active streak'}
                 </ThemedText>
+                {longestStreak > 0 && (
+                  <View style={[styles.longestPill, { backgroundColor: colors.surfaceMuted }]}>
+                    <FontAwesome6 name="trophy" size={10} color={colors.text} style={{ opacity: 0.45 }} />
+                    <ThemedText style={[styles.longestText, { color: colors.text }]}>
+                      Best {longestStreak}d
+                    </ThemedText>
+                  </View>
+                )}
               </View>
             </View>
             <Pressable onPress={onClose} style={[styles.closeBtn, { backgroundColor: colors.surfaceMuted }]}>
@@ -157,24 +166,30 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
                   const isActive = activeDays.has(day);
                   const todayCell = isToday(day);
                   const isFuture = isCurrentMonth && day > today.getDate();
+                  const textColor = isActive
+                    ? '#fff'
+                    : todayCell
+                    ? colors.tint
+                    : isFuture
+                    ? colors.text + '30'
+                    : colors.text;
                   return (
                     <View key={ci} style={styles.dayCell}>
-                      <View style={[
-                        styles.dayCircle,
-                        isActive && { backgroundColor: colors.tint },
-                        todayCell && !isActive && {
-                          borderWidth: 1.5,
-                          borderColor: colors.tint,
-                        },
+                      {/* Outer ring for today */}
+                      {todayCell && !isActive && (
+                        <View style={[styles.dayRing, { borderColor: colors.tint }]} />
+                      )}
+                      {/* Fill circle for active days */}
+                      {isActive && (
+                        <View style={[styles.dayFill, { backgroundColor: colors.tint }]} />
+                      )}
+                      {/* Number — always on top, never clipped */}
+                      <ThemedText style={[
+                        styles.dayText,
+                        { color: textColor, fontWeight: todayCell ? '700' : '500' },
                       ]}>
-                        <ThemedText style={[
-                          styles.dayText,
-                          { color: isActive ? '#fff' : isFuture ? colors.text + '30' : colors.text },
-                          todayCell && !isActive && { color: colors.tint, fontWeight: '700' },
-                        ]}>
-                          {day}
-                        </ThemedText>
-                      </View>
+                        {day}
+                      </ThemedText>
                     </View>
                   );
                 })}
@@ -248,6 +263,11 @@ const styles = StyleSheet.create({
     width: 30, height: 30, borderRadius: 15,
     alignItems: 'center', justifyContent: 'center',
   },
+  longestPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 4,
+  },
+  longestText: { fontSize: 11, fontWeight: '600', opacity: 0.45 },
 
   // Month nav
   monthNav: {
@@ -283,12 +303,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayCircle: {
-    width: 34, height: 34, borderRadius: 999,
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
+  dayRing: {
+    position: 'absolute',
+    width: 34, height: 34, borderRadius: 17,
+    borderWidth: 1.5,
   },
-  dayText: { fontSize: 13, fontWeight: '500' },
+  dayFill: {
+    position: 'absolute',
+    width: 34, height: 34, borderRadius: 17,
+  },
+  dayText: { fontSize: 13 },
 
   // Summary
   summaryRow: {

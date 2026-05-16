@@ -24,6 +24,26 @@ function isThisWeek(date: string) {
 
 const WEEK_DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+function calculateLongestStreak(activities: any[]): number {
+  if (!activities.length) return 0;
+  const days = new Set(
+    activities.map(a => {
+      const d = new Date(a.date);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    })
+  );
+  const sorted = [...days].sort();
+  let longest = 1, current = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = new Date(sorted[i-1]);
+    const curr = new Date(sorted[i]);
+    const diff = (curr.getTime() - prev.getTime()) / 86400000;
+    if (diff === 1) { current++; longest = Math.max(longest, current); }
+    else current = 1;
+  }
+  return longest;
+}
+
 function getWeeklyActivityDots(activities: any[]) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -46,6 +66,7 @@ export default function ProfileScreen() {
   const userRegion = useActivityStore(s => s.userRegion);
   const activities = useActivityStore(s => s.activities);
   const streak = calculateStreak(activities);
+  const longestStreak = calculateLongestStreak(activities);
 
   const userProfile = useActivityStore(s => s.userProfile);
   const profile = userProfile;
@@ -73,6 +94,7 @@ export default function ProfileScreen() {
 
   const totalTokens = userProfile?.tokens ?? 0;
   const totalCO2 = userProfile?.totalCarbonSaved ?? 0;
+  const totalActivities = activities.length;
 
   // ── Level & rank derived from total tokens ──
   const { level, progress: xpProgress, tokensToNext } = getLevelInfo(totalTokens);
@@ -155,7 +177,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
 
-          {/* ── Token / CO₂ summary ── */}
+          {/* ── Token / Activities / CO₂ summary ── */}
           <View style={styles.statsSummary}>
             <View style={styles.miniStat}>
               <ThemedText style={styles.miniStatVal}>{totalTokens.toLocaleString()}</ThemedText>
@@ -163,7 +185,12 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statsDivider} />
             <View style={styles.miniStat}>
-              <ThemedText style={styles.miniStatVal}>{totalCO2.toFixed(2)}</ThemedText>
+              <ThemedText style={styles.miniStatVal}>{totalActivities}</ThemedText>
+              <ThemedText style={styles.miniStatLabel}>Activities</ThemedText>
+            </View>
+            <View style={styles.statsDivider} />
+            <View style={styles.miniStat}>
+              <ThemedText style={styles.miniStatVal}>{totalCO2.toFixed(1)}</ThemedText>
               <ThemedText style={styles.miniStatLabel}>kg CO₂ saved</ThemedText>
             </View>
           </View>
@@ -219,19 +246,37 @@ export default function ProfileScreen() {
                 Consistency
               </ThemedText>
               <View style={styles.cardTitleRight}>
-                <View style={styles.streakBadge}>
-                  <FontAwesome6
-                    name="fire"
-                    size={12}
-                    color={streak > 0 ? colors.tint : colors.text}
-                    style={{ opacity: streak > 0 ? 1 : 0.3 }}
-                  />
-                  <ThemedText style={[
-                    styles.streakBadgeText,
-                    { color: streak > 0 ? colors.tint : colors.text, opacity: streak > 0 ? 1 : 0.4 }
-                  ]}>
-                    {streak > 0 ? `${streak}-day streak` : 'No streak yet'}
-                  </ThemedText>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={styles.streakBadge}>
+                    <FontAwesome6
+                      name="fire"
+                      size={12}
+                      color={streak > 0 ? '#FF7043' : colors.text}
+                      style={{ opacity: streak > 0 ? 1 : 0.3 }}
+                    />
+                    <ThemedText style={[
+                      styles.streakBadgeText,
+                      { color: streak > 0 ? '#FF7043' : colors.text, opacity: streak > 0 ? 1 : 0.4 }
+                    ]}>
+                      {streak > 0 ? `${streak}d` : '0d'}
+                    </ThemedText>
+                  </View>
+                  {longestStreak > 0 && (() => {
+                    const beaten = streak >= longestStreak;
+                    const pillColor = beaten ? '#FFD166' : colors.tint;
+                    return (
+                      <View style={[styles.streakBadge, {
+                        backgroundColor: pillColor + '20',
+                        borderWidth: 1, borderColor: pillColor + '50',
+                        paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+                      }]}>
+                        <FontAwesome6 name="trophy" size={10} color={pillColor} />
+                        <ThemedText style={[styles.streakBadgeText, { color: pillColor, fontSize: 11 }]}>
+                          {beaten ? `Best ${longestStreak}d 🏆` : `Best ${longestStreak}d`}
+                        </ThemedText>
+                      </View>
+                    );
+                  })()}
                 </View>
                 <FontAwesome6 name="chevron-right" size={11} color={colors.text + '33'} />
               </View>
@@ -354,6 +399,7 @@ export default function ProfileScreen() {
         onClose={() => setCalendarVisible(false)}
         activities={activities}
         streak={streak}
+        longestStreak={longestStreak}
       />
     </SafeAreaView>
   );
