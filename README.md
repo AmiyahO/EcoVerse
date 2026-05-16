@@ -500,7 +500,7 @@ Redesigned with a gradient hero banner and a featured full-width 8-week CO₂ ch
 
 **Row 1 — Overview:** All-Time detail (stat tiles + CO₂ stacked bar + dominant-category insight) | This Week vs Last Week (tokens + activity count pills, CO₂ dual bars by category — CO₂ summary pill omitted to avoid misleading monthly-bill distortion)
 
-**Row 2 — Breakdown:** Activity Mix SVG donut (react-native-svg, side-by-side legend) | CO₂ Breakdown (per-category rows with icon bubbles, kg values and %)
+**Row 2 — Breakdown:** Activity Mix SVG donut (react-native-svg, two-column grid legend below the donut) | CO₂ Breakdown (per-category rows with icon bubbles, kg values and %)
 
 **Row 3 — Monthly:** Monthly Activity (comparison pills + CO₂ dual bars; count per category omitted — covered by donut) | Monthly Utilities (kWh + litres vs previous month)
 
