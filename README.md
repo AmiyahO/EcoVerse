@@ -416,13 +416,24 @@ Accessible via the third tab. Two sections via segmented control:
 
 ### Weekly Challenges
 
-| Challenge | Goal | Reward |
-|-----------|------|--------|
-| Step Sprint | 20,000 steps this week | 100 tokens |
-| Power Saver | Save 10 kWh this week | 80 tokens |
-| Green Commuter | Cycle or walk 15 km this week | 90 tokens |
-| Consistency Champion | Log at least one activity every day | 120 tokens |
-| Water Warrior | Save 200 litres this week | 70 tokens |
+**Weekly pool (18 templates — Cloud Function picks 2 easy + 2 medium + 1 hard/epic each Sunday):**
+
+| Difficulty | Challenges |
+|------------|-----------|
+| Easy (4) | Step Sprint (20k steps), Green Commuter (15 km), Weekend Warrior (3 activities), Daily Mover (5 activities) |
+| Medium (7) | Night Runner (8 km run), Urban Trekker (12 km walk), Two-Wheel Hero (20 km cycle), Consistency Champion (7 active days), Sprint Master (6 runs), Eco Pedaler (8 cycles), Eco Explorer (12 activities) |
+| Hard (4) | Marathon Mood (50k steps), Coastal Cruiser (30 km cycle), Distance Crusher (30 km all), Movement Marathon (20 activities) |
+| Epic (3) | The Century Quest (100k steps, 500 tokens), Distance Dynamo (50 km, 450 tokens), Ultra Runner (25 km run, 400 tokens) |
+
+**Monthly pool (5 templates — all appended on the first Sunday of each month):**
+
+| Difficulty | Challenge | Goal | Reward |
+|------------|-----------|------|--------|
+| Easy | Quick Rinse | Save 200 L water | 100 tokens |
+| Medium | Power Saver | Save 10 kWh | 180 tokens |
+| Medium | Water Warrior | Save 500 L water | 170 tokens |
+| Hard | Grid Guardian Elite | Save 20 kWh | 250 tokens |
+| Hard | Hydro Hero | Save 750 L water | 220 tokens |
 
 - Progress calculated client-side from activities array via `getChallengeProgress()`
   (handles steps, distance, kwh, litres, activities, co2 metrics)
