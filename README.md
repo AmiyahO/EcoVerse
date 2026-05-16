@@ -55,12 +55,16 @@ app/
 │   │                    #   CO₂ card, quick stats, recent activity, AI eco-tips
 │   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards,
 │   │                    #   long-press action sheet (duplicate / delete with haptic feedback)
-│   ├── stats.tsx        # Stats — 3 swipeable rows: Overview, Breakdown, Monthly & Trends
-│   │                    #   Row 1: All-Time grid | This Week vs Last Week (tokens, activity
-│   │                    #     count, CO₂ dual bars by category)
-│   │                    #   Row 2: Activity Distribution donut chart | CO₂ Impact Breakdown
-│   │                    #   Row 3: Monthly Activity comparison | Monthly Utilities |
-│   │                    #     8-Week CO₂ chart with press-to-reveal tooltip (WeeklyCO2Chart)
+│   ├── stats.tsx        # Stats — gradient hero banner (total CO₂ + EcoTokens from
+│   │                    #   userProfile.tokens + distance + top activity) + featured full-width
+│   │                    #   8-week CO₂ bar chart + 3 swipeable rows:
+│   │                    #   Row 1: All-Time detail (tiles + stacked CO₂ bar) | This Week vs
+│   │                    #     Last Week (tokens, activity count pills, CO₂ dual bars)
+│   │                    #   Row 2: Activity Mix SVG donut | CO₂ Breakdown (per-category rows)
+│   │                    #   Row 3: Monthly Activity | Monthly Utilities
+│   │                    #   WeeklyCO2Chart: transparent View responder overlay for instant
+│   │                    #     bar tap (no Victory Native pan gesture). Index from locationX
+│   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
 │   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
 │   │                    #   Leaderboard: podium for top 3, global ranking by weeklyEcoScore
 │   │                    #     from /leaderboard collection, eco-alias by default (opt-in real
@@ -488,13 +492,19 @@ Two data sources merged:
 
 ## 📊 Stats Screen
 
-Three swipeable rows with animated pill indicators:
+Redesigned with a gradient hero banner and a featured full-width 8-week CO₂ chart above three horizontally swipeable card rows with animated pill indicators.
 
-**Row 1 — Overview:** All-Time stats grid | This Week vs Last Week (tokens + activity count pills, CO₂ dual bars by category — CO₂ pill omitted to avoid misleading monthly-bill distortion)
+**Hero banner:** `LinearGradient` (`#1B4332 → #0E2318` dark, `#2D6A4F → #1B4332` light). Shows total CO₂ saved (Firestore `totalCarbonSaved`), total EcoTokens (`userProfile.tokens` — authoritative Firestore value, same source as Profile tab, avoids streak-multiplier discrepancy), total distance, and top activity category.
 
-**Row 2 — Breakdown:** Activity Distribution SVG donut (react-native-svg, 2-column legend) | CO₂ Impact Breakdown stacked bar
+**Featured chart (`WeeklyCO2Chart`):** Full-width 8-week CO₂ bar chart. Touch handled by a transparent `View` overlay using the React Native responder system (`onStartShouldSetResponder` / `onResponderGrant` / `onResponderMove`) rather than Victory Native's built-in pan gesture (which requires finger movement to activate, causing static taps to silently cancel). Bar index computed from `locationX` and chart slot geometry — instant on first tap, supports drag. Selected bar at full tint with white pip `SkiaCircle` above. `CartesianChart` has no `chartPressState` (rendering only).
 
-**Row 3 — Monthly & Trends:** Monthly Activity (CO₂ dual bars; activity count per category omitted — covered by donut) | Monthly Utilities (kWh + litres, monthly granularity) | 8-Week CO₂ chart (`WeeklyCO2Chart` sub-component, press tooltip)
+**Row 1 — Overview:** All-Time detail (stat tiles + CO₂ stacked bar + dominant-category insight) | This Week vs Last Week (tokens + activity count pills, CO₂ dual bars by category — CO₂ summary pill omitted to avoid misleading monthly-bill distortion)
+
+**Row 2 — Breakdown:** Activity Mix SVG donut (react-native-svg, side-by-side legend) | CO₂ Breakdown (per-category rows with icon bubbles, kg values and %)
+
+**Row 3 — Monthly:** Monthly Activity (comparison pills + CO₂ dual bars; count per category omitted — covered by donut) | Monthly Utilities (kWh + litres vs previous month)
+
+**Performance:** `activitiesEnriched` memo pre-computes `_date`, `_co2`, `_tokens` once; all downstream filters/reduces read from it. Horizontal `ScrollView` rows replace previous `FlatList`s (eliminates nested VirtualizedList warning). All heavy computations in `useMemo`. Sub-components wrapped in `memo()`.
 
 ---
 
@@ -503,7 +513,7 @@ Three swipeable rows with animated pill indicators:
 - **Theme:** Full light/dark mode with system-follow option, persisted via `themeStore`. `_hydrated` flag prevents flash on cold boot
 - **Login:** Soft green gradient (light) / deep forest green (dark). Inline error messages
 - **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal), CO₂ card with weekly total and transport-only week-on-week % comparison, real-world CO₂ equivalent, quick stats row, recent activity, AI tips card
-- **Stats:** Three swipeable card rows with section labels and animated dot indicators
+- **Stats:** Gradient hero banner (CO₂ total, EcoTokens from Firestore, distance, top activity) + featured 8-week CO₂ chart + three swipeable card rows. Bar chart uses transparent responder overlay for reliable instant tap — no Victory Native pan gesture dependency
 - **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + custom bottom-sheet action sheet with Duplicate and Delete options.
 - **Community:** Podium (top 3) + flat list rows (4+), score dot badges, sticky "You" bar, challenge cards with coloured left accent, summary strip
 - **Profile:** 3-stop gradient hero, level badge, streak calendar bottom sheet, goal progress bar
@@ -564,6 +574,12 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Notification handler type error (TS2322) | Newer `expo-notifications` requires `shouldShowBanner` + `shouldShowList` | Added both fields to `handleNotification` return |
 | Missed-day nudge `await` at top level of component | Nudge lines pasted outside any function in `_layout.tsx` | Moved inside activities `onSnapshot` callback |
 | `setNotifModal(true) \|\| setTimePickerFor()` void error | `setNotifModal` returns `void`; `\|\|` on void is TS error | Split into `{ setTimePickerFor(...); setNotifModal(true); }` |
+| Stats hero EcoTokens differs from Profile | `calculateTokens()` omits streak multiplier baked in at save time; sum of recalculated values is lower | `totalTokens` reads `userProfile.tokens` (Firestore) — identical source to Profile tab |
+| Stats 8-week chart invisible (height) | `CartesianChart` (Skia canvas) cannot infer height from flex; renders into 0px | Explicit `<View style={{ height: CHART_HEIGHT }}>` wrapper required |
+| Stats 8-week chart bars all invisible (Bar API) | `Bar` in Victory Native v41 requires full `points` array — per-point loop produces nothing | One `<Bar points={points.co2} />` for all bars; second overlay `Bar` for current-week highlight |
+| Stats chart bar tap shows wrong bar or no response | Victory Native pan gesture requires movement to activate; static taps silently cancelled | Transparent `View` responder overlay; index from `locationX` ÷ slot width — instant on first tap |
+| Reanimated warning on Stats screen | `chartPressState.*.position.value` read during JSX render | Removed `chartPressState`; tooltip via plain React state from responder overlay |
+| VirtualizedList slow-update warning on Stats | Three nested `FlatList`s inside vertical `ScrollView` | Replaced with horizontal `ScrollView` + `pagingEnabled` + `snapToInterval` |
 
 ---
 

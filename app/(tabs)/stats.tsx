@@ -435,7 +435,12 @@ export default function StatsScreen() {
   // ── All-time ──────────────────────────────────────────────────────────────
   const totalCO2 = userProfile?.totalCarbonSaved ?? activitiesEnriched.reduce((s, a) => s + a._co2, 0);
 
-  const { totalSteps, totalDistance, totalTokens, avgSteps, avgDist, catCounts, topActivity } = useMemo(() => {
+  // Authoritative token total — from Firestore via userProfile.tokens (same source as
+  // profile.tsx). Do NOT recalculate from activities: calculateTokens() omits the streak
+  // multiplier that was baked in at save time, producing a different (lower) number.
+  const totalTokens = userProfile?.tokens ?? 0;
+
+  const { totalSteps, totalDistance, avgSteps, avgDist, catCounts, topActivity } = useMemo(() => {
     const stepActs = activitiesEnriched.filter(a => a.steps    !== undefined);
     const distActs = activitiesEnriched.filter(a => a.distance !== undefined);
     const catCounts: Record<string, number> = {};
@@ -443,8 +448,6 @@ export default function StatsScreen() {
     return {
       totalSteps:    activitiesEnriched.reduce((s, a) => s + (a.steps    ?? 0), 0),
       totalDistance: activitiesEnriched.reduce((s, a) => s + (a.distance ?? 0), 0),
-      // totalTokens used in hero chip — meaningful across ALL activity types
-      totalTokens:   activitiesEnriched.reduce((s, a) => s + a._tokens, 0),
       avgSteps: stepActs.length > 0 ? Math.round(stepActs.reduce((s, a) => s + a.steps!, 0) / stepActs.length) : 0,
       avgDist:  distActs.length > 0 ? (distActs.reduce((s, a) => s + a.distance!, 0) / distActs.length).toFixed(1) : '0.0',
       catCounts,
