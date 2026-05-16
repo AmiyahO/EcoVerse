@@ -33,11 +33,18 @@ function getWeekKey(date: Date): string {
 }
 
 function getWeekLabel(date: Date): string {
-  // "May 3" style label for the Sunday that starts this week
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() - date.getDay());
-  sunday.setHours(0, 0, 0, 0);
-  return sunday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Week number that treats Sunday as the START of a new week (matching the
+  // app's Sunday-based week boundary). On Sundays, advance one day to Monday
+  // before computing the ISO week number — this bumps Sunday into the next
+  // ISO week, which is what we want (Sunday May 17 → W21, not W20).
+  const d = new Date(date);
+  d.setHours(12, 0, 0, 0); // mid-day to avoid any DST edge
+  if (d.getDay() === 0) d.setDate(d.getDate() + 1); // Sunday → advance to Monday
+  const jan4 = new Date(d.getFullYear(), 0, 4);      // Jan 4 is always in W1
+  const startW1 = new Date(jan4);
+  startW1.setDate(jan4.getDate() - ((jan4.getDay() || 7) - 1)); // Monday of W1
+  const weekNum = Math.floor((d.getTime() - startW1.getTime()) / (7 * 86400000)) + 1;
+  return `W${weekNum}`;
 }
 
 function calcEcoScore(
@@ -89,10 +96,10 @@ async function writeEcoScoreSnapshot(
 
 async function loadEcoScoreSnapshots(uid: string) {
   const snap = await getDocs(
-    query(collection(doc(db, 'users', uid), 'ecoScoreSnapshots'), orderBy('weekKey', 'desc'))
+    query(collection(doc(db, 'users', uid), 'ecoScoreSnapshots'), orderBy('updatedAt', 'desc'))
   );
   return snap.docs
-    .map(d => d.data() as { weekKey: string; score: number; label: string })
+    .map(d => d.data() as { weekKey: string; score: number; label: string; updatedAt: string })
     .slice(0, 12) // last 12 weeks max
     .reverse();   // oldest → newest for charting
 }

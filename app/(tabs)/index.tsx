@@ -15,8 +15,7 @@ import { getCO2Equivalent } from '@/src/utils/co2Equivalents';
 import AISuggestionsCard from '@/components/ai-suggestions-card';
 import Svg, { Circle, G } from 'react-native-svg';
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { CartesianChart, Line, Area, useChartPressState } from 'victory-native';
-import { Circle as SkiaCircle } from '@shopify/react-native-skia';
+import { CartesianChart, Line, Area } from 'victory-native';
 import { Dimensions } from 'react-native';
 
 const CATEGORY_ICON: Record<string, string> = {
@@ -56,47 +55,64 @@ function getRecentActivityLabel(activity: any) {
 
 const MODAL_CHART_WIDTH = Dimensions.get('window').width - 64;
 
-// ── Chart sub-components (useChartPressState must be at component top-level) ──
+// ── Chart sub-components ──
+
+const SPARKLINE_H      = 155;
+const SPARKLINE_PAD    = 8;   // matches domainPadding left/right
 
 function SparklineChart({ sparkData, colors }: { sparkData: any[]; colors: any }) {
-  const { state, isActive } = useChartPressState({ x: 0, y: { tokens: 0 } });
+  const [selIdx, setSelIdx] = useState<number | null>(null);
+  const chartWidth = useRef(0);
 
-  const activeDay = isActive ? sparkData.find(d => d.day === state.x.value) : null;
-  const activeDateStr = activeDay
+  const n       = sparkData.length;
+  const selDay  = selIdx !== null ? sparkData[selIdx] ?? null : null;
+  const selDate = selDay
     ? (() => {
         const now = new Date();
         const d   = new Date(now);
-        d.setDate(now.getDate() - (30 - activeDay.day));
+        d.setDate(now.getDate() - (30 - selDay.day));
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       })()
     : null;
 
+  const resolveIdx = (locationX: number) => {
+    const slotW = (chartWidth.current - 2 * SPARKLINE_PAD) / n;
+    const idx   = Math.floor((locationX - SPARKLINE_PAD) / slotW);
+    return Math.max(0, Math.min(n - 1, idx));
+  };
+
   return (
     <View>
-      {/* Fixed-height tooltip row — prevents layout shift */}
+      {/* Fixed-height tooltip row */}
       <View style={{ height: 28, alignItems: 'center', justifyContent: 'center' }}>
-        {isActive && activeDay && (
+        {selDay && (
           <View style={{
             flexDirection: 'row', gap: 6, alignItems: 'center',
             backgroundColor: colors.tint + '18', borderRadius: 8,
             paddingHorizontal: 10, paddingVertical: 4,
           }}>
             <ThemedText style={{ fontSize: 13, fontWeight: '700', color: colors.tint }}>
-              {Math.round(state.y.tokens.value)} tokens
+              {selDay.tokens} tokens
             </ThemedText>
-            {activeDateStr && (
+            {selDate && (
               <ThemedText style={{ fontSize: 11, opacity: 0.5, color: colors.text }}>
-                {activeDateStr}
+                {selDate}
               </ThemedText>
             )}
           </View>
         )}
       </View>
-      <View style={{ height: 155 }}>
+
+      <View
+        style={{ height: SPARKLINE_H }}
+        onLayout={e => { chartWidth.current = e.nativeEvent.layout.width; }}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={e => setSelIdx(resolveIdx(e.nativeEvent.locationX))}
+        onResponderMove={e  => setSelIdx(resolveIdx(e.nativeEvent.locationX))}
+      >
         <CartesianChart
           data={sparkData} xKey="day" yKeys={['tokens']}
-          domainPadding={{ top: 20, bottom: 8, left: 8, right: 8 }}
-          chartPressState={state}
+          domainPadding={{ top: 20, bottom: 8, left: SPARKLINE_PAD, right: SPARKLINE_PAD }}
           axisOptions={{
             tickCount: { x: 5, y: 4 },
             labelColor: colors.text + '55',
@@ -108,63 +124,101 @@ function SparklineChart({ sparkData, colors }: { sparkData: any[]; colors: any }
             <>
               <Area points={points.tokens} y0={chartBounds.bottom} color={colors.tint} opacity={0.12} />
               <Line points={points.tokens} color={colors.tint} strokeWidth={2.5} curveType="natural" />
-              {isActive && (
-                <SkiaCircle cx={state.x.position} cy={state.y.tokens.position} r={5} color={colors.tint} />
+              {selIdx !== null && points.tokens[selIdx] && (
+                <Line
+                  points={[points.tokens[selIdx], points.tokens[selIdx]]}
+                  color={colors.tint}
+                  strokeWidth={0}
+                />
               )}
             </>
           )}
         </CartesianChart>
+        {/* Dot overlay — plain View positioned absolutely over the canvas */}
+        {selIdx !== null && (() => {
+          const pt = sparkData[selIdx];
+          if (!pt) return null;
+          // Map value to Y pixel: we can't easily get Skia coords from outside,
+          // so we just show a vertical indicator line instead
+          return (
+            <View pointerEvents="none" style={{
+              position: 'absolute', top: 0, bottom: 0,
+              left: SPARKLINE_PAD + (selIdx / (n - 1)) * (chartWidth.current - 2 * SPARKLINE_PAD) - 1,
+              width: 2, backgroundColor: colors.tint + '40', borderRadius: 1,
+            }} />
+          );
+        })()}
       </View>
     </View>
   );
 }
 
-function HistoryChart({ snapshots, zoneColor, colors }: { snapshots: any[]; zoneColor: string; colors: any }) {
-  const { state, isActive } = useChartPressState({ x: 0, y: { score: 0 } });
+const HISTORY_H   = 155;
+const HISTORY_PAD = 8;
 
-  const activeSnap = isActive ? snapshots[Math.round(state.x.value)] ?? null : null;
+function HistoryChart({ snapshots, zoneColor, colors }: { snapshots: any[]; zoneColor: string; colors: any }) {
+  const [selIdx, setSelIdx] = useState<number | null>(null);
+  const chartWidth = useRef(0);
+
+  const n       = snapshots.length;
+  const selSnap = selIdx !== null ? snapshots[selIdx] ?? null : null;
+
+  const resolveIdx = (locationX: number) => {
+    const slotW = (chartWidth.current - 2 * HISTORY_PAD) / n;
+    const idx   = Math.floor((locationX - HISTORY_PAD) / slotW);
+    return Math.max(0, Math.min(n - 1, idx));
+  };
 
   return (
     <View>
       <View style={{ height: 28, alignItems: 'center', justifyContent: 'center' }}>
-        {isActive && activeSnap && (
+        {selSnap && (
           <View style={{
             flexDirection: 'row', gap: 6, alignItems: 'center',
             backgroundColor: zoneColor + '18', borderRadius: 8,
             paddingHorizontal: 10, paddingVertical: 4,
           }}>
             <ThemedText style={{ fontSize: 13, fontWeight: '700', color: zoneColor }}>
-              {Math.round(state.y.score.value)}/100
+              {selSnap.score}/100
             </ThemedText>
             <ThemedText style={{ fontSize: 11, opacity: 0.5, color: colors.text }}>
-              {activeSnap.label}
+              {selSnap.label}
             </ThemedText>
           </View>
         )}
       </View>
-      <View style={{ height: 155 }}>
+
+      <View
+        style={{ height: HISTORY_H }}
+        onLayout={e => { chartWidth.current = e.nativeEvent.layout.width; }}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={e => setSelIdx(resolveIdx(e.nativeEvent.locationX))}
+        onResponderMove={e  => setSelIdx(resolveIdx(e.nativeEvent.locationX))}
+      >
         <CartesianChart
           data={snapshots.map((s: any, i: number) => ({ x: i, score: s.score, label: s.label }))}
           xKey="x" yKeys={['score']}
           domain={{ y: [0, 100] }}
-          domainPadding={{ top: 10, bottom: 10, left: 8, right: 8 }}
-          chartPressState={state}
+          domainPadding={{ top: 10, bottom: 10, left: HISTORY_PAD, right: HISTORY_PAD }}
           axisOptions={{
-            tickCount: { x: snapshots.length, y: 5 },
+            tickCount: { x: n, y: 5 },
             labelColor: colors.text + '55',
             lineColor: 'transparent',
             formatXLabel: (val: number) => snapshots[val]?.label ?? '',
           }}
         >
           {({ points }) => (
-            <>
-              <Line points={points.score} color={zoneColor} strokeWidth={2.5} curveType="natural" />
-              {isActive && (
-                <SkiaCircle cx={state.x.position} cy={state.y.score.position} r={5} color={zoneColor} />
-              )}
-            </>
+            <Line points={points.score} color={zoneColor} strokeWidth={2.5} curveType="natural" />
           )}
         </CartesianChart>
+        {/* Vertical indicator for selected point */}
+        {selIdx !== null && n > 1 && (
+          <View pointerEvents="none" style={{
+            position: 'absolute', top: 0, bottom: 0,
+            left: HISTORY_PAD + (selIdx / (n - 1)) * (chartWidth.current - 2 * HISTORY_PAD) - 1,
+            width: 2, backgroundColor: zoneColor + '50', borderRadius: 1,
+          }} />
+        )}
       </View>
     </View>
   );
@@ -320,17 +374,22 @@ function EcoScoreModal({
               <>
                 {/* Summary pills */}
                 <View style={styles.modalPillRow}>
-                  {[
-                    { label: 'This week', val: `${ecoScoreSnapshots.at(-1)?.score ?? ecoScore}`, icon: 'star' },
-                    { label: 'Best week', val: `${Math.max(...ecoScoreSnapshots.map((s: any) => s.score))}`, icon: 'trophy' },
-                    { label: 'Avg score', val: `${Math.round(ecoScoreSnapshots.reduce((s: number, x: any) => s + x.score, 0) / ecoScoreSnapshots.length)}`, icon: 'chart-line' },
-                  ].map(({ label, val, icon }) => (
-                    <View key={label} style={[styles.modalPill, { backgroundColor: zoneColor + '12' }]}>
-                      <FontAwesome6 name={icon as any} size={13} color={zoneColor} />
-                      <ThemedText style={[styles.modalPillVal, { color: colors.text }]}>{val}</ThemedText>
-                      <ThemedText style={[styles.modalPillLabel, { color: colors.text }]}>{label}</ThemedText>
-                    </View>
-                  ))}
+                  {(() => {
+                    const _last = ecoScoreSnapshots.at(-1)?.score ?? ecoScore;
+                    const _prev = ecoScoreSnapshots.length >= 2 ? (ecoScoreSnapshots.at(-2)?.score ?? _last) : _last;
+                    const _diff = _last - _prev;
+                    return [
+                      { label: 'vs Last Week', val: _diff === 0 ? '—' : `${_diff > 0 ? '+' : ''}${_diff}`, icon: _diff > 0 ? 'arrow-trend-up' : _diff < 0 ? 'arrow-trend-down' : 'minus' },
+                      { label: 'Best week',    val: `${Math.max(...ecoScoreSnapshots.map((s: any) => s.score))}`, icon: 'trophy' },
+                      { label: 'Avg score',    val: `${Math.round(ecoScoreSnapshots.reduce((s: number, x: any) => s + x.score, 0) / ecoScoreSnapshots.length)}`, icon: 'chart-line' },
+                    ].map(({ label, val, icon }) => (
+                      <View key={label} style={[styles.modalPill, { backgroundColor: zoneColor + '12' }]}>
+                        <FontAwesome6 name={icon as any} size={13} color={zoneColor} />
+                        <ThemedText style={[styles.modalPillVal, { color: colors.text }]}>{val}</ThemedText>
+                        <ThemedText style={[styles.modalPillLabel, { color: colors.text }]}>{label}</ThemedText>
+                      </View>
+                    ));
+                  })()}
                 </View>
 
                 {/* Chart with press-to-reveal tooltip */}
@@ -364,6 +423,72 @@ function EcoScoreModal({
   );
 }
 
+// ── AI Suggestions Modal ─────────────────────────────────────────────────────
+function AIModal({
+  visible, onClose,
+  activities, weeklyTokens, weeklyCO2, activeDays, streak,
+  colors, scheme,
+}: {
+  visible: boolean; onClose: () => void;
+  activities: any[]; weeklyTokens: number; weeklyCO2: number;
+  activeDays: number; streak: number;
+  colors: any; scheme: string;
+}) {
+  const slideY  = useRef(new Animated.Value(700)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(slideY, { toValue: 0, damping: 24, stiffness: 300, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [visible]);
+
+  const dismiss = () => {
+    Animated.parallel([
+      Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }),
+      Animated.timing(slideY, { toValue: 700, duration: 200, useNativeDriver: true }),
+    ]).start(() => onClose());
+  };
+
+  const bgSheet = scheme === 'dark' ? '#121F16' : '#FFFFFF';
+
+  return (
+    <Modal transparent visible={visible} animationType="none" onRequestClose={dismiss}>
+      <Animated.View style={[styles.modalBackdrop, { opacity }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
+      </Animated.View>
+      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, transform: [{ translateY: slideY }] }]}>
+        <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
+        <View style={styles.modalHeader}>
+          <View>
+            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>AI Eco Tips</ThemedText>
+            <ThemedText style={[styles.modalSub, { color: colors.text }]}>Personalised suggestions for you</ThemedText>
+          </View>
+          <FontAwesome6 name="wand-magic-sparkles" size={20} color={colors.tint} />
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <AISuggestionsCard
+            activities={activities}
+            weeklyTokens={weeklyTokens}
+            weeklyCO2={weeklyCO2}
+            activeDaysThisWeek={activeDays}
+            streak={streak}
+          />
+        </ScrollView>
+        <Pressable
+          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+          onPress={dismiss}
+        >
+          <ThemedText style={[styles.modalCloseText, { color: colors.text }]}>Close</ThemedText>
+        </Pressable>
+      </Animated.View>
+    </Modal>
+  );
+}
+
 export default function HomeScreen() {
   const { colors, scheme } = useAppTheme();
   const userRegion        = useActivityStore(s => s.userRegion);
@@ -371,6 +496,7 @@ export default function HomeScreen() {
   const userProfile       = useActivityStore(s => s.userProfile);
   const ecoScoreSnapshots = useActivityStore(s => s.ecoScoreSnapshots);
   const [showEcoModal, setShowEcoModal] = useState(false);
+  const [showAIModal,  setShowAIModal]  = useState(false);
 
   const recentActivity = activities.length > 0
     ? [...activities].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
@@ -403,9 +529,22 @@ export default function HomeScreen() {
 
   const streak     = calculateStreak(activities);
   const zone       = getEcoZone(ecoScore);
-  // Transport-only comparison — utilities comparison is not meaningful week-on-week
-  // (you might simply not have entered a bill this week, not that you used more)
-  const comparison = getWeekCarbonComparison(activities, userRegion);
+  // Transport-only comparison; falls back to all-category if no transport data
+  const comparisonTransport = getWeekCarbonComparison(activities, userRegion);
+  // All-category fallback: compute manually so we don't need a second util import
+  const comparisonAll = (() => {
+    const now2       = new Date();
+    const thisSun    = new Date(now2); thisSun.setDate(now2.getDate() - now2.getDay()); thisSun.setHours(0,0,0,0);
+    const lastSun    = new Date(thisSun); lastSun.setDate(thisSun.getDate() - 7);
+    const lastSat    = new Date(thisSun); lastSat.setTime(thisSun.getTime() - 1);
+    const thisWeekCO2 = activities.filter(a => { const t = new Date(a.date).getTime(); return t >= thisSun.getTime(); }).reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
+    const lastWeekCO2 = activities.filter(a => { const t = new Date(a.date).getTime(); return t >= lastSun.getTime() && t <= lastSat.getTime(); }).reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
+    if (lastWeekCO2 === 0) return { direction: 'neutral' as const, percentage: 0 };
+    const pct = Math.round(Math.abs((thisWeekCO2 - lastWeekCO2) / lastWeekCO2) * 100);
+    return { direction: (thisWeekCO2 >= lastWeekCO2 ? 'up' : 'down') as 'up' | 'down' | 'neutral', percentage: pct };
+  })();
+  const comparison     = comparisonTransport.direction !== 'neutral' ? comparisonTransport : comparisonAll;
+  const comparisonNote = comparisonTransport.direction !== 'neutral' ? 'transport' : 'all CO₂';
 
   const totalCarbonSaved = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
   const co2Equivalent    = getCO2Equivalent(totalCarbonSaved);
@@ -427,6 +566,17 @@ export default function HomeScreen() {
         zoneColor={zoneColor}
         activities={activities}
         ecoScoreSnapshots={ecoScoreSnapshots}
+        colors={colors}
+        scheme={scheme}
+      />
+      <AIModal
+        visible={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        activities={activities}
+        weeklyTokens={weeklyTokens}
+        weeklyCO2={weeklyCarbonSaved}
+        activeDays={activeDays}
+        streak={streak}
         colors={colors}
         scheme={scheme}
       />
@@ -531,14 +681,18 @@ export default function HomeScreen() {
             </View>
             <View style={[styles.co2Divider, { backgroundColor: colors.surfaceMuted }]} />
             <View style={styles.co2Item}>
-              {/* Transport-only comparison — avoids misleading utility week-on-week delta */}
               <ThemedText style={[styles.statLabel, { color: colors.text }]}>vs Last Week</ThemedText>
               {comparison.direction === 'neutral' ? (
                 <ThemedText style={[styles.statValue, { color: colors.text, opacity: 0.4 }]}>—</ThemedText>
               ) : (
-                <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
-                  {comparisonArrow} {comparison.percentage}%
-                </ThemedText>
+                <>
+                  <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
+                    {comparisonArrow} {comparison.percentage}%
+                  </ThemedText>
+                  <ThemedText style={[styles.statLabel, { color: colors.text, fontSize: 10, opacity: 0.4 }]}>
+                    {comparisonNote}
+                  </ThemedText>
+                </>
               )}
             </View>
           </View>
@@ -620,14 +774,25 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* ── AI Suggestions ── */}
-        <AISuggestionsCard
-          activities={activities}
-          weeklyTokens={weeklyTokens}
-          weeklyCO2={weeklyCarbonSaved}
-          activeDaysThisWeek={activeDays}
-          streak={streak}
-        />
+        {/* ── AI Suggestions pill ── */}
+        <Pressable
+          style={({ pressed }) => [{
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+            gap: 8, paddingVertical: 13, borderRadius: 14,
+            backgroundColor: colors.tint + '18',
+            borderWidth: 1, borderColor: colors.tint + '33',
+            opacity: pressed ? 0.7 : 1,
+          }]}
+          onPress={() => setShowAIModal(true)}
+        >
+          <FontAwesome6 name="wand-magic-sparkles" size={15} color={colors.tint} />
+          <ThemedText style={{ color: colors.tint, fontWeight: '700', fontSize: 14 }}>
+            AI Eco Tips
+          </ThemedText>
+          <ThemedText style={{ color: colors.tint, opacity: 0.55, fontSize: 12 }}>
+            Tap to view →
+          </ThemedText>
+        </Pressable>
 
       </ScrollView>
     </SafeAreaView>
