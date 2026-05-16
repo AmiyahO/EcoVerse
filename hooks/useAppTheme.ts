@@ -10,8 +10,11 @@ export function useAppTheme() {
   const resolvedScheme =
     mode === 'system' ? systemScheme : mode;
 
+  const isDark = resolvedScheme === 'dark';
+
   return {
     scheme: resolvedScheme,
     colors: Colors[resolvedScheme],
+    isDark,
   };
 }

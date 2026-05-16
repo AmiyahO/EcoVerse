@@ -336,9 +336,9 @@ export default function LevelingScreen() {
 
 const s = StyleSheet.create({
   root:  { flex: 1 },
-  nav:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
+  nav:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 12 },
   backBtn:  { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  navTitle: { fontSize: 17, fontWeight: '700' },
+  navTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.4 },
   scroll:   { paddingHorizontal: 16, paddingBottom: 40 },
 
   heroCard:   { borderRadius: 24, padding: 20, borderWidth: 1.5, gap: 14, overflow: 'hidden' },

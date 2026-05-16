@@ -186,8 +186,10 @@ export async function fetchChallengesForWeek(): Promise<Challenge[]> {
     );
     const weekSnap = await getDocs(weekQ);
 
-    if (!weekSnap.empty) {
-      const all = weekSnap.docs.map(d => ({ id: d.id, ...d.data() } as Challenge));
+    if (weekSnap.docs.length > 0) {
+      const all = weekSnap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Challenge))
+      .filter(ch => ch?.id && ch?.title && ch?.goal);
       // Sort: weekly first, then monthly, then special — keeps layout predictable
       return all.sort((a, b) => {
         const order: Record<string, number> = { weekly: 0, monthly: 1, special: 2 };
