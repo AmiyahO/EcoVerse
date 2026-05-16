@@ -123,6 +123,7 @@ src/
 │   │                    #   totalCarbonSaved), celebration, levelUpPending,
 │   │                    #   pendingLevel, _hasHydrated, _profileLoaded,
 │   │                    #   ecoScoreSnapshots (weekly history, loaded from Firestore).
+│   │                    #   Activity type includes co2Saved? and tokensEarned? fields.
 │   │                    #   duplicateActivity() creates a dated copy and returns
 │   │                    #   it for Firestore persistence by the caller
 │   └── themeStore.ts    # Zustand store — persisted theme mode (light/dark/system)
@@ -148,7 +149,12 @@ src/
 │   │                         #   focuses on energy, water, transport, laundry, standby power,
 │   │                         #   thermostat, and packaging. Fallback pool: 7 data-aware tips.
 │   ├── billOCR.ts            # Camera capture + OCR for electricity and water bills
-│   └── billService.ts        # Bill data extraction and L & kWh calculation
+│   ├── billService.ts        # Bill data extraction. calculateSaving() accepts optional
+   │                         #   4th param regionalBaseline (from getRegionalBaseline()) so
+   │                         #   no-previous-reading fallback uses correct regional monthly avg.
+   └── notificationService.ts # (see Notifications section) + sendMissedChallengeNotification()
+                              #   fires on first app open of new week if prior week had
+                              #   joined-but-incomplete challenges.
 │
 ├── content/
 │   ├── termsOfService.ts     # Terms of Service text (shown in-app modal)
@@ -301,7 +307,7 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
 
 ## 🔥 Firebase Architecture
 
-- **Auth:** Email/password and Google Sign-In. Inline error messages with 10+ mapped Firebase error codes. Password reset via `sendPasswordResetEmail`.
+- **Auth:** Email/password and Google Sign-In. Inline error messages with 10+ mapped Firebase error codes. Email verification sent on new account creation via `sendEmailVerification()`. Password reset via `sendPasswordResetEmail()` with inline confirmation banner and mapped error codes. Auth email templates configured with EcoVerse branding in Firebase console.
 - **Firestore structure:**
   ```
   users/{uid}
@@ -316,7 +322,9 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
     │     ├── category, date, source ('manual' | 'health_connect')
     │     ├── hcId (HC session ID or 'steps-YYYY-MM-DD' for pedometer days)
     │     ├── hcSource (originating app package name, e.g. 'com.strava')
-    │     └── steps / distance / duration / kwhSaved / litersSaved / billId
+    │     ├── steps / distance / duration / kwhSaved / litersSaved / billId
+    │     ├── co2Saved  ← kg CO₂ saved, stored at log time
+    │     └── tokensEarned  ← final token award incl. streak multiplier, stored at log time
     ├── ecoScoreSnapshots/{YYYY-MM-DD}   ← Sunday-based local date key (e.g. "2026-05-03")
     │     ├── weekKey   (e.g. "2026-05-03" — Sunday date, local time)
     │     ├── score     (0–100, same formula as live EcoScore)
@@ -324,9 +332,16 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
     │     └── updatedAt
     ├── challengeProgress/{weekId}
     │     ├── joinedIds[], progress{}, completedIds[]
+    │     └── challengeTitles{}  ← metadata cached at join time
     └── meta/healthSync
           ├── lastSyncedAt (ISO timestamp)
           └── importedIds   (array of HC session IDs + pedometer day IDs)
+
+  challenges/{id}               ← active weekly challenges (read: public; write: Cloud Function/Admin SDK only)
+    ├── weekId, title, description, icon, color, difficulty, challengeType
+    └── goal: { metric, target, categories[] }, rewardTokens, badgeLabel
+
+  challengeTemplates/{id}       ← evergreen pool (read: public; write: Admin SDK only)
 
   leaderboard/{uid}             ← public mirror, readable by any authenticated user
     ├── weeklyEcoScore          ← mirrored from users/{uid} by persistWeeklyEcoScore()
@@ -338,7 +353,7 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
 - **Real-time listeners** in root `_layout.tsx` keep the Zustand store in sync. After the initial activity snapshot loads, `_layout.tsx` writes this week's EcoScore snapshot to `ecoScoreSnapshots/{YYYY-MM-DD}` (merge — idempotent) and loads the last 12 weekly snapshots into `activityStore.ecoScoreSnapshots` for the dashboard history chart. Also calls `checkAndScheduleMissedDayNudge()` after activities load.
 - **EcoScore snapshot write guarantee:** Three refs (`activitiesForSnapshot`, `snapshotWritten`, `readyFlags`) and a `maybeWriteSnapshot()` helper ensure the snapshot is written exactly once per login, only after both the user doc listener and activities listener have fired, using the correct weeklyTarget and region values. Week keys use **Sunday-based local dates** (not ISO week numbers) to match the boundaries used throughout the app.
 - **Three-flag loading guard** (`authResolved` + `userDocReady` + `activitiesReady`) eliminates skeleton flash before login. A `freshLogin` ref skips the data-loading skeleton for new sign-ins.
-- **Firestore security rules:** `/users/{userId}` and all sub-collections are read/write by owner only. `/leaderboard/{userId}` is readable by any authenticated user, writable only by the document owner.
+- **Firestore security rules:** `/users/{userId}` and all sub-collections are read/write by owner only. `/leaderboard/{userId}` is readable by any authenticated user, writable only by the document owner. `/challenges/{challengeId}` is publicly readable, write-disabled (Cloud Function uses Admin SDK). `/challengeTemplates/{id}` same pattern.
 - **Account deletion:** Zustand store cleared first (before `deleteUser`) so `onAuthStateChanged` sees clean state. No competing `router.replace` call in `settings.tsx`.
 
 ---
@@ -355,6 +370,7 @@ Notification logic lives in `src/services/notificationService.ts`. All notificat
 | Weekly goal recap | Every Sunday at user-chosen time | On, 09:00 |
 | Missed-yesterday nudge | One-shot, 30s after cold boot if no activity yesterday | On |
 | Streak at-risk alert | Daily at user-chosen time | Off |
+| Missed challenge nudge | One-shot on first app open of new week if prior week had joined-but-incomplete challenges | Automatic |
 
 ### Settings integration
 
@@ -409,8 +425,23 @@ Accessible via the third tab. Two sections via segmented control:
 | Water Warrior | Save 200 litres this week | 70 tokens |
 
 - Progress calculated client-side from activities array via `getChallengeProgress()`
-- Summary strip at top shows Joined / Completed / Available counts
+  (handles steps, distance, kwh, litres, activities, co2 metrics)
+- Summary strip shows Joined / Completed / Available (count reflects live Firestore challenge count)
+- Difficulty badge on each card (green easy / orange medium / red hard / purple epic)
+- **Join** appends challengeId to `joinedIds` + caches metadata in `challengeTitles` map
+- **Leave** removes challengeId via `arrayRemove`
+- On weekly rollover: stale joined state cleared, missed-challenge notification fired
 - Week ID uses Sunday-based local date key matching EcoScore week boundaries
+
+---
+
+## 🏅 Achievements Screen
+
+`achievements.tsx` — accessible from the Profile tab, two sections:
+
+**Challenge Badges** — loads all `challengeProgress` sub-collection docs. For each `completedId`, resolves metadata from cached `challengeTitles` map (fallback: static `CHALLENGES` array). Badges sorted newest-first.
+
+**Milestones** — 14 static badges checked against live stats: tokens (100/500/1 000/5 000), streak (3/7/30 days), activities (1/10/50/100), CO₂ (1/10/50 kg). Locked badges show padlock + `???`.
 
 ---
 
@@ -432,7 +463,8 @@ Two data sources merged:
 
 **Deduplication logic:**
 - Exercise sessions: filtered by `importedIds` + ±2h temporal cross-check
-- Step summary days: suppressed if any HC walking session (new or previously imported) covers the same date; also suppressed for manual walking entries on the same date
+- Step summary days: **delta calculation** — `pedometerTotal − importedSessionSteps`; only remainder offered if >200-step noise threshold. Distance scaled proportionally. Fixes silent loss of post-session steps (e.g. Samsung Health morning session imported, afternoon steps lost under old suppression logic).
+- Manual walking entries on the same date fully suppress the pedometer day
 - `importedIds` stores both session IDs and `steps-YYYY-MM-DD` keys
 
 **Date/Time Display Fix:** `commitSync()` converts HC UTC start times via `toLocalISOString()` — formats as `YYYY-MM-DDTHH:MM:SS` without trailing `Z` so JS treats it as local time.
@@ -582,6 +614,10 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Stats chart bar tap shows wrong bar or no response | Victory Native pan gesture requires movement to activate; static taps silently cancelled | Transparent `View` responder overlay; index from `locationX` ÷ slot width — instant on first tap |
 | Reanimated warning on Stats screen | `chartPressState.*.position.value` read during JSX render | Removed `chartPressState`; tooltip via plain React state from responder overlay |
 | VirtualizedList slow-update warning on Stats | Three nested `FlatList`s inside vertical `ScrollView` | Replaced with horizontal `ScrollView` + `pagingEnabled` + `snapToInterval` |
+| Pedometer day suppressed after session import | `sessionCoveredDates` suppressed entire day when HC walking session existed | Delta calc: `pedometerTotal − importedSessionSteps`; import if >200-step threshold |
+| Utility baseline wrong for non-EU users | `calculateSaving()` hardcoded 290 kWh/month regardless of region | `getRegionalBaseline(category, region)` passed as optional 4th param |
+| Challenges show Joined after weekly rollover | No current-week `challengeProgress` doc; local state retained previous week's `joinedIds` | Clear state when doc absent; fire missed-challenge notification |
+| Cloud Function log counts differ from actual batch | `randomPick()` called again inside `console.log` — independent reshuffle | Store `pickedEasy/pickedMedium/pickedHard` as named vars; reference directly |
 
 ---
 
@@ -600,10 +636,10 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 
 ## 📋 Pre-Shipping Checklist
 
-- [ ] Terms of Service and Privacy Policy (required for Play Store)
-- [ ] Configure Firebase Auth email templates (verification, password reset)
+- [x] Terms of Service and Privacy Policy (required for Play Store)
+- [x] Firebase Auth email templates configured (verification + password reset, EcoVerse branding)
 - [ ] Move Gemini API key to Firebase Cloud Function
-- [ ] Replace `FEEDBACK_FORM_URL` in `settings.tsx` with actual Google Form / Typeform link
+- [x] Replace `FEEDBACK_FORM_URL` in `settings.tsx` with actual Google Form / Typeform link
 - [ ] Test on 360dp-wide emulator (Pixel 3a size)
 - [ ] Remove remaining debug `console.warn` statements in `aiSuggestions.ts`
 - [ ] Play Store listing — icon, screenshots, description, Privacy Policy URL
