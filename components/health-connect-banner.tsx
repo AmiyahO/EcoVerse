@@ -2,7 +2,7 @@
 // Shows on the add activity screen when walking/running/cycling is selected.
 // Three states:
 //   1. not_asked  → "Connect Health Connect" CTA
-//   2. granted    → shows today's steps / recent session to import
+//   2. granted    → shows steps/sessions for the SELECTED DATE to import
 //   3. unavailable → hidden (not Android or HC not installed)
 
 import {
@@ -15,7 +15,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
   checkHealthPermissions,
-  fetchTodaySteps,
+  fetchStepsForDate,
   fetchRecentActivities,
   formatActivityDate,
   formatActivityDuration,
@@ -27,6 +27,9 @@ import { ActivityCategory } from '@/src/store/activityStore';
 
 interface HealthConnectBannerProps {
   category: ActivityCategory;
+  /** The date currently selected in the Add Activity date picker.
+   *  Banner fetches steps for this date — not always today. */
+  selectedDate: Date;
   /** Called when user picks a value to auto-fill */
   onAutoFill: (data: {
     steps?: number;
@@ -35,7 +38,30 @@ interface HealthConnectBannerProps {
   }) => void;
 }
 
-export default function HealthConnectBanner({ category, onAutoFill }: HealthConnectBannerProps) {
+/** Returns true if two Date objects fall on the same local calendar day */
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth()    === b.getMonth()    &&
+    a.getDate()     === b.getDate()
+  );
+}
+
+/** Short human-readable label for a date: "Today", "Yesterday", or "May 8" */
+function formatDateLabel(date: Date): string {
+  const today = new Date();
+  if (isSameLocalDay(date, today)) return 'Today';
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (isSameLocalDay(date, yesterday)) return 'Yesterday';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export default function HealthConnectBanner({
+  category,
+  selectedDate,
+  onAutoFill,
+}: HealthConnectBannerProps) {
   const { colors } = useAppTheme();
 
   const [status, setStatus]           = useState<PermissionStatus>('not_asked');
@@ -55,24 +81,41 @@ export default function HealthConnectBanner({ category, onAutoFill }: HealthConn
 
     if (perm === 'granted') {
       const [steps, sessions] = await Promise.all([
-        category === 'walking' ? fetchTodaySteps() : Promise.resolve(null),
+        // Fetch steps for the SELECTED date — not always today
+        category === 'walking' ? fetchStepsForDate(selectedDate) : Promise.resolve(null),
         fetchRecentActivities(7),
       ]);
       setTodaySteps(steps);
-      // Filter to matching category
-      setRecent(sessions.filter(s => s.type === category).slice(0, 3));
+      // Filter sessions to the matching category; for walking also filter
+      // to sessions on the selected date so stale old sessions don't appear
+      // when the user has picked a specific past day.
+      const filteredSessions = sessions
+        .filter(s => s.type === category)
+        .filter(s => {
+          // For walking with a specific past date selected, only show sessions
+          // from that date so the banner is date-coherent.
+          if (category === 'walking' && !isSameLocalDay(selectedDate, new Date())) {
+            return isSameLocalDay(new Date(s.startTime), selectedDate);
+          }
+          return true;
+        })
+        .slice(0, 3);
+      setRecent(filteredSessions);
     }
 
     setLoading(false);
-  }, [category]);
+  }, [category, selectedDate]);
 
+  // Re-run whenever category OR selectedDate changes
   useEffect(() => {
     setDismissed(false);
     loadData();
-  }, [category]);
+  }, [category, selectedDate]);
 
   // Hidden cases
   if (!isMovement || dismissed || status === 'unavailable') return null;
+
+  const dateLabel = formatDateLabel(selectedDate);
 
   // ── Not connected ──────────────────────────────────────────────────────────
   if (status === 'not_asked' || status === 'denied') {
@@ -112,13 +155,13 @@ export default function HealthConnectBanner({ category, onAutoFill }: HealthConn
       <View style={[styles.banner, { backgroundColor: colors.surface }]}>
         <ActivityIndicator size="small" color={colors.tint} />
         <ThemedText style={[styles.bannerSub, { color: colors.text, marginLeft: 10 }]}>
-          Loading your Health Connect data…
+          Loading Health Connect data for {dateLabel}…
         </ThemedText>
       </View>
     );
   }
 
-  // ── Granted: walking with today's steps ───────────────────────────────────
+  // ── Granted: walking with steps for the selected date ─────────────────────
   if (status === 'granted' && category === 'walking' && todaySteps && todaySteps.steps > 0) {
     return (
       <View style={[styles.hcCard, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
@@ -127,7 +170,9 @@ export default function HealthConnectBanner({ category, onAutoFill }: HealthConn
             <Text style={styles.hcIconEmoji}>👟</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <ThemedText style={[styles.hcCardTitle, { color: colors.text }]}>Today from Health Connect</ThemedText>
+            <ThemedText style={[styles.hcCardTitle, { color: colors.text }]}>
+              {dateLabel} from Health Connect
+            </ThemedText>
             <ThemedText style={[styles.hcSource, { color: colors.text }]}>Auto-synced</ThemedText>
           </View>
           <Pressable onPress={() => router.push('/health-connect-setup' as any)} style={styles.settingsBtn}>
@@ -160,7 +205,7 @@ export default function HealthConnectBanner({ category, onAutoFill }: HealthConn
           style={[styles.importBtn, { backgroundColor: colors.tint }]}
         >
           <FontAwesome6 name="download" size={13} color="#fff" />
-          <ThemedText style={styles.importBtnText}>Use today's data</ThemedText>
+          <ThemedText style={styles.importBtnText}>Use {dateLabel.toLowerCase()}'s data</ThemedText>
         </Pressable>
       </View>
     );
@@ -226,13 +271,13 @@ export default function HealthConnectBanner({ category, onAutoFill }: HealthConn
     );
   }
 
-  // ── Granted but no data ───────────────────────────────────────────────────
+  // ── Granted but no data for selected date ────────────────────────────────
   if (status === 'granted') {
     return (
       <View style={[styles.banner, { backgroundColor: colors.surface }]}>
         <Ionicons name="fitness-outline" size={18} color={colors.tint} />
         <ThemedText style={[styles.bannerSub, { color: colors.text, flex: 1, marginLeft: 10 }]}>
-          No recent {category} sessions found in Health Connect.
+          No {category} data found in Health Connect for {dateLabel}.
         </ThemedText>
         <Pressable onPress={() => router.push('/health-connect-setup' as any)} style={styles.settingsBtn}>
           <Ionicons name="settings-outline" size={14} color={colors.text + '55'} />

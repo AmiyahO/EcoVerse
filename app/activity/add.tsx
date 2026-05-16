@@ -171,7 +171,9 @@ export default function AddActivityScreen() {
     const reading = parseFloat(billReading);
     if (!billReading || isNaN(reading) || reading <= 0) return null;
     const regionalBaseline = getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG');
-    return calculateSaving(category, reading, lastBill?.reading ?? null, regionalBaseline);
+    // Always compare against the regional baseline — consistent, ungameable anchor.
+    // Previous reading is shown to the user as informational context only.
+    return calculateSaving(category, reading, null, regionalBaseline);
   };
 
   const handleSave = async () => {
@@ -189,9 +191,10 @@ export default function AddActivityScreen() {
           return;
         }
 
+        // Always baseline vs regional average — previous reading shown as info only
+        const regionalBaseline = getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG');
         const { savedAmount, basedOnPrevious } = calculateSaving(
-          category, reading, lastBill?.reading ?? null,
-          getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG'),
+          category, reading, null, regionalBaseline,
         );
 
         const doSave = async () => {
@@ -204,9 +207,7 @@ export default function AddActivityScreen() {
         if (savedAmount === 0) {
           Alert.alert(
             'No saving detected',
-            lastBill
-              ? `Your usage this month (${reading.toLocaleString()}) is higher than or equal to your previous reading (${lastBill.reading.toLocaleString()}). Log anyway to track trends?`
-              : `Your usage exceeds the average household baseline. Log anyway to track trends?`,
+            `Your usage (${reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) is at or above the regional average (${regionalBaseline.toLocaleString()}${category === 'electricity' ? ' kWh/month' : ' L/month'}). Log anyway to track trends?`,
             [
               { text: 'Cancel', style: 'cancel', onPress: () => { setSaving(false); saveInProgress.current = false; } },
               { text: 'Log anyway', onPress: async () => { await doSave(); setSaving(false); saveInProgress.current = false; } },
@@ -407,7 +408,11 @@ export default function AddActivityScreen() {
 
         {/* ── Health Connect banner ── */}
         {(category === 'walking' || category === 'running' || category === 'cycling') && (
-          <HealthConnectBanner category={category} onAutoFill={handleHCAutoFill} />
+          <HealthConnectBanner
+            category={category}
+            selectedDate={selectedDate}
+            onAutoFill={handleHCAutoFill}
+          />
         )}
 
         {/* ── Walking ── */}
@@ -568,16 +573,14 @@ export default function AddActivityScreen() {
                         {category === 'electricity' ? ' kWh saved' : ' litres saved'}
                       </ThemedText>
                       <ThemedText style={[styles.previewSub, { color: colors.text }]}>
-                        {preview.basedOnPrevious
-                          ? `vs your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'})`
-                          : 'vs average household usage'}
+                        vs regional average (~{getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG').toLocaleString()}{category === 'electricity' ? ' kWh/month' : ' L/month'})
+                        {lastBill ? ` · last reading: ${lastBill.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}` : ''}
                       </ThemedText>
                     </>
                   ) : (
                     <ThemedText style={[styles.previewSub, { color: colors.text }]}>
-                      {preview.basedOnPrevious
-                        ? `Usage is higher than your previous reading (${lastBill?.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) — no saving this period.`
-                        : 'Usage exceeds the average — no saving detected, but logging helps track trends.'}
+                      Usage exceeds the regional average (~{getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG').toLocaleString()}{category === 'electricity' ? ' kWh/month' : ' L/month'}) — no saving detected, but logging helps track trends.
+                      {lastBill ? ` Last reading: ${lastBill.reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}.` : ''}
                     </ThemedText>
                   )}
                 </View>

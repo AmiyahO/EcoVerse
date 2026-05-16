@@ -164,9 +164,34 @@ function toLocalISODate(d: Date): string {
  * yesterday's evening sessions into today's count.
  */
 export async function fetchTodaySteps(): Promise<{ steps: number; distance: number } | null> {
+  return fetchStepsForDate(new Date());
+}
+
+/**
+ * Fetch step count and distance for any specific local calendar date.
+ * Queries from local midnight of that day to either end-of-day (past dates)
+ * or now (today), so the banner shows the correct data when the user
+ * back-dates an activity to a previous day.
+ */
+export async function fetchStepsForDate(
+  date: Date,
+): Promise<{ steps: number; distance: number } | null> {
   try {
-    const startTime = localMidnightToday().toISOString();
-    const endTime   = new Date().toISOString();
+    const today = new Date();
+    const isToday =
+      date.getFullYear() === today.getFullYear() &&
+      date.getMonth()    === today.getMonth()    &&
+      date.getDate()     === today.getDate();
+
+    // Start = local midnight of the given date
+    const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+    // End = now for today (partial day), or 23:59:59.999 for past dates
+    const endOfDay = isToday
+      ? new Date()
+      : new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+
+    const startTime = startOfDay.toISOString();
+    const endTime   = endOfDay.toISOString();
 
     const [stepsResult, distanceResult] = await Promise.all([
       readRecords('Steps',    { timeRangeFilter: { operator: 'between', startTime, endTime } }),
@@ -181,7 +206,7 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
       const origin = r.metadata?.dataOrigin ?? 'unknown';
       stepsByOrigin[origin] = (stepsByOrigin[origin] ?? 0) + (r.count ?? 0);
     }
-    const totalSteps = stepsByOrigin && Object.keys(stepsByOrigin).length > 0
+    const totalSteps = Object.keys(stepsByOrigin).length > 0
       ? Math.max(...Object.values(stepsByOrigin))
       : 0;
 
@@ -190,7 +215,7 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
       const origin = r.metadata?.dataOrigin ?? 'unknown';
       distByOrigin[origin] = (distByOrigin[origin] ?? 0) + (r.distance?.inMeters ?? 0);
     }
-    const totalDistanceMeters = distByOrigin && Object.keys(distByOrigin).length > 0
+    const totalDistanceMeters = Object.keys(distByOrigin).length > 0
       ? Math.max(...Object.values(distByOrigin))
       : 0;
 
@@ -199,7 +224,7 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
       distance: Math.round((totalDistanceMeters / 1000) * 100) / 100,
     };
   } catch (e) {
-    console.error('fetchTodaySteps error:', e);
+    console.error('fetchStepsForDate error:', e);
     return null;
   }
 }
@@ -210,6 +235,8 @@ export async function fetchTodaySteps(): Promise<{ steps: number; distance: numb
  * Used to show "recent activities" the user can import.
  */
 export async function fetchRecentActivities(daysBack = 7): Promise<HCActivity[]> {
+  if (Platform.OS !== 'android') return [];
+
   try {
     const { startTime, endTime } = getDateRange(daysBack);
 
