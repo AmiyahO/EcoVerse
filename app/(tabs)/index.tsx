@@ -38,11 +38,13 @@ function getZoneColor(score: number) {
   return '#4CAF50';
 }
 
-function getGreeting(firstName: string): { icon: string; text: string } {
+function getGreeting(firstName: string): { lib: 'FA6' | 'AD'; icon: string; text: string; iconColor: string } {
   const hour = new Date().getHours();
-  if (hour < 12) return { icon: 'sun',  text: `Good morning, ${firstName}` };
-  if (hour < 18) return { icon: 'cloud-sun', text: `Hello, ${firstName}` };
-  return { icon: 'moon', text: `Good evening, ${firstName}` };
+  // Truncate long first names so the greeting never wraps
+  const name = firstName.length > 12 ? firstName.slice(0, 12) + '…' : firstName;
+  if (hour < 12) return { lib: 'AD',  icon: 'sun',      text: `Good morning, ${name}`, iconColor: '#F59E0B' };
+  if (hour < 18) return { lib: 'FA6', icon: 'cloud-sun',  text: `Hello, ${name}`,        iconColor: '#34D399' };
+  return              { lib: 'AD',  icon: 'moon',        text: `Good evening, ${name}`, iconColor: '#818CF8' };
 }
 
 function getRecentActivityLabel(activity: any) {
@@ -549,8 +551,7 @@ export default function HomeScreen() {
     const pct = Math.round(Math.abs((thisWeekCO2 - lastWeekCO2) / lastWeekCO2) * 100);
     return { direction: (thisWeekCO2 >= lastWeekCO2 ? 'up' : 'down') as 'up' | 'down' | 'neutral', percentage: pct };
   })();
-  const comparison     = comparisonTransport.direction !== 'neutral' ? comparisonTransport : comparisonAll;
-  const comparisonNote = comparisonTransport.direction !== 'neutral' ? 'transport' : 'all CO₂';
+  const comparison = comparisonTransport.direction !== 'neutral' ? comparisonTransport : comparisonAll;
 
   const totalCarbonSaved = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
   const co2Equivalent    = getCO2Equivalent(totalCarbonSaved);
@@ -591,15 +592,28 @@ export default function HomeScreen() {
         {/* ── Greeting ── */}
         <View style={styles.greeting}>
           <View style={styles.greetingLeft}>
-            <ThemedText style={[styles.greetingName, { color: colors.text }]}>
+            <ThemedText
+              style={[styles.greetingName, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {getGreeting(firstName).text}
             </ThemedText>
-            <FontAwesome6
-              name={getGreeting(firstName).icon as any}
-              size={18}
-              color={colors.tint}
-              style={styles.greetingIcon}
-            />
+            {getGreeting(firstName).lib === 'AD' ? (
+              <AntDesign
+                name={getGreeting(firstName).icon as any}
+                size={18}
+                color={getGreeting(firstName).iconColor}
+                style={styles.greetingIcon}
+              />
+            ) : (
+              <FontAwesome6
+                name={getGreeting(firstName).icon as any}
+                size={18}
+                color={getGreeting(firstName).iconColor}
+                style={styles.greetingIcon}
+              />
+            )}
           </View>
           <Pressable
             style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.tint, opacity: pressed ? 0.75 : 1 }]}
@@ -697,14 +711,9 @@ export default function HomeScreen() {
               {comparison.direction === 'neutral' ? (
                 <ThemedText style={[styles.statValue, { color: colors.text, opacity: 0.4 }]}>—</ThemedText>
               ) : (
-                <>
-                  <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
-                    {comparisonArrow} {comparison.percentage}%
-                  </ThemedText>
-                  <ThemedText style={[styles.statLabel, { color: colors.text, fontSize: 10, opacity: 0.4 }]}>
-                    {comparisonNote}
-                  </ThemedText>
-                </>
+                <ThemedText style={[styles.statValue, { color: comparisonColor }]}>
+                  {comparisonArrow} {comparison.percentage}%
+                </ThemedText>
               )}
             </View>
           </View>
@@ -814,7 +823,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container:    { padding: 16, gap: 14, paddingBottom: 24 },
   greeting:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, marginBottom: 4 },
-  greetingLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greetingLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexShrink: 1 },
   greetingIcon: { marginTop: 1 },
   greetingName: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
@@ -843,8 +852,8 @@ const styles = StyleSheet.create({
   // ── CO₂ card ──
   card:         { padding: 16, borderRadius: 16, gap: 12 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  co2Row:       { flexDirection: 'row', alignItems: 'center' },
-  co2Item:      { flex: 1, gap: 4, alignItems: 'center' },
+  co2Row:       { flexDirection: 'row', alignItems: 'stretch' },
+  co2Item:      { flex: 1, gap: 4, alignItems: 'center', justifyContent: 'space-between' },
   co2Divider:   { width: 1, height: 40, marginHorizontal: 8 },
   statLabel:    { fontSize: 12, opacity: 0.55, textAlign: 'center' },
   statValue:    { fontSize: 24, fontWeight: '700', textAlign: 'center' },

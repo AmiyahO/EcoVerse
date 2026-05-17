@@ -36,10 +36,15 @@ const DIFFICULTY: Record<string, { label: string; color: string; bg: string }> =
 
 // ── Milestone definitions ──────────────────────────────────────────────────────
 interface MilestoneStats {
-  totalTokens:     number;
-  totalActivities: number;
-  currentStreak:   number;
-  totalCO2:        number;
+  totalTokens:        number;
+  totalActivities:    number;
+  currentStreak:      number;
+  totalCO2:           number;
+  walkingActivities:  number;
+  cyclingActivities:  number;
+  electricityActivities: number;
+  waterActivities:    number;
+  uniqueCategories:   number;
 }
 
 interface Milestone {
@@ -166,6 +171,170 @@ const MILESTONES: Milestone[] = [
     progress: s => Math.min(s.totalCO2 / 50, 1),
     check: s => s.totalCO2 >= 50,
   },
+
+  // ── Per-category milestones ────────────────────────────────────────────────
+  {
+    id: 'walking_first',
+    title: 'First Steps',
+    description: 'Log your first walk',
+    icon: 'person-walking', color: '#4CAF50',
+    progress: s => Math.min(s.walkingActivities / 1, 1),
+    check: s => s.walkingActivities >= 1,
+  },
+  {
+    id: 'cycling_first',
+    title: 'Wheel Life',
+    description: 'Log your first cycle ride',
+    icon: 'bicycle', color: '#29B6F6',
+    progress: s => Math.min(s.cyclingActivities / 1, 1),
+    check: s => s.cyclingActivities >= 1,
+  },
+  {
+    id: 'electricity_first',
+    title: 'Power Saver',
+    description: 'Log your first electricity saving',
+    icon: 'bolt', color: '#FFC107',
+    progress: s => Math.min(s.electricityActivities / 1, 1),
+    check: s => s.electricityActivities >= 1,
+  },
+  {
+    id: 'water_first',
+    title: 'Drop Counter',
+    description: 'Log your first water saving',
+    icon: 'droplet', color: '#26C6DA',
+    progress: s => Math.min(s.waterActivities / 1, 1),
+    check: s => s.waterActivities >= 1,
+  },
+  {
+    id: 'all_categories',
+    title: 'All-Rounder',
+    description: 'Log at least one activity in every category',
+    icon: 'layer-group', color: '#AB47BC',
+    progress: s => Math.min(s.uniqueCategories / 5, 1),
+    check: s => s.uniqueCategories >= 5,
+  },
+
+  // ── Streak milestones ──────────────────────────────────────────────────────
+  {
+    id: 'streak_14',
+    title: 'Fortnight Force',
+    description: 'Keep a 14-day streak',
+    icon: 'fire', color: '#E64A19',
+    progress: s => Math.min(s.currentStreak / 14, 1),
+    check: s => s.currentStreak >= 14,
+  },
+
+  // ── Token milestones ───────────────────────────────────────────────────────
+  {
+    id: 'token_2500',
+    title: 'Token Titan',
+    description: 'Earn 2,500 EcoTokens',
+    icon: 'star', color: '#FB8C00',
+    progress: s => Math.min(s.totalTokens / 2500, 1),
+    check: s => s.totalTokens >= 2500,
+  },
+
+  // ── CO₂ milestones ─────────────────────────────────────────────────────────
+  {
+    id: 'co2_100',
+    title: 'Carbon Slayer',
+    description: 'Save 100 kg of CO₂',
+    icon: 'earth-europe', color: '#00695C',
+    progress: s => Math.min(s.totalCO2 / 100, 1),
+    check: s => s.totalCO2 >= 100,
+  },
+
+  // ── Activity count milestones ──────────────────────────────────────────────
+  {
+    id: 'activities_25',
+    title: 'Consistent',
+    description: 'Log 25 activities',
+    icon: 'calendar-check', color: '#5C6BC0',
+    progress: s => Math.min(s.totalActivities / 25, 1),
+    check: s => s.totalActivities >= 25,
+  },
+
+  // ── Long-term / hard milestones ────────────────────────────────────────────
+  {
+    id: 'token_10000',
+    title: 'Token Master',
+    description: 'Earn 10,000 EcoTokens lifetime',
+    icon: 'crown', color: '#F9A825',
+    progress: s => Math.min(s.totalTokens / 10000, 1),
+    check: s => s.totalTokens >= 10000,
+  },
+  {
+    id: 'token_25000',
+    title: 'EcoVerse Elite',
+    description: 'Earn 25,000 EcoTokens lifetime',
+    icon: 'shield-crown', color: '#E65100',
+    progress: s => Math.min(s.totalTokens / 25000, 1),
+    check: s => s.totalTokens >= 25000,
+  },
+  {
+    id: 'streak_60',
+    title: 'Unstoppable',
+    description: 'Keep a 60-day streak',
+    icon: 'fire-flame-curved', color: '#BF360C',
+    progress: s => Math.min(s.currentStreak / 60, 1),
+    check: s => s.currentStreak >= 60,
+  },
+  {
+    id: 'streak_100',
+    title: 'Centurion',
+    description: 'Keep a 100-day streak',
+    icon: 'infinity', color: '#880E4F',
+    progress: s => Math.min(s.currentStreak / 100, 1),
+    check: s => s.currentStreak >= 100,
+  },
+  {
+    id: 'activities_200',
+    title: 'Dedicated',
+    description: 'Log 200 activities',
+    icon: 'chart-line', color: '#00838F',
+    progress: s => Math.min(s.totalActivities / 200, 1),
+    check: s => s.totalActivities >= 200,
+  },
+  {
+    id: 'activities_500',
+    title: 'Eco Obsessed',
+    description: 'Log 500 activities',
+    icon: 'rocket', color: '#283593',
+    progress: s => Math.min(s.totalActivities / 500, 1),
+    check: s => s.totalActivities >= 500,
+  },
+  {
+    id: 'co2_250',
+    title: 'Climate Champion',
+    description: 'Save 250 kg of CO₂',
+    icon: 'earth-americas', color: '#004D40',
+    progress: s => Math.min(s.totalCO2 / 250, 1),
+    check: s => s.totalCO2 >= 250,
+  },
+  {
+    id: 'co2_1000',
+    title: 'Carbon Warrior',
+    description: 'Save 1,000 kg of CO₂',
+    icon: 'shield', color: '#1A237E',
+    progress: s => Math.min(s.totalCO2 / 1000, 1),
+    check: s => s.totalCO2 >= 1000,
+  },
+  {
+    id: 'walking_marathon',
+    title: 'Marathon Walker',
+    description: 'Log 50 walking activities',
+    icon: 'person-walking', color: '#2E7D32',
+    progress: s => Math.min(s.walkingActivities / 50, 1),
+    check: s => s.walkingActivities >= 50,
+  },
+  {
+    id: 'cycling_century',
+    title: 'Cycle Century',
+    description: 'Log 30 cycling activities',
+    icon: 'bicycle', color: '#0277BD',
+    progress: s => Math.min(s.cyclingActivities / 30, 1),
+    check: s => s.cyclingActivities >= 30,
+  },
 ];
 
 // ── Completed challenge record ─────────────────────────────────────────────────
@@ -180,7 +349,7 @@ interface CompletedChallenge {
   rewardTokens: number;
 }
 
-// ── Challenge badge card (horizontal, full-width) ─────────────────────────────
+// ── Challenge badge tile (2-column grid, collectible medal style) ──────────────
 function ChallengeBadgeCard({
   cc,
   colors: c,
@@ -193,67 +362,72 @@ function ChallengeBadgeCard({
   const dc = cc.difficulty ? DIFFICULTY[cc.difficulty] : null;
 
   return (
-    <View style={[
-      cardStyles.wrap,
-      { backgroundColor: c.surface },
-    ]}>
-      {/* Left accent stripe */}
-      <View style={[cardStyles.accent, { backgroundColor: cc.color }]} />
-
-      {/* Icon */}
-      <View style={[cardStyles.iconCircle, { backgroundColor: cc.color + '20' }]}>
-        <FontAwesome6 name={cc.icon} size={22} color={cc.color} solid />
-      </View>
-
-      {/* Text */}
-      <View style={{ flex: 1, gap: 3 }}>
-        <View style={cardStyles.topRow}>
-          <Text style={[cardStyles.badgeTitle, { color: c.text }]} numberOfLines={1}>
-            {cc.badgeLabel}
-          </Text>
-          {dc && (
-            <View style={[cardStyles.diffPill, { backgroundColor: isDark ? dc.color + '22' : dc.bg }]}>
-              <Text style={[cardStyles.diffText, { color: dc.color }]}>{dc.label}</Text>
-            </View>
-          )}
+    <View style={[cardStyles.tile, { backgroundColor: c.surface }]}>
+      {/* Glow ring */}
+      <View style={[cardStyles.glowRing, { backgroundColor: cc.color + '18', borderColor: cc.color + '40' }]}>
+        {/* Inner icon circle */}
+        <View style={[cardStyles.iconCircle, { backgroundColor: cc.color + '22' }]}>
+          <FontAwesome6 name={cc.icon} size={28} color={cc.color} solid />
         </View>
-        <Text style={[cardStyles.challengeName, { color: c.text }]} numberOfLines={1}>
-          {cc.title}
-        </Text>
-        <Text style={[cardStyles.weekLabel, { color: c.text }]}>
-          Week of {formatWeekId(cc.weekId)}
-        </Text>
       </View>
 
-      {/* Right: reward */}
-      <View style={[cardStyles.rewardBubble, { backgroundColor: '#43A047' + '15' }]}>
-        <FontAwesome6 name="leaf" size={10} color="#43A047" solid />
+      {/* Badge label */}
+      <Text style={[cardStyles.badgeTitle, { color: c.text }]} numberOfLines={2}>
+        {cc.badgeLabel}
+      </Text>
+
+      {/* Difficulty pill */}
+      {dc && (
+        <View style={[cardStyles.diffPill, { backgroundColor: isDark ? dc.color + '22' : dc.bg }]}>
+          <Text style={[cardStyles.diffText, { color: dc.color }]}>{dc.label}</Text>
+        </View>
+      )}
+
+      {/* Week earned */}
+      <Text style={[cardStyles.weekLabel, { color: c.text }]}>
+        {formatWeekId(cc.weekId)}
+      </Text>
+
+      {/* Token reward */}
+      <View style={[cardStyles.rewardPill, { backgroundColor: '#43A047' + '18' }]}>
+        <FontAwesome6 name="leaf" size={9} color="#43A047" solid />
         <Text style={cardStyles.rewardText}>+{cc.rewardTokens}</Text>
       </View>
+
+      {/* Colour accent bottom strip */}
+      <View style={[cardStyles.bottomStrip, { backgroundColor: cc.color }]} />
     </View>
   );
 }
 
 const cardStyles = StyleSheet.create({
-  wrap: {
-    flexDirection: 'row',
+  tile: {
+    flex: 1,
+    borderRadius: 18,
     alignItems: 'center',
-    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    gap: 7,
     overflow: 'hidden',
-    gap: 12,
-    paddingRight: 14,
-    paddingVertical: 14,
+    position: 'relative',
   },
-  accent:       { width: 4, alignSelf: 'stretch' },
-  iconCircle:   { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  topRow:       { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  badgeTitle:   { fontSize: 14, fontWeight: '700' },
-  challengeName:{ fontSize: 12, opacity: 0.6 },
-  weekLabel:    { fontSize: 11, opacity: 0.4, fontWeight: '500' },
-  diffPill:     { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 20 },
-  diffText:     { fontSize: 10, fontWeight: '700' },
-  rewardBubble: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 20 },
-  rewardText:   { fontSize: 11, fontWeight: '800', color: '#43A047' },
+  glowRing: {
+    width: 76, height: 76, borderRadius: 38,
+    borderWidth: 2,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 4,
+  },
+  iconCircle: {
+    width: 58, height: 58, borderRadius: 29,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badgeTitle:    { fontSize: 13, fontWeight: '800', textAlign: 'center', lineHeight: 17 },
+  diffPill:      { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 },
+  diffText:      { fontSize: 10, fontWeight: '700' },
+  weekLabel:     { fontSize: 10, opacity: 0.4, fontWeight: '500' },
+  rewardPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 },
+  rewardText:    { fontSize: 11, fontWeight: '800', color: '#43A047' },
+  bottomStrip:   { position: 'absolute', bottom: 0, left: 0, right: 0, height: 3 },
 });
 
 // ── Milestone badge card (2-column grid) ──────────────────────────────────────
@@ -425,6 +599,11 @@ export default function AchievementsScreen() {
     totalActivities: activities.length,
     currentStreak:   calculateStreak(activities),
     totalCO2:        userProfile?.totalCarbonSaved ?? 0,
+    walkingActivities:     activities.filter(a => a.category === 'walking').length,
+    cyclingActivities:     activities.filter(a => a.category === 'cycling').length,
+    electricityActivities: activities.filter(a => a.category === 'electricity').length,
+    waterActivities:       activities.filter(a => a.category === 'water').length,
+    uniqueCategories:      new Set(activities.map(a => a.category)).size,
   };
 
   const totalTokens = userProfile?.tokens ?? 0;
@@ -541,7 +720,7 @@ export default function AchievementsScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.cardList}>
+          <View style={styles.badgeGrid}>
             {completedChallenges.map((cc, i) => (
               <ChallengeBadgeCard
                 key={`${cc.challengeId}-${cc.weekId}-${i}`}
@@ -550,6 +729,8 @@ export default function AchievementsScreen() {
                 isDark={isDark}
               />
             ))}
+            {/* Pad to even columns */}
+            {completedChallenges.length % 2 !== 0 && <View style={{ flex: 1 }} />}
           </View>
         )}
 
@@ -642,7 +823,8 @@ const styles = StyleSheet.create({
   countChipText: { fontSize: 12, fontWeight: '700' },
 
   // Challenge cards
-  cardList: { gap: 8, marginBottom: 8 },
+  cardList:  { gap: 8, marginBottom: 8 },
+  badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 8 },
 
   // Empty
   emptyCard:  { borderRadius: 16, padding: 28, alignItems: 'center', marginBottom: 8 },

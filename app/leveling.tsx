@@ -217,9 +217,10 @@ export default function LevelingScreen() {
           <LinearGradient
             colors={isDark
               ? [rank.color + 'B5', rank.color + '45', colors.surface + 'EE']
-              : [rank.color + '65', rank.color + '22', colors.background]}
-            start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }}
-            style={[s.heroCard, { borderColor: rank.color + '55' }]}
+              : ['#FFFFFF', rank.color + '30', rank.color + '18']}
+            start={isDark ? { x: 0.1, y: 0 } : { x: 0, y: 0 }}
+            end={isDark ? { x: 0.9, y: 1 }   : { x: 1, y: 1 }}
+            style={[s.heroCard, { borderColor: isDark ? rank.color + '55' : rank.color + '80' }]}
           >
             {/* Decorative blobs */}
             <View style={[s.blob, { width: 170, height: 170, top: -55, right: -55, backgroundColor: rank.color + '14' }]} />

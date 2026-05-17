@@ -132,8 +132,8 @@ export async function applyNotifSettings(
     await Notifications.scheduleNotificationAsync({
       identifier: IDS.DAILY_REMINDER,
       content: {
-        title: '🌿 Time to log today',
-        body:  "Don't forget to log your eco activities. Every action counts!",
+        title: 'Time to log today',
+        body:  "Don't let the day slip by — log an eco activity and keep your impact growing.",
         data:  { type: 'daily_reminder' },
       },
       trigger: {
@@ -150,8 +150,8 @@ export async function applyNotifSettings(
     await Notifications.scheduleNotificationAsync({
       identifier: IDS.WEEKLY_GOAL,
       content: {
-        title: '🏆 Weekly EcoScore recap',
-        body:  "Check how this week's eco performance stacked up — new week starts today!",
+        title: 'Weekly EcoScore recap',
+        body:  "See how your EcoScore shaped up this week. A fresh week starts now — make it count.",
         data:  { type: 'weekly_goal' },
       },
       trigger: {
@@ -167,12 +167,12 @@ export async function applyNotifSettings(
   if (settings.streakAtRiskAlert) {
     const { hour, minute } = parseTime(settings.streakAtRiskTime);
     const streakCopy = currentStreak >= 3
-      ? `Your ${currentStreak}-day streak is on the line 🔥`
-      : "Keep your streak alive — log something before midnight!";
+      ? `Your ${currentStreak}-day streak is on the line — log before midnight to keep it alive.`
+      : 'No activity logged yet today — keep your streak going before midnight.';
     await Notifications.scheduleNotificationAsync({
       identifier: IDS.STREAK_AT_RISK,
       content: {
-        title: '⚡ Streak at risk',
+        title: 'Streak at risk',
         body:  streakCopy,
         data:  { type: 'streak_at_risk' },
       },
@@ -217,8 +217,8 @@ export async function checkAndScheduleMissedDayNudge(
   await Notifications.scheduleNotificationAsync({
     identifier: IDS.MISSED_DAY,
     content: {
-      title: '🌱 You missed yesterday',
-      body:  "You can still log yesterday's activities — use the date picker on the Add screen.",
+      title: 'You missed yesterday',
+      body:  "You can still log yesterday's activities — just use the date picker when adding a new entry.",
       data:  { type: 'missed_day' },
     },
     trigger: {
@@ -240,8 +240,8 @@ export async function sendGoalReachedNotification(weeklyTarget: number) {
   await Notifications.scheduleNotificationAsync({
     identifier: 'ev_goal_reached',
     content: {
-      title: '🎉 Weekly goal reached!',
-      body:  `You hit ${weeklyTarget} EcoTokens this week. Amazing work!`,
+      title: 'Weekly goal reached!',
+      body:  `You hit ${weeklyTarget} EcoTokens this week — brilliant work. Keep the momentum going.`,
       data:  { type: 'goal_reached' },
     },
     trigger: null, // fire immediately
@@ -258,13 +258,13 @@ export async function sendMissedChallengeNotification(missedCount: number) {
   if (perm !== 'granted') return;
 
   const body = missedCount === 1
-    ? "You had 1 challenge that didn't complete last week. A new week has started — jump back in!"
-    : `You had ${missedCount} challenges that didn't complete last week. Fresh challenges are waiting!`;
+    ? "One challenge didn't complete last week. New challenges are live — jump back in."
+    : `${missedCount} challenges didn't complete last week. Fresh ones are waiting — go claim them.`;
 
   await Notifications.scheduleNotificationAsync({
     identifier: 'ev_missed_challenge',
     content: {
-      title: "🌿 Last week's challenges expired",
+      title: "Last week's challenges expired",
       body,
       data: { type: 'missed_challenge' },
     },
