@@ -88,12 +88,12 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
       <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         <ConfettiCannon
           ref={confettiRef}
-          count={150}
+          count={70}
           origin={{ x: SCREEN_W / 2, y: -10 }}
           autoStart={false}
           fadeOut
-          explosionSpeed={400}
-          fallSpeed={2800}
+          explosionSpeed={300}
+          fallSpeed={3000}
           colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#AB47BC', '#26C6DA', '#ffffff']}
         />
       </View>

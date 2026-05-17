@@ -169,6 +169,12 @@ export default function RootLayout() {
         setUser(currentUser);
         freshLogin.current = true;
 
+        // Reset the weekly goal celebration flag on every new login session.
+        // Without this, the persisted `celebrated: true` from the previous
+        // session causes the banner to re-fire when the user signs back in
+        // and the progress check runs before the activities have loaded.
+        useActivityStore.getState().setCelebrated(false);
+
         unsubscribeDoc = onSnapshot(
           doc(db, 'users', currentUser.uid),
           (docSnap) => {

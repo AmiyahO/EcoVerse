@@ -281,6 +281,10 @@ export default function AddActivityScreen() {
       userRegion,
     );
 
+    // ── Determine if a celebration should fire BEFORE navigating ──
+    // We calculate it here but trigger it AFTER router.back() settles,
+    // so the activity screen is fully mounted when the modal appears.
+    let shouldCelebrate = false;
     if (!celebrated) {
       const weeklyTarget = userProfile?.weeklyTarget ?? 500;
       const now = new Date();
@@ -292,12 +296,18 @@ export default function AddActivityScreen() {
         .reduce((sum: number, a: any) => sum + calculateTokens(a), 0);
 
       if (currentWeeklyTokens + tokensEarned >= weeklyTarget) {
-        setCelebrated(false);
+        shouldCelebrate = true;
       }
     }
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Navigate back first — let the screen transition complete (~400ms),
+    // THEN trigger the celebration so it doesn't fire mid-animation.
     router.back();
+    if (shouldCelebrate) {
+      setTimeout(() => setCelebrated(false), 420);
+    }
   };
 
   const isSaveDisabled =

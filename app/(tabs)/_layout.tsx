@@ -1,4 +1,4 @@
-// layout.tsx for the bottom tab navigator
+// app/(tabs)/_layout.tsx
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { HapticTab } from '@/components/haptic-tab';
@@ -35,8 +35,8 @@ export default function TabLayout() {
   const clearLevelUp   = useActivityStore((s) => s.clearLevelUp);
   const totalTokens    = useActivityStore((s) => s.userProfile?.tokens ?? 0);
 
-  const dynamicTarget  = userProfile?.weeklyTarget ?? 500;
-  const loading        = !userProfile;
+  const dynamicTarget = userProfile?.weeklyTarget ?? 500;
+  const loading       = !userProfile;
 
   const weeklyTokens = activities
     .filter(a => a.date && isThisWeek(a.date))
@@ -45,8 +45,9 @@ export default function TabLayout() {
   const progress = Math.min(weeklyTokens / dynamicTarget, 1);
 
   const [showCelebration, setShowCelebration] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-300)).current;
+  const slideAnim      = useRef(new Animated.Value(-300)).current;
   const dismissTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const confettiRef    = useRef<any>(null);
 
   const dismissCelebration = () => {
     Animated.timing(slideAnim, {
@@ -56,8 +57,7 @@ export default function TabLayout() {
     }).start(() => setShowCelebration(false));
   };
 
-  // If tokens drop below target (e.g. activity deleted), reset celebrated
-  // so the celebration can fire again when target is re-reached
+  // If tokens drop below target (e.g. activity deleted), reset celebrated flag
   useEffect(() => {
     if (progress < 1 && celebrated && hasHydrated) {
       setCelebrated(false);
@@ -67,7 +67,6 @@ export default function TabLayout() {
   useEffect(() => {
     if (progress >= 1 && !loading && !celebrated && hasHydrated) {
       setCelebrated(true);
-      // Small delay so navigation animation completes before banner slides in
       setTimeout(() => {
         setShowCelebration(true);
         Animated.spring(slideAnim, {
@@ -76,6 +75,9 @@ export default function TabLayout() {
           tension: 60,
           friction: 10,
         }).start();
+        // Fire confetti 150ms after banner starts sliding in — decoupled so
+        // the banner animation isn't competing with particle spawning
+        setTimeout(() => confettiRef.current?.start(), 150);
         dismissTimeout.current = setTimeout(() => dismissCelebration(), 4000);
       }, 400);
     }
@@ -137,39 +139,47 @@ export default function TabLayout() {
         />
       </Tabs>
 
+      {/* ── Confetti cannon — always mounted, fired via ref only ──────────────
+          Keeping it outside the conditional banner so it isn't
+          unmounted/remounted on each celebration, which avoids a re-mount
+          stutter. count reduced from 120 → 60 to prevent JS thread freeze. */}
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <ConfettiCannon
+          ref={confettiRef}
+          count={60}
+          origin={{ x: 200, y: 0 }}
+          autoStart={false}
+          fadeOut
+          explosionSpeed={250}
+          fallSpeed={3000}
+          colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#26C6DA', '#ffffff']}
+        />
+      </View>
+
       {/* ── Global Celebration Banner ── */}
       {showCelebration && (
-        <>
-          <ConfettiCannon
-            count={120}
-            origin={{ x: 200, y: 0 }}
-            fadeOut={true}
-            explosionSpeed={350}
-            fallSpeed={2500}
-          />
-          <Animated.View
-            style={[styles.celebrationBanner, { transform: [{ translateY: slideAnim }] }]}
-            pointerEvents="box-none"
+        <Animated.View
+          style={[styles.celebrationBanner, { transform: [{ translateY: slideAnim }] }]}
+          pointerEvents="box-none"
+        >
+          <LinearGradient
+            colors={['#2E7D32', '#34C9C9']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.celebrationBannerInner}
           >
-            <LinearGradient
-              colors={['#2E7D32', '#34C9C9']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.celebrationBannerInner}
-            >
-              <FA6 name="earth-americas" size={28} color="#fff" />
-              <View style={{ flex: 1 }}>
-                <ThemedText style={styles.bannerTitle}>Weekly Goal Crushed! 🎉</ThemedText>
-                <ThemedText style={styles.bannerSub}>
-                  {weeklyTokens} tokens · {weeklyActivityCount} activities this week
-                </ThemedText>
-              </View>
-              <Pressable onPress={dismissCelebration} hitSlop={12}>
-                <FA6 name="xmark" size={16} color="#ffffffaa" />
-              </Pressable>
-            </LinearGradient>
-          </Animated.View>
-        </>
+            <FA6 name="earth-americas" size={28} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <ThemedText style={styles.bannerTitle}>Weekly Goal Crushed!</ThemedText>
+              <ThemedText style={styles.bannerSub}>
+                {weeklyTokens} tokens · {weeklyActivityCount} activities this week
+              </ThemedText>
+            </View>
+            <Pressable onPress={dismissCelebration} hitSlop={12}>
+              <FA6 name="xmark" size={16} color="#ffffffaa" />
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
       )}
 
       <LevelUpModal
