@@ -9,7 +9,7 @@ import {
   getCurrentWeekId,
   fetchChallengesForWeek,
 } from '@/src/utils/challengeData';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getAuth } from 'firebase/auth';
 import {
@@ -137,7 +137,7 @@ function Podium({
                   podiumStyles.avatarFallback,
                   { backgroundColor: medal.color + '25', width: isCenter ? 54 : 42, height: isCenter ? 54 : 42, borderRadius: isCenter ? 27 : 21 },
                 ]}>
-                  <Text style={{ fontSize: isCenter ? 22 : 18 }}>🌱</Text>
+                  <FontAwesome6 name="sprout" size={isCenter ? 22 : 18} color={medal.color} />
                 </View>
               )}
             </View>
@@ -250,7 +250,7 @@ function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalPr
             onPress={onClose}
             activeOpacity={0.85}
           >
-            <Text style={modalStyles.btnText}>Awesome! 🌍</Text>
+            <Text style={modalStyles.btnText}>Awesome!</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -561,7 +561,7 @@ export default function CommunityScreen() {
           <Image source={{ uri: item.photoURL }} style={styles.avatar} />
         ) : (
           <View style={[styles.avatarFallback, { backgroundColor: colors.surfaceMuted }]}>
-            <Text style={{ fontSize: 16 }}>🌿</Text>
+            <FontAwesome6 name="sprout" size={16} color={colors.text + '88'} />
           </View>
         )}
 
@@ -836,7 +836,9 @@ export default function CommunityScreen() {
               }
               ListEmptyComponent={
                 <View style={styles.centered}>
-                  <Text style={{ fontSize: 44, marginBottom: 12 }}>🌍</Text>
+                  <View style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: 'rgba(76,175,80,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <FontAwesome6 name="earth-americas" size={32} color="#4CAF50" />
+                  </View>
                   <Text style={[styles.emptyTitle, { color: colors.text }]}>No data yet</Text>
                   <Text style={[styles.emptySub, { color: colors.text }]}>
                     Log activities to appear on the leaderboard

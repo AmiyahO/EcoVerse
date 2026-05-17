@@ -167,7 +167,7 @@ export default function HealthConnectBanner({
       <View style={[styles.hcCard, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
         <View style={styles.hcCardHeader}>
           <View style={[styles.hcIcon, { backgroundColor: '#66BB6A20' }]}>
-            <Text style={styles.hcIconEmoji}>👟</Text>
+            <FontAwesome6 name="person-walking" size={16} color="#66BB6A" />
           </View>
           <View style={{ flex: 1 }}>
             <ThemedText style={[styles.hcCardTitle, { color: colors.text }]}>
@@ -312,7 +312,6 @@ const styles = StyleSheet.create({
   },
   hcCardHeader:  { flexDirection: 'row', alignItems: 'center', gap: 10 },
   hcIcon:        { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  hcIconEmoji:   { fontSize: 18 },
   hcCardTitle:   { fontSize: 14, fontWeight: '700' },
   hcSource:      { fontSize: 11, opacity: 0.45, marginTop: 1 },
   settingsBtn:   { padding: 6 },

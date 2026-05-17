@@ -4,7 +4,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, Animated, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons  } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -46,7 +46,7 @@ function NextRankPill({ currentLevel, colors, isDark }: { currentLevel: number; 
   const minLv = RANKS.find(r => r.name === next.name)?.minLevel ?? currentLevel + 1;
   return (
     <View style={[nrS.pill, { backgroundColor: next.color + '18', borderColor: next.color + '40' }]}>
-      <Text style={nrS.emoji}>{next.emoji}</Text>
+      <MaterialCommunityIcons name={next.icon as any} size={24} color={next.color} />
       <View style={{ flex: 1 }}>
         <Text style={[nrS.name, { color: next.color }]}>Next rank: {next.name}</Text>
         <Text style={[nrS.sub, { color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)' }]}>
@@ -59,7 +59,6 @@ function NextRankPill({ currentLevel, colors, isDark }: { currentLevel: number; 
 }
 const nrS = StyleSheet.create({
   pill:  { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, borderWidth: 1, marginTop: 4 },
-  emoji: { fontSize: 24 },
   name:  { fontSize: 13, fontWeight: '800' },
   sub:   { fontSize: 11, marginTop: 1 },
 });
@@ -115,7 +114,12 @@ function TierCard({
               backgroundColor: isLocked ? colors.surfaceMuted : rank.color + '20',
               borderColor:     isLocked ? colors.surfaceMuted : rank.color + '45',
             }]}>
-              <Text style={[tcS.emoji, isLocked && { opacity: 0.3 }]}>{rank.emoji}</Text>
+              <MaterialCommunityIcons
+                name={rank.icon as any}
+                size={22}
+                color={isLocked ? colors.text : rank.color}
+                style={isLocked ? { opacity: 0.3 } : undefined}
+              />
             </View>
 
             <View style={{ flex: 1 }}>
@@ -169,7 +173,6 @@ const tcS = StyleSheet.create({
   inner:   { flex: 1, padding: 14, gap: 10 },
   topRow:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconWrap:{ width: 48, height: 48, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  emoji:   { fontSize: 26 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 7, flexWrap: 'wrap' },
   name:    { fontSize: 16, fontWeight: '800' },
   meta:    { fontSize: 12, marginTop: 1 },
@@ -235,7 +238,7 @@ export default function LevelingScreen() {
             {/* Top: emoji + level + rank */}
             <View style={s.heroTop}>
               <View style={[s.emojiFrame, { borderColor: rank.color + '55', backgroundColor: rank.color + '1E' }]}>
-                <Text style={s.heroEmoji}>{rank.emoji}</Text>
+                <MaterialCommunityIcons name={rank.icon as any} size={34} color={rank.color} />
               </View>
               <View style={{ flex: 1, gap: 5 }}>
                 <Text style={[s.heroLevel, { color: isDark ? '#fff' : '#111' }]}>Level {level}</Text>
@@ -345,7 +348,6 @@ const s = StyleSheet.create({
   blob:       { position: 'absolute', borderRadius: 999 },
   heroTop:    { flexDirection: 'row', alignItems: 'center', gap: 14 },
   emojiFrame: { width: 68, height: 68, borderRadius: 20, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  heroEmoji:  { fontSize: 38 },
   heroLevel:  { fontSize: 30, fontWeight: '900', letterSpacing: -1 },
   rankTag:    { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   rankTagText:{ fontSize: 13, fontWeight: '800' },

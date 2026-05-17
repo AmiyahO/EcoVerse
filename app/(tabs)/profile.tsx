@@ -7,7 +7,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { calculateStreak, calculateTokens } from '@/src/utils/ecoLogic';
 import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
 import { router } from 'expo-router';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, useRef } from 'react';
 import { auth } from '@/src/firebase/config';
@@ -206,8 +206,9 @@ export default function ProfileScreen() {
                 pressed && { opacity: 0.75 },
               ]}
             >
+              <MaterialCommunityIcons name={rank.icon as any} size={14} color={rank.color} />
               <Text style={[styles.rankPillText, { color: rank.color }]}>
-                {rank.emoji}  {rank.name}  ·  Lv {level}
+                {rank.name}  ·  Lv {level}
               </Text>
               <FontAwesome6 name="chevron-right" size={10} color={rank.color} style={{ marginLeft: 6, opacity: 0.7 }} />
             </Pressable>
@@ -272,7 +273,7 @@ export default function ProfileScreen() {
                       }]}>
                         <FontAwesome6 name="trophy" size={10} color={pillColor} />
                         <ThemedText style={[styles.streakBadgeText, { color: pillColor, fontSize: 11 }]}>
-                          {beaten ? `Best ${longestStreak}d 🏆` : `Best ${longestStreak}d`}
+                          {beaten ? `Best ${longestStreak}d` : `Best ${longestStreak}d`}
                         </ThemedText>
                       </View>
                     );

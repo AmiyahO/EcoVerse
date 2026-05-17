@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { getRankInfo } from '@/src/utils/levelSystem';
@@ -119,10 +120,10 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
           {/* Rank colour accent strip at top */}
           <View style={[styles.topStrip, { backgroundColor: rank.color }]} />
 
-          {/* Floating emoji */}
-          <Animated.Text style={[styles.emoji, { transform: [{ translateY: floatAnim }] }]}>
-            {rank.emoji}
-          </Animated.Text>
+          {/* Floating rank icon */}
+          <Animated.View style={[styles.iconWrap, { backgroundColor: rank.color + '22', transform: [{ translateY: floatAnim }] }]}>
+            <MaterialCommunityIcons name={rank.icon as any} size={64} color={rank.color} />
+          </Animated.View>
 
           {/* LEVEL UP heading */}
           <Text style={[styles.levelUpLabel, { color: rank.color }]}>
@@ -136,8 +137,9 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
 
           {/* Rank badge pill */}
           <View style={[styles.rankBadge, { backgroundColor: rank.color + '25', borderColor: rank.color }]}>
+            <MaterialCommunityIcons name={rank.icon as any} size={16} color={rank.color} />
             <Text style={[styles.rankName, { color: rank.color }]}>
-              {rank.emoji}  {rank.name}
+              {rank.name}
             </Text>
           </View>
 
@@ -209,10 +211,13 @@ const styles = StyleSheet.create({
     height: 5,
     marginBottom: 32,
   },
-  emoji: {
-    fontSize: 80,
+  iconWrap: {
+    width: 100,
+    height: 100,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
-    // Shadow on Android via elevation not possible for Text, but looks fine
   },
   levelUpLabel: {
     fontSize: 12,
@@ -227,6 +232,9 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   rankBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     borderRadius: 50,
     borderWidth: 1.5,
     paddingHorizontal: 20,

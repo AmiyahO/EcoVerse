@@ -536,7 +536,7 @@ export default function SettingsScreen() {
         </Section>
 
         <ThemedText style={[styles.footerText, { color: colors.text }]}>
-          EcoVerse · v1.0.1 Beta · Made with 🌱
+          EcoVerse · v1.0.1 Beta
         </ThemedText>
 
       </ScrollView>

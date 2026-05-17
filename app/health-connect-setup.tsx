@@ -11,7 +11,7 @@ import {
   PermissionStatus,
   requestHealthPermissions,
 } from '@/src/services/healthConnect';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome6 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -263,14 +263,16 @@ export default function HealthConnectSetupScreen() {
           <ThemedText style={[styles.sectionLabel, { color: colors.text }]}>WHAT SYNCS</ThemedText>
           <View style={[styles.card, { backgroundColor: colors.surface }]}>
             {[
-              { icon: '👟', label: 'Steps', desc: 'Today\'s step count auto-fills the walking form' },
-              { icon: '📍', label: 'Distance', desc: 'km walked, run, or cycled from GPS' },
-              { icon: '⏱️', label: 'Exercise sessions', desc: 'Walks, runs, and rides from the last 7 days' },
-              { icon: '🔥', label: 'Calories', desc: 'Active calories burned (shown for context)' },
+              { faIcon: 'person-walking', color: '#4CAF50', label: 'Steps',             desc: "Today's step count auto-fills the walking form" },
+              { faIcon: 'route',          color: '#29B6F6', label: 'Distance',           desc: 'km walked, run, or cycled from GPS' },
+              { faIcon: 'stopwatch',      color: '#FF7043', label: 'Exercise sessions',  desc: 'Walks, runs, and rides from the last 7 days' },
+              { faIcon: 'fire',           color: '#FFC107', label: 'Calories',           desc: 'Active calories burned (shown for context)' },
             ].map((item, i, arr) => (
               <View key={item.label}>
                 <View style={styles.syncRow}>
-                  <Text style={styles.syncIcon}>{item.icon}</Text>
+                  <View style={[styles.syncIconWrap, { backgroundColor: item.color + '18' }]}>
+                    <FontAwesome6 name={item.faIcon as any} size={14} color={item.color} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <ThemedText style={[styles.syncLabel, { color: colors.text }]}>{item.label}</ThemedText>
                     <ThemedText style={[styles.syncDesc, { color: colors.text }]}>{item.desc}</ThemedText>
@@ -453,7 +455,7 @@ const styles = StyleSheet.create({
 
   // What syncs
   syncRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  syncIcon:  { fontSize: 22 },
+  syncIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   syncLabel: { fontSize: 14, fontWeight: '600' },
   syncDesc:  { fontSize: 12, opacity: 0.5, marginTop: 1 },
   sep:       { height: StyleSheet.hairlineWidth, marginLeft: 52 },

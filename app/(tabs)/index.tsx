@@ -38,11 +38,11 @@ function getZoneColor(score: number) {
   return '#4CAF50';
 }
 
-function getGreeting(firstName: string): string {
+function getGreeting(firstName: string): { icon: string; text: string } {
   const hour = new Date().getHours();
-  if (hour < 12) return `Good morning, ${firstName} ☀️`;
-  if (hour < 18) return `Hello, ${firstName} 🌿`;
-  return `Good evening, ${firstName} 🌙`;
+  if (hour < 12) return { icon: 'sun',  text: `Good morning, ${firstName}` };
+  if (hour < 18) return { icon: 'leaf', text: `Hello, ${firstName}` };
+  return { icon: 'moon', text: `Good evening, ${firstName}` };
 }
 
 function getRecentActivityLabel(activity: any) {
@@ -584,9 +584,15 @@ export default function HomeScreen() {
 
         {/* ── Greeting ── */}
         <View style={styles.greeting}>
-          <View>
+          <View style={styles.greetingLeft}>
+            <FontAwesome6
+              name={getGreeting(firstName).icon as any}
+              size={16}
+              color={colors.tint}
+              style={styles.greetingIcon}
+            />
             <ThemedText style={[styles.greetingName, { color: colors.text }]}>
-              {getGreeting(firstName)}
+              {getGreeting(firstName).text}
             </ThemedText>
           </View>
           <Pressable
@@ -802,6 +808,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container:    { padding: 16, gap: 14, paddingBottom: 24 },
   greeting:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, marginBottom: 4 },
+  greetingLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  greetingIcon: { marginTop: 1 },
   greetingName: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 14 },

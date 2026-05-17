@@ -20,7 +20,8 @@ export interface LevelInfo {
 
 export interface RankInfo {
   name: string;
-  emoji: string;
+  /** MaterialCommunityIcons icon name */
+  icon: string;
   /** accent colour for the rank badge */
   color: string;
   /** minimum level to hold this rank */
@@ -31,14 +32,14 @@ export interface RankInfo {
 // 8 tiers that grow progressively more "mature" — mirroring a tree's lifecycle.
 // Colours move from fresh green → deep forest → golden legend.
 export const RANKS: RankInfo[] = [
-  { minLevel: 1,  name: 'Seed',         emoji: '🌱', color: '#A5D6A7' },
-  { minLevel: 2,  name: 'Sprout',       emoji: '🌿', color: '#66BB6A' },
-  { minLevel: 4,  name: 'Sapling',      emoji: '🌳', color: '#43A047' },
-  { minLevel: 7,  name: 'Grove Keeper', emoji: '🌲', color: '#2E7D32' },
-  { minLevel: 11, name: 'Eco Guardian', emoji: '🛡️', color: '#00897B' },
-  { minLevel: 16, name: 'Oak Warden',   emoji: '🪵', color: '#5D4037' },
-  { minLevel: 21, name: 'Forest Elder', emoji: '🌲', color: '#1B5E20' },
-  { minLevel: 31, name: 'Eco Legend',   emoji: '✨', color: '#F9A825' },
+  { minLevel: 1,  name: 'Seed',         icon: 'seed',             color: '#A5D6A7' },
+  { minLevel: 2,  name: 'Sprout',       icon: 'sprout',           color: '#66BB6A' },
+  { minLevel: 4,  name: 'Sapling',      icon: 'tree',             color: '#43A047' },
+  { minLevel: 7,  name: 'Grove Keeper', icon: 'pine-tree',        color: '#2E7D32' },
+  { minLevel: 11, name: 'Eco Guardian', icon: 'shield-half-full', color: '#00897B' },
+  { minLevel: 16, name: 'Oak Warden',   icon: 'shield-home',      color: '#5D4037' },
+  { minLevel: 21, name: 'Forest Elder', icon: 'forest',           color: '#1B5E20' },
+  { minLevel: 31, name: 'Eco Legend',   icon: 'shield-crown',     color: '#F9A825' },
 ];
 
 // ─── Core formula ────────────────────────────────────────────────────────────

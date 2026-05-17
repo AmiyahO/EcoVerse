@@ -5,7 +5,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { CHALLENGES, type Challenge } from '@/src/utils/challengeData';
 import { calculateStreak } from '@/src/utils/ecoLogic';
 import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { getAuth } from 'firebase/auth';
@@ -480,7 +480,7 @@ export default function AchievementsScreen() {
         >
           {/* Rank glow circle */}
           <View style={[styles.rankGlow, { backgroundColor: rank.color + '20' }]}>
-            <Text style={styles.rankEmoji}>{rank.emoji}</Text>
+            <MaterialCommunityIcons name={rank.icon as any} size={28} color={rank.color} />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -529,7 +529,7 @@ export default function AchievementsScreen() {
         {completedChallenges.length === 0 ? (
           <View style={[styles.emptyCard, { backgroundColor: colors.surface }]}>
             <View style={[styles.emptyIcon, { backgroundColor: '#FFB30015' }]}>
-              <Text style={{ fontSize: 28 }}>🏆</Text>
+              <FontAwesome6 name="trophy" size={28} color="#FFB300" />
             </View>
             <Text style={[styles.emptyTitle, { color: colors.text }]}>No badges yet</Text>
             <Text style={[styles.emptySub, { color: colors.text }]}>
@@ -618,7 +618,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   rankGlow:   { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  rankEmoji:  { fontSize: 26 },
   heroRank:   { fontSize: 15, fontWeight: '800', letterSpacing: 0.2 },
   heroCount:  { fontSize: 13, opacity: 0.55, marginTop: 2 },
   pctBubble:  { width: 58, height: 58, borderRadius: 18, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 0 },
