@@ -16,7 +16,6 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
   const [currentPage, setCurrentPage] = useState(0);
 
   const bg        = isDark ? '#0B1E14' : '#F0F7F1';
-  const textColor = isDark ? '#fff'    : '#1B4332';
   const skipColor = isDark ? 'rgba(255,255,255,0.4)' : 'rgba(27,67,50,0.45)';
   const barBorder = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(27,67,50,0.08)';
 
@@ -43,6 +42,9 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
   const handleSkip = () => onFinish();
   const isLast = currentPage === steps.length - 1;
 
+  // Step counter label e.g. "3 / 7"
+  const stepLabel = `${currentPage + 1} / ${steps.length}`;
+
   return (
     <View style={{ flex: 1, backgroundColor: bg }}>
       <PagerView
@@ -57,50 +59,56 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
         ))}
       </PagerView>
 
-      {/* Bottom bar — pushed down with more paddingBottom so buttons sit lower */}
+      {/* Bottom bar */}
       <View style={[styles.bottomBar, {
         backgroundColor: bg,
         borderTopColor: barBorder,
       }]}>
-        {/* Pill dots */}
-        <View style={styles.dotsRow}>
-          {steps.map((_, idx) => {
-            const width = dotWidths[idx].interpolate({
-              inputRange: [0, 1], outputRange: [8, 24],
-            });
-            const opacity = dotWidths[idx].interpolate({
-              inputRange: [0, 1], outputRange: [0.3, 1],
-            });
-            return (
-              <Animated.View
-                key={idx}
-                style={[
-                  styles.dot,
-                  {
-                    width,
-                    opacity,
-                    backgroundColor: idx === currentPage
-                      ? colors.tint
-                      : (isDark ? '#ffffff' : '#1B4332'),
-                  },
-                ]}
-              />
-            );
-          })}
+        {/* Pill dots + step counter */}
+        <View style={styles.dotsAndLabel}>
+          <View style={styles.dotsRow}>
+            {steps.map((_, idx) => {
+              const width = dotWidths[idx].interpolate({
+                inputRange: [0, 1], outputRange: [7, 22],
+              });
+              const opacity = dotWidths[idx].interpolate({
+                inputRange: [0, 1], outputRange: [0.28, 1],
+              });
+              return (
+                <Animated.View
+                  key={idx}
+                  style={[
+                    styles.dot,
+                    {
+                      width,
+                      opacity,
+                      backgroundColor: idx === currentPage
+                        ? colors.tint
+                        : (isDark ? '#ffffff' : '#1B4332'),
+                    },
+                  ]}
+                />
+              );
+            })}
+          </View>
+          <Text style={[styles.stepLabel, { color: skipColor }]}>{stepLabel}</Text>
         </View>
 
         {/* Buttons */}
         <View style={styles.btnRow}>
           {!isLast ? (
-            <Pressable onPress={handleSkip} style={styles.skipBtn}>
+            <Pressable onPress={handleSkip} style={({ pressed }) => [styles.skipBtn, pressed && { opacity: 0.6 }]}>
               <Text style={[styles.skipText, { color: skipColor }]}>Skip</Text>
             </Pressable>
           ) : (
             <View style={{ flex: 1 }} />
           )}
 
-          <Pressable onPress={handleNext} style={[styles.nextBtn, { backgroundColor: colors.tint }]}>
-            <Text style={[styles.nextText, { color: '#fff' }]}>
+          <Pressable
+            onPress={handleNext}
+            style={({ pressed }) => [styles.nextBtn, { backgroundColor: colors.tint, opacity: pressed ? 0.85 : 1 }]}
+          >
+            <Text style={styles.nextText}>
               {isLast ? 'Get Started' : 'Next →'}
             </Text>
           </Pressable>
@@ -113,16 +121,18 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
 const styles = StyleSheet.create({
   bottomBar: {
     paddingHorizontal: 24,
-    paddingBottom: 20,
-    paddingTop: 10,
-    gap: 12,
+    paddingBottom: 22,
+    paddingTop: 12,
+    gap: 14,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, alignItems: 'center' },
-  dot:     { height: 8, borderRadius: 4 },
-  btnRow:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  skipBtn: { flex: 1, paddingVertical: 14, alignItems: 'center' },
-  skipText: { fontSize: 15, fontWeight: '500' },
-  nextBtn: { flex: 2, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
-  nextText: { fontSize: 16, fontWeight: '700' },
+  dotsAndLabel: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  dotsRow:      { flexDirection: 'row', gap: 5, alignItems: 'center' },
+  dot:          { height: 7, borderRadius: 3.5 },
+  stepLabel:    { fontSize: 12, fontWeight: '500' },
+  btnRow:       { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  skipBtn:      { flex: 1, paddingVertical: 14, alignItems: 'center' },
+  skipText:     { fontSize: 15, fontWeight: '500' },
+  nextBtn:      { flex: 2, paddingVertical: 16, borderRadius: 14, alignItems: 'center' },
+  nextText:     { fontSize: 16, fontWeight: '700', color: '#fff' },
 });

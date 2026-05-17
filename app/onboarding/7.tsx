@@ -6,9 +6,9 @@ import { FontAwesome6 } from '@expo/vector-icons';
 
 const HIGHLIGHTS = [
   { icon: 'chart-line',     color: '#29B6F6', text: 'Track CO₂ savings in real time' },
-  { icon: 'leaf',           color: '#4CAF50', text: 'Earn tokens for every eco action' },
-  { icon: 'fire',           color: '#FF7043', text: 'Build streaks, hit weekly goals' },
-  { icon: 'arrow-trend-up', color: '#FFC107', text: 'See your impact grow over time' },
+  { icon: 'leaf',           color: '#4CAF50', text: 'Earn tokens and climb 8 rank tiers' },
+  { icon: 'users',          color: '#FF7043', text: 'Weekly challenges and a global leaderboard' },
+  { icon: 'wand-magic-sparkles', color: '#FFC107', text: 'AI-powered eco tips, personalised to you' },
 ];
 
 export default function OnboardingStep7() {
@@ -22,8 +22,7 @@ export default function OnboardingStep7() {
   const rowBorder = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(27,67,50,0.10)';
   const rowText   = isDark ? 'rgba(255,255,255,0.85)' : '#1B4332';
   const footnote  = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(27,67,50,0.4)';
-  const glowColor = isDark ? '#2E7D3228' : '#A5D6A730';
-  const mottoColor= isDark ? '#8BE94F' : '#1B5E20';
+  const mottoColor = isDark ? '#8BE94F' : '#1B5E20';
 
   const fade      = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
@@ -32,7 +31,7 @@ export default function OnboardingStep7() {
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fade,      { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.spring(scaleAnim, { toValue: 1, friction: 5,   useNativeDriver: true }),
+      Animated.spring(scaleAnim, { toValue: 1, friction: 5, useNativeDriver: true }),
     ]).start();
     HIGHLIGHTS.forEach((_, i) => {
       Animated.timing(anims[i], { toValue: 1, duration: 400, delay: 300 + i * 100, useNativeDriver: true }).start();
@@ -41,17 +40,19 @@ export default function OnboardingStep7() {
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
-      <View style={[styles.glow, { backgroundColor: glowColor }]} />
+      <View style={[styles.glow, { backgroundColor: isDark ? '#2E7D3228' : '#A5D6A730' }]} />
 
       <Animated.View style={[styles.logoWrap, { opacity: fade, transform: [{ scale: scaleAnim }] }]}>
-        <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+        <View style={[styles.logoRing, { borderColor: isDark ? 'rgba(139,233,79,0.3)' : 'rgba(46,125,50,0.22)' }]}>
+          <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+        </View>
         <Text style={[styles.tagline, { color: mottoColor }]}>TRACK YOUR IMPACT</Text>
       </Animated.View>
 
       <Animated.View style={[{ opacity: fade }, styles.headlineWrap]}>
-        <Text style={[styles.headline, { color: headline }]}>You're all set!</Text>
+        <Text style={[styles.headline, { color: headline }]}>You're all set! 🌱</Text>
         <Text style={[styles.subhead, { color: subhead }]}>
-          Start logging your first activity and watch your impact unfold.
+          Start logging your first activity and watch your impact grow.
         </Text>
       </Animated.View>
 
@@ -86,17 +87,18 @@ export default function OnboardingStep7() {
 
 const styles = StyleSheet.create({
   container:    { flex: 1, paddingHorizontal: 28, paddingTop: 50, paddingBottom: 16, alignItems: 'center', justifyContent: 'space-between' },
-  glow:         { position: 'absolute', top: '20%', left: '50%', marginLeft: -120, width: 240, height: 240, borderRadius: 120 },
-  logoWrap:     { alignItems: 'center' },
-  logo:         { width: 140, height: 140, marginBottom: -12 },
-  tagline:      { fontSize: 11, fontWeight: '800', letterSpacing: 3, marginTop: 4, opacity: 0.85 },
+  glow:         { position: 'absolute', top: '18%', left: '50%', marginLeft: -110, width: 220, height: 220, borderRadius: 110 },
+  logoWrap:     { alignItems: 'center', gap: 10 },
+  logoRing:     { width: 150, height: 150, borderRadius: 75, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  logo:         { width: 120, height: 120 },
+  tagline:      { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.85 },
   headlineWrap: { alignItems: 'center', gap: 10 },
   headline:     { fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
   subhead:      { fontSize: 15, textAlign: 'center', lineHeight: 22 },
-  highlights:   { width: '100%', gap: 12 },
+  highlights:   { width: '100%', gap: 10 },
   highlightRow: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, borderWidth: 1 },
   highlightIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  highlightText:{ fontSize: 15, fontWeight: '500' },
+  highlightText:{ fontSize: 14, fontWeight: '500' },
   footnoteRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   footnote:     { fontSize: 13, textAlign: 'center' },
 });

@@ -17,7 +17,7 @@ import Step7 from './7';
 export default function Onboarding() {
   const router  = useRouter();
   const { scheme } = useAppTheme();
-  const [region, setRegion]         = useState('GLOBAL_AVG');
+  const [region, setRegion]           = useState('GLOBAL_AVG');
   const [isFinishing, setIsFinishing] = useState(false);
 
   const handleFinish = async () => {

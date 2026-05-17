@@ -1,88 +1,140 @@
-// onboarding/3.tsx — What You Can Track
-import { View, Text, StyleSheet, Animated } from 'react-native';
+// onboarding/3.tsx — Track & Earn (activities + gamification overview)
+import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FontAwesome6 } from '@expo/vector-icons';
 
 const CATEGORIES = [
-  { icon: 'person-walking', color: '#4CAF50', name: 'Walking',     desc: 'Log steps or distance. Every km on foot = ~0.19 kg CO₂ avoided vs driving.' },
-  { icon: 'bicycle',        color: '#29B6F6', name: 'Cycling',     desc: 'Even short rides add up. Cycling is one of the highest-impact habit changes.' },
-  { icon: 'person-running', color: '#FF7043', name: 'Running',     desc: 'Track runs by distance and duration. Combines movement and CO₂ savings.' },
-  { icon: 'bolt',           color: '#FFC107', name: 'Electricity', desc: 'Enter your monthly meter reading. We calculate savings vs your previous bill.' },
-  { icon: 'droplet',        color: '#26C6DA', name: 'Water',       desc: 'Log monthly usage in litres. Even small reductions in water use matter.' },
+  { icon: 'person-walking', color: '#4CAF50', name: 'Walking',     tokens: '1 token / 100 steps' },
+  { icon: 'person-running', color: '#FF7043', name: 'Running',     tokens: '15 tokens / km' },
+  { icon: 'bicycle',        color: '#29B6F6', name: 'Cycling',     tokens: '10 tokens / km' },
+  { icon: 'bolt',           color: '#FFC107', name: 'Electricity', tokens: '5 tokens / kWh saved' },
+  { icon: 'droplet',        color: '#26C6DA', name: 'Water',       tokens: '1 token / 10 L saved' },
+];
+
+const RANKS = [
+  { emoji: '🌱', name: 'Seed',         color: '#81C784' },
+  { emoji: '🌿', name: 'Sprout',       color: '#4CAF50' },
+  { emoji: '🌳', name: 'Sapling',      color: '#2E7D32' },
+  { emoji: '🌲', name: 'Grove Keeper', color: '#1B5E20' },
+  { emoji: '🛡️', name: 'Eco Guardian', color: '#26C6DA' },
 ];
 
 export default function OnboardingStep3() {
-  const { scheme } = useAppTheme();
+  const { scheme, colors } = useAppTheme();
   const isDark = scheme !== 'light';
 
-  const bg       = isDark ? '#0B1E14' : '#F0F7F1';
-  const headline = isDark ? '#fff' : '#1B4332';
-  const subhead  = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
-  const catName  = isDark ? '#fff' : '#1B4332';
-  const catDesc  = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
-  const orbBg    = isDark ? '#2E7D3218' : '#2E7D3212';
+  const bg           = isDark ? '#0B1E14' : '#F0F7F1';
+  const headline     = isDark ? '#fff' : '#1B4332';
+  const subhead      = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
+  const cardBg       = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(27,67,50,0.05)';
+  const cardBorder   = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(27,67,50,0.08)';
+  const catName      = isDark ? '#fff' : '#1B4332';
+  const tokenText    = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(27,67,50,0.55)';
   const headTextColor = isDark ? '#8BE94F' : '#1B5E20';
+  const streakBg     = isDark ? 'rgba(255,112,0,0.12)' : 'rgba(255,112,0,0.09)';
 
-  const fade  = useRef(new Animated.Value(0)).current;
-  const anims = useRef(CATEGORIES.map(() => new Animated.Value(0))).current;
+  const headerFade = useRef(new Animated.Value(0)).current;
+  const catAnims   = useRef(CATEGORIES.map(() => new Animated.Value(0))).current;
+  const bonusFade  = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    Animated.timing(headerFade, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     CATEGORIES.forEach((_, i) => {
-      Animated.timing(anims[i], { toValue: 1, duration: 450, delay: 80 + i * 90, useNativeDriver: true }).start();
+      Animated.timing(catAnims[i], {
+        toValue: 1, duration: 420, delay: 120 + i * 80, useNativeDriver: true,
+      }).start();
     });
+    Animated.timing(bonusFade, { toValue: 1, duration: 500, delay: 650, useNativeDriver: true }).start();
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
-      <View style={[styles.orbBR, { backgroundColor: orbBg }]} />
+    <ScrollView
+      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.container, { backgroundColor: bg }]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={[styles.orbBR, { backgroundColor: isDark ? '#2E7D3218' : '#2E7D3212' }]} />
 
-      <Animated.View style={[styles.header, { opacity: fade }]}>
-        <Text style={[styles.eyebrow, { color: headTextColor }]}>WHAT YOU CAN TRACK</Text>
-        <Text style={[styles.headline, { color: headline }]}>Five activity{'\n'}categories</Text>
+      {/* Header */}
+      <Animated.View style={[styles.header, { opacity: headerFade }]}>
+        <Text style={[styles.eyebrow, { color: headTextColor }]}>TRACK & EARN</Text>
+        <Text style={[styles.headline, { color: headline }]}>Five categories,{'\n'}real CO₂ savings</Text>
         <Text style={[styles.subhead, { color: subhead }]}>
-          Each one maps directly to real CO₂ emissions using scientific data.
+          Each activity earns EcoTokens and saves measurable CO₂.
         </Text>
       </Animated.View>
 
-      <View style={styles.list}>
+      {/* Category rows */}
+      <View style={styles.catList}>
         {CATEGORIES.map((cat, i) => (
           <Animated.View
             key={cat.name}
             style={[
               styles.catRow,
+              { backgroundColor: cardBg, borderColor: cardBorder },
               {
-                opacity: anims[i],
-                transform: [{ translateY: anims[i].interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+                opacity: catAnims[i],
+                transform: [{ translateY: catAnims[i].interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
               },
             ]}
           >
             <View style={[styles.catIcon, { backgroundColor: cat.color + '20', borderColor: cat.color + '40' }]}>
-              <FontAwesome6 name={cat.icon as any} size={18} color={cat.color} />
+              <FontAwesome6 name={cat.icon as any} size={17} color={cat.color} />
             </View>
-            <View style={styles.catText}>
-              <Text style={[styles.catName, { color: catName }]}>{cat.name}</Text>
-              <Text style={[styles.catDesc, { color: catDesc }]}>{cat.desc}</Text>
+            <Text style={[styles.catName, { color: catName }]}>{cat.name}</Text>
+            <View style={[styles.tokenPill, { backgroundColor: cat.color + '20' }]}>
+              <FontAwesome6 name="leaf" size={9} color={cat.color} style={{ marginRight: 3 }} />
+              <Text style={[styles.tokenPillText, { color: cat.color }]}>{cat.tokens}</Text>
             </View>
           </Animated.View>
         ))}
       </View>
-    </View>
+
+      {/* Streak & leveling teaser */}
+      <Animated.View style={[styles.bonusBox, { opacity: bonusFade, backgroundColor: streakBg, borderColor: isDark ? 'rgba(255,112,0,0.25)' : 'rgba(255,112,0,0.2)' }]}>
+        <View style={styles.bonusRow}>
+          <FontAwesome6 name="fire" size={15} color="#FF7043" />
+          <Text style={[styles.bonusTitle, { color: headline }]}>Streak multiplier</Text>
+        </View>
+        <Text style={[styles.bonusDesc, { color: tokenText }]}>
+          Log every day to build a streak. Every 5-day streak adds +10% tokens (up to +50%). Climb 8 nature-themed ranks from Seed 🌱 to Eco Legend ✨.
+        </Text>
+        <View style={styles.rankRow}>
+          {RANKS.map((r) => (
+            <View key={r.name} style={styles.rankChip}>
+              <Text style={styles.rankEmoji}>{r.emoji}</Text>
+            </View>
+          ))}
+          <Text style={[styles.rankMore, { color: tokenText }]}>+3 more</Text>
+        </View>
+      </Animated.View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 28, paddingTop: 60, paddingBottom: 16 },
+  container: { paddingHorizontal: 28, paddingTop: 60, paddingBottom: 32 },
   orbBR:     { position: 'absolute', bottom: 40, right: -60, width: 200, height: 200, borderRadius: 100 },
-  header:    { marginBottom: 24, gap: 6 },
-  eyebrow:   { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
-  headline:  { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
-  subhead:   { fontSize: 14, lineHeight: 20, marginTop: 4 },
-  list:      { gap: 12 },
-  catRow:    { flexDirection: 'row', gap: 14, alignItems: 'center' },
-  catIcon:   { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0 },
-  catText:   { flex: 1 },
-  catName:   { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  catDesc:   { fontSize: 12, lineHeight: 17 },
+
+  header:   { marginBottom: 20, gap: 6 },
+  eyebrow:  { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
+  headline: { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+  subhead:  { fontSize: 14, lineHeight: 20, marginTop: 2 },
+
+  catList: { gap: 8, marginBottom: 16 },
+  catRow:  { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 12, padding: 12, borderWidth: 1 },
+  catIcon: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0 },
+  catName: { flex: 1, fontSize: 14, fontWeight: '600' },
+  tokenPill:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  tokenPillText: { fontSize: 11, fontWeight: '700' },
+
+  bonusBox:  { borderWidth: 1, borderRadius: 14, padding: 14, gap: 8 },
+  bonusRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bonusTitle: { fontSize: 15, fontWeight: '700' },
+  bonusDesc:  { fontSize: 13, lineHeight: 19 },
+  rankRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
+  rankChip:  { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
+  rankEmoji: { fontSize: 18 },
+  rankMore:  { fontSize: 12, marginLeft: 2 },
 });
