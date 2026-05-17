@@ -35,6 +35,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 | Image hosting | Cloudinary |
 | Charts | Victory Native v41 (Skia-based) + react-native-svg (donut chart) |
 | Date picker | `@react-native-community/datetimepicker` (native platform picker — Android Material calendar dialog) |
+| Network state | `@react-native-community/netinfo` (drives Live/Offline badge in community screen) |
 | Health data | Android Health Connect (`expo-health-connect` config plugin + `react-native-health-connect`) |
 | AI tips | Google Gemini API (24h cached, data-aware prompts, food/diet excluded) |
 | OCR | Expo Camera + Google ML Kit / Vision API |
@@ -63,8 +64,14 @@ app/
 │   │                    #   Leaderboard: podium for top 3, global ranking by weeklyEcoScore
 │   │                    #     from /leaderboard collection, eco-alias by default (opt-in real
 │   │                    #     name), sticky "You" row at bottom, pull-to-refresh
-│   │                    #   Challenges: 5 weekly opt-in challenges with progress bars,
-│   │                    #     summary strip (Joined/Completed/Available), completion badges
+│   │                    #   Live/Offline badge: NetInfo.addEventListener drives header badge
+│   │                    #     (green 'Live' when connected, red 'Offline' when not)
+│   │                    #   Challenges: weekly opt-in challenges with progress bars,
+│   │                    #     summary strip (Joined/Completed/Available), completion badges.
+│   │                    #   ChallengeCompleteModal: fires when progress crosses goal.target;
+│   │                    #     shows badge label, icon, reward tokens, haptic feedback.
+│   │                    #     Writes arrayUnion(ch.id) to completedIds + increment(tokens).
+│   │                    #     firedCompletions ref prevents re-firing on re-renders.
 │   ├── stats.tsx        # Stats — gradient hero banner (total CO₂ + EcoTokens from
 │   │                    #   userProfile.tokens + distance + top activity) + featured full-width
 │   │                    #   8-week CO₂ bar chart + 3 swipeable rows:
@@ -142,7 +149,10 @@ src/
 │
 ├── services/
 │   ├── healthConnect.ts      # HC permission flow, polling, session fetch, daily pedometer.
-│   │                         #   fetchTodaySteps() deduped by dataOrigin (Math.max per origin)
+│   │                         #   fetchTodaySteps() now delegates to fetchStepsForDate(new Date()).
+│   │                         #   fetchStepsForDate(date) queries HC for any given local calendar
+│   │                         #   day (local midnight → now for today, → 23:59:59 for past dates).
+│   │                         #   Both deduped by dataOrigin (Math.max per origin).
 │   │                         #   fetchRecentActivities() walking steps also deduped by origin
 │   ├── healthSyncService.ts  # Bulk sync — merges sessions + pedometer days, commitSync
 │   │                         #   (stores local date string, not UTC, to fix display time bug).
@@ -161,9 +171,11 @@ src/
 │   │                         #   focuses on energy, water, transport, laundry, standby power,
 │   │                         #   thermostat, and packaging. Fallback pool: 7 data-aware tips.
 │   ├── billOCR.ts            # Camera capture + OCR for electricity and water bills
-│   ├── billService.ts        # Bill data extraction. calculateSaving() accepts optional
-   │                         #   4th param regionalBaseline (from getRegionalBaseline()) so
-   │                         #   no-previous-reading fallback uses correct regional monthly avg.
+│   ├── billService.ts        # Bill data extraction. calculateSaving() always compares against
+   │                         #   the regional baseline (getRegionalBaseline()) — never bill-to-bill.
+   │                         #   Previous reading displayed as informational context only.
+   │                         #   Prevents gaming via month-on-month comparison and anchors
+   │                         #   savings to a stable, meaningful reference.
    └── notificationService.ts # (see Notifications section) + sendMissedChallengeNotification()
                               #   fires on first app open of new week if prior week had
                               #   joined-but-incomplete challenges.
@@ -192,7 +204,11 @@ src/
 
 components/
 ├── ai-suggestions-card.tsx   # AI tips card with force-refresh, rate-limit badge
-├── health-connect-banner.tsx # Auto-fill banner on add screen when HC data available
+├── health-connect-banner.tsx # Auto-fill banner on add screen when HC data available.
+│                             #   Accepts selectedDate prop — re-fetches steps for that
+│                             #   specific date via fetchStepsForDate(); not always today.
+│                             #   useEffect re-runs on both category and selectedDate change.
+│                             #   Header shows 'May 8 from Health Connect' for past dates.
 ├── LevelUpModal.tsx          # Level-up celebration modal — animated rank badge,
 │                             #   floating emoji, pulsing glow, confetti, flavour text,
 │                             #   next-level hint. Uses getRankInfo() for colour + emoji.
@@ -658,6 +674,10 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | EcoScore snapshot chart labels showing `May 10` instead of `W20` | `getWeekLabel()` in `_layout.tsx` returned `"May 3"` string | Changed to return `W{n}` ISO week number. Sunday-start adjusted: on Sundays, date advanced +1 day before ISO week computation so Sunday opens the new week number. |
 | EcoScore snapshot chart ordering wrong (W19–W21 before W9–W18) | `orderBy('weekKey', 'desc')` sorts lexicographically; mixed `YYYY-MM-DD` and `YYYY-Wnn` doc keys interleave incorrectly | `loadEcoScoreSnapshots()` now orders by `updatedAt desc` — always chronological regardless of key format |
 | Calendar day numbers missing on current-month reopening | `overflow: 'hidden'` + `borderWidth` on `dayCircle` (View with `borderRadius: 999`) causes Android to clip child text into the border region when no explicit `backgroundColor` is set | Replaced single `dayCircle` View with two absolute-positioned layers: `dayRing` (border only) and `dayFill` (background only); `ThemedText` is a direct child of `dayCell` — never inside an `overflow:hidden` container |
+| HC banner shows today's steps even when a past date is selected | `fetchTodaySteps()` always queries today regardless of the date picker value | `fetchStepsForDate(selectedDate)` added; banner re-fetches on `selectedDate` change; walking sessions filtered to selected date for past days |
+| Bill saving compared previous reading vs current (gameable) | `calculateSaving()` used `previousReading` as comparison when available | Comparison always uses `getRegionalBaseline()` regardless of history; previous reading shown as display-only context in UI |
+| Challenge completion silent (no feedback) | No modal or haptic on completion; tokens credited but no user acknowledgement | `ChallengeCompleteModal` fires with haptic on goal.target crossed; `firedCompletions` ref prevents re-showing |
+| Community 'Live' badge shows when offline | No network state tracked | `NetInfo.addEventListener` drives badge: green 'Live' / red 'Offline' |
 
 ---
 
