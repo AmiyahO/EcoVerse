@@ -3,6 +3,7 @@ import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import {
@@ -295,6 +296,7 @@ export default function AddActivityScreen() {
       }
     }
 
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
   };
 

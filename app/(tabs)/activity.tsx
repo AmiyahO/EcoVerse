@@ -274,6 +274,7 @@ export default function ActivityScreen() {
     useActivityStore.getState().removeActivity(item.id);
     const uid = auth.currentUser?.uid;
     if (uid) await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   };
 
   return (

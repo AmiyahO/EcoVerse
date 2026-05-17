@@ -355,6 +355,9 @@ function EcoScoreModal({
 
                 {/* Chart with press-to-reveal tooltip */}
                 <SparklineChart sparkData={sparkData} colors={colors} />
+                <ThemedText style={[styles.chartHint, { color: colors.text }]}>
+                  Tap any point to inspect
+                </ThemedText>
               </>
             )}
           </View>
@@ -394,6 +397,9 @@ function EcoScoreModal({
 
                 {/* Chart with press-to-reveal tooltip */}
                 <HistoryChart snapshots={ecoScoreSnapshots} zoneColor={zoneColor} colors={colors} />
+                <ThemedText style={[styles.chartHint, { color: colors.text }]}>
+                  Tap any point to inspect
+                </ThemedText>
 
                 {/* Score dots row */}
                 <View style={styles.historyDots}>
@@ -886,6 +892,7 @@ const styles = StyleSheet.create({
   modalPillLabel: { fontSize: 10, opacity: 0.5, textAlign: 'center' },
   modalEmpty:     { height: 160, alignItems: 'center', justifyContent: 'center', gap: 12 },
   modalEmptyText: { fontSize: 13, opacity: 0.45, textAlign: 'center', lineHeight: 20 },
+  chartHint:      { fontSize: 11, opacity: 0.38, textAlign: 'center', marginTop: -8 },
   modalClose:     { alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 14 },
   modalCloseText: { fontSize: 16, fontWeight: '600', opacity: 0.6 },
   historyDots:    { flexDirection: 'row', justifyContent: 'space-around', flexWrap: 'wrap', gap: 6 },

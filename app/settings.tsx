@@ -288,9 +288,12 @@ export default function SettingsScreen() {
               await deleteUser(user);
 
               // ── Step 4: Best-effort Firestore cleanup ──
-              // Auth is already gone; orphaned doc is harmless if this fails.
+              // Auth is already gone; orphaned docs are harmless if this fails.
               try {
-                await deleteDoc(doc(db, 'users', user.uid));
+                await Promise.all([
+                  deleteDoc(doc(db, 'users', user.uid)),
+                  deleteDoc(doc(db, 'leaderboard', user.uid)),
+                ]);
               } catch { /* best-effort */ }
 
               // ✅ Navigation is handled entirely by onAuthStateChanged in _layout.tsx

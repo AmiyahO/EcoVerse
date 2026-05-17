@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { getRankInfo } from '@/src/utils/levelSystem';
@@ -64,7 +65,10 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
         ])
       ).start();
 
-      const t = setTimeout(() => confettiRef.current?.start(), 250);
+      const t = setTimeout(() => {
+        confettiRef.current?.start();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, 250);
       return () => clearTimeout(t);
     }
   }, [visible]);
