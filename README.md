@@ -51,8 +51,12 @@ app/
 │   ├── _layout.tsx      # Tab navigator — global celebration banner, confetti
 │   ├── index.tsx        # Dashboard — EcoScore hero + zone-coloured SVG ring (tappable →
 │   │                    #   EcoScoreModal with "Tap for insights" hint below ring),
-│   │                    #   30-day token sparkline + score history tabs with press tooltips,
-│   │                    #   CO₂ card, quick stats, recent activity, AI eco-tips
+│   │                    #   30-day token sparkline + score history tabs (responder overlay
+│   │                    #   tap-to-select; persistent tooltip; vertical indicator line;
+│   │                    #   no useChartPressState), CO₂ card with transport-only
+│   │                    #   week-on-week % (falls back to all-CO₂ when no transport data,
+│   │                    #   labelled "transport" or "all CO₂"), AI eco-tips pill button
+│   │                    #   (tap opens bottom-sheet modal), quick stats, recent activity
 │   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards,
 │   │                    #   long-press action sheet (duplicate / delete with haptic feedback)
 │   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
@@ -71,10 +75,12 @@ app/
 │   │                    #   WeeklyCO2Chart: transparent View responder overlay for instant
 │   │                    #     bar tap (no Victory Native pan gesture). Index from locationX
 │   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
-│   └── profile.tsx      # Profile — gradient hero, streak calendar, weekly goal progress,
-│                        #   level badge (tappable → /leveling), level-up modal,
-│                        #   Achievements card → /achievements, What's Next card → future-vision.
-│                        #   XP bar: 12px height with rank-colour glow shadow.
+│   └── profile.tsx      # Profile — gradient hero (3-stat hero: Tokens | Activities | CO₂),
+│                        #   streak badge with dynamic Best-Nd pill (tint when beatable,
+│                        #   gold #FFD166 when matched/beaten), level badge (tappable →
+│                        #   /leveling), level-up modal, Achievements card → /achievements,
+│                        #   What's Next card → future-vision. calculateLongestStreak()
+│                        #   helper added. XP bar: 12px height with rank-colour glow shadow.
 │                        #   dynamicTarget guarded against 0 (Math.max(..., 1))
 │
 ├── activity/
@@ -118,6 +124,10 @@ app/
                          #   exactly one correct snapshot write per login session.
                          #   snapshotParams ref ensures correct weeklyTarget/region values.
                          #   Calls checkAndScheduleMissedDayNudge() after activities load.
+                         #   getWeekLabel() returns W{n} ISO week number (Sunday-start
+                         #   adjusted: Sunday advances +1 day before ISO calc so Sunday
+                         #   opens a new week). loadEcoScoreSnapshots() orders by
+                         #   updatedAt desc to handle mixed YYYY-MM-DD / YYYY-Wnn keys.
 
 src/
 ├── store/
@@ -186,7 +196,11 @@ components/
 ├── LevelUpModal.tsx          # Level-up celebration modal — animated rank badge,
 │                             #   floating emoji, pulsing glow, confetti, flavour text,
 │                             #   next-level hint. Uses getRankInfo() for colour + emoji.
-├── streak-calendar-sheet.tsx # Bottom sheet streak calendar
+├── streak-calendar-sheet.tsx # Bottom sheet streak calendar. longestStreak prop
+│                             # displays "Best Nd" pill in header. Day circles use
+│                             # two absolute-positioned layers (dayRing + dayFill) with
+│                             # no overflow:hidden — avoids Android text-clip bug where
+│                             # borderWidth + overflow:hidden clips child text
 └── ocr-candidate-picker.tsx  # OCR result picker for bill scanning
 
 constants/
@@ -530,11 +544,13 @@ Two data sources merged:
 - Colour zones: red (<50), amber (50–74), green (≥75)
 - Ring arc and inner circle border both adopt the zone colour
 - Tappable → `EcoScoreModal` (spring-animated bottom sheet)
-  - *30-Day Tokens* tab: `SparklineChart` sub-component, `CartesianChart` + `Line` + `Area`, press tooltip via `useChartPressState`
-  - *Score History* tab: `HistoryChart` sub-component, fixed 0–100 Y axis, colour-coded dot row
+  - *30-Day Tokens* tab: `SparklineChart` sub-component, `CartesianChart` + `Line` + `Area`. Tooltip via `View` responder overlay (`onStartShouldSetResponder` / `onResponderGrant` / `onResponderMove`); selected index persists until next tap. Vertical indicator line at selected point. No `useChartPressState`.
+  - *Score History* tab: `HistoryChart` sub-component, fixed 0–100 Y axis, colour-coded dot row. Same responder overlay pattern. X-axis labels use `W{n}` from snapshot `label` field.
 
 ### Weekly EcoScore Snapshots
 - Written to `users/{uid}/ecoScoreSnapshots/{YYYY-MM-DD}` (Sunday-based local date key)
+- `label` field stores `W{n}` ISO week number (e.g. `W20`) for chart axis display; doc key stays as `YYYY-MM-DD`
+- `loadEcoScoreSnapshots()` orders by `updatedAt desc` to correctly sort mixed-format legacy (`YYYY-MM-DD`) and new (`YYYY-Wnn`) doc keys
 - `readyFlags` + `maybeWriteSnapshot()` guarantee exactly one write per session after both Firestore listeners fire
 - `snapshotParams` ref supplies correct weeklyTarget/region — avoids Zustand store race on cold boot
 
@@ -562,11 +578,11 @@ Redesigned with a gradient hero banner and a featured full-width 8-week CO₂ ch
 
 - **Theme:** Full light/dark mode with system-follow option, persisted via `themeStore`. `_hydrated` flag prevents flash on cold boot
 - **Login:** Soft green gradient (light) / deep forest green (dark). Inline error messages
-- **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal), CO₂ card with weekly total and transport-only week-on-week % comparison, real-world CO₂ equivalent, quick stats row, recent activity, AI tips card
+- **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal), CO₂ card with weekly total and transport-only week-on-week % comparison (falls back to all-CO₂ labelled "all CO₂" when no transport data logged), real-world CO₂ equivalent, quick stats row, recent activity, AI Eco Tips pill button (tap opens bottom-sheet modal with `AISuggestionsCard`). `paddingBottom: 90` ensures last item clears tab bar.
 - **Stats:** Gradient hero banner (CO₂ total, EcoTokens from Firestore, distance, top activity) + featured 8-week CO₂ chart + three swipeable card rows. Bar chart uses transparent responder overlay for reliable instant tap — no Victory Native pan gesture dependency
 - **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + custom bottom-sheet action sheet with Duplicate and Delete options.
 - **Community:** Podium (top 3) + flat list rows (4+), score dot badges, sticky "You" bar, challenge cards with coloured left accent, summary strip
-- **Profile:** 3-stop gradient hero, level badge, streak calendar bottom sheet, goal progress bar
+- **Profile:** 3-stop gradient hero with 3-stat row (Tokens | Activities | CO₂ saved). Streak badge shows current streak with dynamic Best-Nd pill: tint-coloured when current streak < best (motivational), gold `#FFD166` with 🏆 when matched/beaten. `calculateLongestStreak()` walks full activity history for longest consecutive-day run. Streak calendar bottom sheet shows "Best Nd" trophy pill in header. Goal progress bar.
 - **Leveling screen:** Gradient hero card using rank colour, staggered tier cards, locked tiers dimmed with lock icon
 - **Settings:** iOS-style uppercase section headers, coloured icon rows, live cloud sync timestamp, HC connection status, leaderboard opt-in toggle, in-app Terms of Service and Privacy Policy modals
 - **Settings Notifications:** Permission request row expands into four live toggles + time picker bottom sheet once granted
@@ -607,7 +623,7 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Manual activity times show midnight | `toISODate()` returns date-only string parsed as UTC midnight | Same `toLocalISOString()` fix in `add.tsx` |
 | EcoScore can reach 107 | `Math.min(100, …)` missing from `calculateEcoScore()` | Added cap |
 | Level-up modal fires on every cold boot | Zustand init sets `tokens = 0`; first snapshot looks like increase | `_profileLoaded` flag gates level-up check |
-| Dashboard CO₂ week-on-week % misleading | Utility bills logged monthly; empty week shows −100% | `getWeekCarbonComparison()` filters transport only |
+| Dashboard CO₂ week-on-week % misleading | Utility bills logged monthly; empty week shows −100% | `getWeekCarbonComparison()` filters transport only; falls back to all-CO₂ with "all CO₂" label when no transport data |
 | Stats CO₂ pill misleading | Same cause | Pill removed; per-category bars retained |
 | +Log button tint flash on OS theme change | `android_ripple` recreates native `RippleDrawable` on re-render | Removed `android_ripple` app-wide |
 | Theme tint flash on cold boot | Stale persisted `mode` applied before AsyncStorage rehydration | `_hydrated` flag in `themeStore` |
@@ -637,6 +653,11 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Community screen shows 11 challenges instead of Firestore count | `useState<Challenge[]>(CHALLENGES)` seeded initial state with full 11-item static array before fetch resolved | Changed to `useState([])` + added `loadingChallenges` spinner; fallback only fires inside `fetchChallengesForWeek()` |
 | Cloud Function writes wrong `weekId` (previous Sunday) | Cloud Run executes in UTC; `new Date().getDay()` returns Saturday (6) when fired at 00:01 Cyprus time (UTC+3 = Saturday 21:01 UTC) | `getSundayDateString()` now extracts Cyprus local date via `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Nicosia' })` before computing Sunday offset |
 | No CO₂ challenge in weekly rotation | Old deployed function pre-dated CO₂ pool logic; `co2Pool` was not yet in the Cloud Function | Redeployed with `co2Pool` filter on `challengeGroup === 'co2'`; guaranteed slot drawn independently of difficulty shuffle |
+| Dashboard chart tooltip flashing / invisible on tap | `onResponderRelease` cleared `selIdx` immediately on finger lift; Victory Native `useChartPressState` requires drag to activate (static taps silently cancelled) | Replaced `useChartPressState` + `SkiaCircle` with `View` responder overlay; `selIdx` state persists until next tap (no `onResponderRelease` clear) |
+| Dashboard EcoScore modal "This week" pill shows stale score | `ecoScoreSnapshots.at(-1)?.score` returns the most recent snapshot, which may be from a prior session with lower data | Replaced with "vs Last Week" trend pill (`+N`/`-N` delta vs previous snapshot) using IIFE pattern |
+| EcoScore snapshot chart labels showing `May 10` instead of `W20` | `getWeekLabel()` in `_layout.tsx` returned `"May 3"` string | Changed to return `W{n}` ISO week number. Sunday-start adjusted: on Sundays, date advanced +1 day before ISO week computation so Sunday opens the new week number. |
+| EcoScore snapshot chart ordering wrong (W19–W21 before W9–W18) | `orderBy('weekKey', 'desc')` sorts lexicographically; mixed `YYYY-MM-DD` and `YYYY-Wnn` doc keys interleave incorrectly | `loadEcoScoreSnapshots()` now orders by `updatedAt desc` — always chronological regardless of key format |
+| Calendar day numbers missing on current-month reopening | `overflow: 'hidden'` + `borderWidth` on `dayCircle` (View with `borderRadius: 999`) causes Android to clip child text into the border region when no explicit `backgroundColor` is set | Replaced single `dayCircle` View with two absolute-positioned layers: `dayRing` (border only) and `dayFill` (background only); `ThemedText` is a direct child of `dayCell` — never inside an `overflow:hidden` container |
 
 ---
 
