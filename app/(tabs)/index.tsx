@@ -3,7 +3,7 @@ import { ThemedText } from '@/components/themed-text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
-import { FontAwesome6 } from '@expo/vector-icons';
+import { FontAwesome6, AntDesign } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View, Pressable, Modal, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -41,7 +41,7 @@ function getZoneColor(score: number) {
 function getGreeting(firstName: string): { icon: string; text: string } {
   const hour = new Date().getHours();
   if (hour < 12) return { icon: 'sun',  text: `Good morning, ${firstName}` };
-  if (hour < 18) return { icon: 'leaf', text: `Hello, ${firstName}` };
+  if (hour < 18) return { icon: 'cloud-sun', text: `Hello, ${firstName}` };
   return { icon: 'moon', text: `Good evening, ${firstName}` };
 }
 
@@ -597,6 +597,8 @@ export default function HomeScreen() {
             <FontAwesome6
               name={getGreeting(firstName).icon as any}
               size={18}
+              color={colors.tint}
+              style={styles.greetingIcon}
             />
           </View>
           <Pressable

@@ -118,10 +118,20 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
                   {streak > 0 ? `${streak}-day streak` : 'No active streak'}
                 </ThemedText>
                 {longestStreak > 0 && (
-                  <View style={[styles.longestPill, { backgroundColor: colors.surfaceMuted }]}>
-                    <FontAwesome6 name="trophy" size={10} color={colors.text} style={{ opacity: 0.45 }} />
-                    <ThemedText style={[styles.longestText, { color: colors.text }]}>
-                      Best {longestStreak}d
+                  <View style={[styles.longestPill, {
+                    backgroundColor: (streak >= longestStreak ? '#FFD166' : colors.tint) + '20',
+                    borderWidth: 1,
+                    borderColor: (streak >= longestStreak ? '#FFD166' : colors.tint) + '45',
+                  }]}>
+                    <FontAwesome6
+                      name="trophy"
+                      size={10}
+                      color={streak >= longestStreak ? '#FFD166' : colors.tint}
+                    />
+                    <ThemedText style={[styles.longestText, {
+                      color: streak >= longestStreak ? '#FFD166' : colors.tint,
+                    }]}>
+                      {streak >= longestStreak ? `PB ${longestStreak}d` : `Best ${longestStreak}d`}
                     </ThemedText>
                   </View>
                 )}
@@ -267,7 +277,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 4,
   },
-  longestText: { fontSize: 11, fontWeight: '600', opacity: 0.45 },
+  longestText: { fontSize: 11, fontWeight: '700' },
 
   // Month nav
   monthNav: {

@@ -53,7 +53,6 @@ function NextRankPill({ currentLevel, colors, isDark }: { currentLevel: number; 
           Reach Level {minLv}
         </Text>
       </View>
-      <FontAwesome6 name="chevron-right" size={11} color={next.color} />
     </View>
   );
 }
@@ -211,15 +210,6 @@ export default function LevelingScreen() {
   return (
     <SafeAreaView style={[s.root, { backgroundColor: colors.background }]} edges={['top']}>
 
-      {/* Nav bar */}
-      <View style={s.nav}>
-        <Pressable style={[s.backBtn, { backgroundColor: colors.surface }]} onPress={() => router.back()} hitSlop={12}>
-          <FontAwesome6 name="chevron-left" size={13} color={colors.text} />
-        </Pressable>
-        <Text style={[s.navTitle, { color: colors.text }]}>Levels & Ranks</Text>
-        <View style={{ width: 36 }} />
-      </View>
-
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         {/* ── Hero card ─────────────────────────────────────────────────── */}
@@ -235,7 +225,16 @@ export default function LevelingScreen() {
             <View style={[s.blob, { width: 170, height: 170, top: -55, right: -55, backgroundColor: rank.color + '14' }]} />
             <View style={[s.blob, { width: 90,  height: 90,  bottom: -25, left: 10,  backgroundColor: rank.color + '0E' }]} />
 
-            {/* Top: emoji + level + rank */}
+            {/* Floating back button — top-left of hero, no nav bar needed */}
+            <Pressable
+              style={[s.backBtn, { backgroundColor: rank.color + '28' }]}
+              onPress={() => router.back()}
+              hitSlop={12}
+            >
+              <FontAwesome6 name="chevron-left" size={13} color={rank.color} />
+            </Pressable>
+
+            {/* Top: icon + level + rank */}
             <View style={s.heroTop}>
               <View style={[s.emojiFrame, { borderColor: rank.color + '55', backgroundColor: rank.color + '1E' }]}>
                 <MaterialCommunityIcons name={rank.icon as any} size={34} color={rank.color} />

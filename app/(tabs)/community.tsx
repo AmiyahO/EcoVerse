@@ -197,10 +197,9 @@ interface ChallengeCompleteModalProps {
 }
 
 function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalProps) {
-  const { scheme } = useAppTheme();
-  const isDark    = scheme === 'dark';
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim  = useRef(new Animated.Value(0)).current;
+  const { colors } = useAppTheme();
+  const scaleAnim  = useRef(new Animated.Value(0)).current;
+  const glowAnim   = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!challenge) return;
@@ -214,58 +213,46 @@ function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalPr
 
   if (!challenge) return null;
 
-  const diffColors  = DIFFICULTY_COLORS[challenge.difficulty] ?? { bg: '#E8F5E9', text: '#2E7D32' };
-  const cardBg      = isDark ? '#0F1F0F' : '#FFFFFF';
-  const textPrimary = isDark ? '#FFFFFF' : '#111111';
-  const textMuted   = isDark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.5)';
+  const diffColors = DIFFICULTY_COLORS[challenge.difficulty] ?? { bg: '#E8F5E9', text: '#2E7D32' };
 
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <View style={modalStyles.backdrop}>
-        <Animated.View style={[
-          modalStyles.card,
-          { backgroundColor: cardBg, borderColor: challenge.color + '55', transform: [{ scale: scaleAnim }] },
-        ]}>
-          {/* Colour accent strip at top */}
-          <View style={[modalStyles.topStrip, { backgroundColor: challenge.color }]} />
-
-          {/* Faint background icon — centred, not clipping header */}
-          <Animated.View style={[modalStyles.bgIcon, { opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.05] }) }]}>
-            <FontAwesome6 name={challenge.icon} size={160} color={challenge.color} solid />
+        <Animated.View style={[modalStyles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}>
+          {/* Faint background icon for depth */}
+          <Animated.View style={[modalStyles.bgIcon, { opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] }) }]}>
+            <FontAwesome6 name={challenge.icon} size={140} color={challenge.color} solid />
           </Animated.View>
 
-          {/* Content wrapper */}
-          <View style={modalStyles.content}>
-            {/* Icon circle */}
-            <View style={[modalStyles.iconCircle, { backgroundColor: challenge.color + '20', borderColor: challenge.color + '50' }]}>
-              <FontAwesome6 name={challenge.icon} size={38} color={challenge.color} solid />
-            </View>
-
-            {/* Difficulty pill */}
-            <View style={[modalStyles.badgePill, { backgroundColor: diffColors.bg }]}>
-              <Text style={[modalStyles.badgePillText, { color: diffColors.text }]}>
-                {challenge.difficulty.toUpperCase()}
-              </Text>
-            </View>
-
-            <Text style={[modalStyles.congrats, { color: textMuted }]}>Challenge Complete!</Text>
-            <Text style={[modalStyles.title,   { color: textPrimary }]}>{challenge.title}</Text>
-            <Text style={[modalStyles.badge,   { color: challenge.color }]}>{challenge.badgeLabel}</Text>
-
-            {/* Token reward */}
-            <View style={[modalStyles.rewardBox, { backgroundColor: '#43A047' + '18', borderColor: '#43A047' + '35' }]}>
-              <FontAwesome6 name="leaf" size={14} color="#43A047" solid />
-              <Text style={modalStyles.rewardText}>+{challenge.rewardTokens} EcoTokens earned</Text>
-            </View>
-
-            <TouchableOpacity
-              style={[modalStyles.btn, { backgroundColor: challenge.color }]}
-              onPress={onClose}
-              activeOpacity={0.85}
-            >
-              <Text style={modalStyles.btnText}>Awesome!</Text>
-            </TouchableOpacity>
+          {/* Difficulty pill */}
+          <View style={[modalStyles.badgePill, { backgroundColor: diffColors.bg }]}>
+            <Text style={[modalStyles.badgePillText, { color: diffColors.text }]}>
+              {challenge.difficulty.toUpperCase()}
+            </Text>
           </View>
+
+          {/* Icon circle */}
+          <View style={[modalStyles.iconCircle, { backgroundColor: challenge.color + '22', borderColor: challenge.color + '44' }]}>
+            <FontAwesome6 name={challenge.icon} size={36} color={challenge.color} solid />
+          </View>
+
+          <Text style={[modalStyles.congrats, { color: colors.text }]}>Challenge Complete!</Text>
+          <Text style={[modalStyles.title, { color: colors.text }]}>{challenge.title}</Text>
+          <Text style={[modalStyles.badge, { color: challenge.color }]}>🏅 {challenge.badgeLabel}</Text>
+
+          {/* Token reward */}
+          <View style={[modalStyles.rewardBox, { backgroundColor: '#43A047' + '14' }]}>
+            <FontAwesome6 name="leaf" size={14} color="#43A047" solid />
+            <Text style={modalStyles.rewardText}>+{challenge.rewardTokens} EcoTokens earned</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[modalStyles.btn, { backgroundColor: challenge.color }]}
+            onPress={onClose}
+            activeOpacity={0.85}
+          >
+            <Text style={modalStyles.btnText}>Awesome!</Text>
+          </TouchableOpacity>
         </Animated.View>
       </View>
     </Modal>
@@ -273,20 +260,18 @@ function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalPr
 }
 
 const modalStyles = StyleSheet.create({
-  backdrop:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.78)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
-  card:          { width: '100%', maxWidth: 340, borderRadius: 28, borderWidth: 1.5, alignItems: 'center', overflow: 'hidden' },
-  topStrip:      { width: '100%', height: 5 },
-  bgIcon:        { position: 'absolute', top: '18%', alignSelf: 'center' },
-  content:       { alignItems: 'center', gap: 10, padding: 24, paddingTop: 20, width: '100%' },
-  iconCircle:    { width: 84, height: 84, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  backdrop:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  card:          { width: '82%', borderRadius: 28, padding: 28, alignItems: 'center', gap: 12, overflow: 'hidden' },
+  bgIcon:        { position: 'absolute', top: -20, right: -20 },
   badgePill:     { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   badgePillText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  congrats:      { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1.5, textAlign: 'center' },
-  title:         { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.3, lineHeight: 28 },
-  badge:         { fontSize: 14, fontWeight: '700', textAlign: 'center' },
-  rewardBox:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, borderWidth: 1 },
-  rewardText:    { fontSize: 14, fontWeight: '700', color: '#43A047' },
-  btn:           { paddingHorizontal: 48, paddingVertical: 14, borderRadius: 20, marginTop: 4, alignSelf: 'stretch', alignItems: 'center' },
+  iconCircle:    { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, marginTop: 4 },
+  congrats:      { fontSize: 12, fontWeight: '700', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 1.2 },
+  title:         { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.3 },
+  badge:         { fontSize: 15, fontWeight: '700' },
+  rewardBox:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
+  rewardText:    { fontSize: 15, fontWeight: '700', color: '#43A047' },
+  btn:           { paddingHorizontal: 40, paddingVertical: 14, borderRadius: 20, marginTop: 4 },
   btnText:       { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
 
@@ -863,6 +848,16 @@ export default function CommunityScreen() {
                   {leaderboard.length >= 1 && leaderboard.some(e => e.weeklyEcoScore > 0) && (
                     <Podium entries={leaderboard.slice(0, Math.min(3, leaderboard.length))} displayFor={displayFor} colors={colors} />
                   )}
+                  {/* No-scores banner — shown when users exist but nobody has logged yet this week */}
+                  {leaderboard.length >= 1 && !leaderboard.some(e => e.weeklyEcoScore > 0) && (
+                    <View style={[styles.noScoreBanner, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
+                      <FontAwesome6 name="leaf" size={22} color={colors.tint} style={{ opacity: 0.7 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.noScoreTitle, { color: colors.text }]}>Week just started!</Text>
+                        <Text style={[styles.noScoreSub, { color: colors.text }]}>No EcoScores yet — log activities to claim the top spot.</Text>
+                      </View>
+                    </View>
+                  )}
                   {leaderboard.length > 3 && (
                     <Text style={[styles.sectionNote, { color: colors.text }]}>
                       Ranks 4 – {Math.min(leaderboard.length, 50)}
@@ -1003,6 +998,9 @@ const styles = StyleSheet.create({
   // Leaderboard rows (4th+)
   listContent:   { paddingHorizontal: 16, paddingBottom: 20, gap: 6 },
   sectionNote:   { fontSize: 12, textAlign: 'center', marginBottom: 10, marginTop: 4, opacity: 0.5 },
+  noScoreBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 14, borderWidth: 1, marginBottom: 12 },
+  noScoreTitle:  { fontSize: 14, fontWeight: '700', marginBottom: 2 },
+  noScoreSub:    { fontSize: 12, opacity: 0.6, lineHeight: 17 },
   row:           { flexDirection: 'row', alignItems: 'center', borderRadius: 14, paddingVertical: 11, paddingHorizontal: 14, gap: 10 },
   rankNum:       { width: 26, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   avatar:        { width: 38, height: 38, borderRadius: 19 },

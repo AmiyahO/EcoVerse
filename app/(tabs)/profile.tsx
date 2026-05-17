@@ -273,11 +273,11 @@ export default function ProfileScreen() {
                       <View style={[styles.streakBadge, {
                         backgroundColor: pillColor + '20',
                         borderWidth: 1, borderColor: pillColor + '50',
-                        paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+                        paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
                       }]}>
                         <FontAwesome6 name="trophy" size={10} color={pillColor} />
-                        <ThemedText style={[styles.streakBadgeText, { color: pillColor, fontSize: 11 }]}>
-                          {beaten ? `Best ${longestStreak}d` : `Best ${longestStreak}d`}
+                        <ThemedText style={[styles.streakBadgeText, { color: pillColor, fontSize: 11, fontWeight: '700' }]}>
+                          {beaten ? `PB ${longestStreak}d` : `Best ${longestStreak}d`}
                         </ThemedText>
                       </View>
                     );
@@ -455,6 +455,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 7,
   },
   rankPillText: {
     fontSize: 14,

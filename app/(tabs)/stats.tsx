@@ -516,16 +516,15 @@ export default function StatsScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} nestedScrollEnabled>
 
-        {/* ═══════════════════════════════════════════════════
-            HERO — gradient banner with big CO₂ number
-        ═══════════════════════════════════════════════════ */}
-        <LinearGradient
-          colors={isDark ? ['#1B4332', '#0E2318'] : ['#2D6A4F', '#1B4332']}
-          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-          style={styles.hero}
-        >
+      {/* ═══════════════════════════════════════════════════
+          HERO — sticky, sits above the scroll view
+      ═══════════════════════════════════════════════════ */}
+      <LinearGradient
+        colors={isDark ? ['#1B4332', '#0E2318'] : ['#2D6A4F', '#1B4332']}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={styles.hero}
+      >
           <View style={styles.heroTopRow}>
             <View>
               <ThemedText style={styles.heroEyebrow}>Your Stats</ThemedText>
@@ -560,8 +559,9 @@ export default function StatsScreen() {
               </View>
             ))}
           </View>
-        </LinearGradient>
+      </LinearGradient>
 
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll} nestedScrollEnabled>
         {/* ═══════════════════════════════════════════════════
             FEATURED CHART — full-width, prominent
         ═══════════════════════════════════════════════════ */}

@@ -455,8 +455,9 @@ export default function AchievementsScreen() {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
+      {/* ── Header + Hero + Stats — sticky above scroll ── */}
+      <View style={[styles.stickyHeader, { backgroundColor: colors.background, borderBottomColor: colors.surfaceMuted }]}>
         {/* ── Header ── */}
         <View style={styles.headerRow}>
           <Pressable
@@ -514,6 +515,9 @@ export default function AchievementsScreen() {
           ))}
         </View>
 
+      </View>{/* end stickyHeader */}
+
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* ── Challenge Badges ── */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Challenge Badges</Text>
@@ -600,6 +604,7 @@ function formatWeekId(weekId: string): string {
 const styles = StyleSheet.create({
   root:          { flex: 1 },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  stickyHeader:  { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   scroll:        { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
 
   // Header
@@ -625,7 +630,7 @@ const styles = StyleSheet.create({
   pctLabel:   { fontSize: 9, fontWeight: '600', opacity: 0.8 },
 
   // Pills row
-  pillsRow:      { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  pillsRow:      { flexDirection: 'row', gap: 8, marginBottom: 8 },
   statPill:      { flex: 1, borderRadius: 14, padding: 12, alignItems: 'center', gap: 4 },
   statPillVal:   { fontSize: 16, fontWeight: '800' },
   statPillLabel: { fontSize: 10, opacity: 0.5, fontWeight: '500' },
