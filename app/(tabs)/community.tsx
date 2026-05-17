@@ -20,6 +20,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  increment,
   limit,
   orderBy,
   query,
@@ -33,6 +34,7 @@ import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -40,6 +42,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { sendMissedChallengeNotification } from '@/src/services/notificationService';
 
@@ -184,6 +188,92 @@ const podiumStyles = StyleSheet.create({
   blockRankNum: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800' },
 });
 
+
+// ── Challenge Complete Modal ───────────────────────────────────────────────────
+interface ChallengeCompleteModalProps {
+  challenge: Challenge | null;
+  onClose: () => void;
+}
+
+function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalProps) {
+  const { colors } = useAppTheme();
+  const scaleAnim  = useRef(new Animated.Value(0)).current;
+  const glowAnim   = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!challenge) return;
+    scaleAnim.setValue(0);
+    glowAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: 1, tension: 55, friction: 7, useNativeDriver: true }),
+      Animated.timing(glowAnim,  { toValue: 1, duration: 600, useNativeDriver: true }),
+    ]).start();
+  }, [challenge]);
+
+  if (!challenge) return null;
+
+  const diffColors = DIFFICULTY_COLORS[challenge.difficulty] ?? { bg: '#E8F5E9', text: '#2E7D32' };
+
+  return (
+    <Modal transparent visible animationType="fade" onRequestClose={onClose}>
+      <View style={modalStyles.backdrop}>
+        <Animated.View style={[modalStyles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}>
+          {/* Faint background icon for depth */}
+          <Animated.View style={[modalStyles.bgIcon, { opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] }) }]}>
+            <FontAwesome6 name={challenge.icon} size={140} color={challenge.color} solid />
+          </Animated.View>
+
+          {/* Difficulty pill */}
+          <View style={[modalStyles.badgePill, { backgroundColor: diffColors.bg }]}>
+            <Text style={[modalStyles.badgePillText, { color: diffColors.text }]}>
+              {challenge.difficulty.toUpperCase()}
+            </Text>
+          </View>
+
+          {/* Icon circle */}
+          <View style={[modalStyles.iconCircle, { backgroundColor: challenge.color + '22', borderColor: challenge.color + '44' }]}>
+            <FontAwesome6 name={challenge.icon} size={36} color={challenge.color} solid />
+          </View>
+
+          <Text style={[modalStyles.congrats, { color: colors.text }]}>Challenge Complete!</Text>
+          <Text style={[modalStyles.title, { color: colors.text }]}>{challenge.title}</Text>
+          <Text style={[modalStyles.badge, { color: challenge.color }]}>🏅 {challenge.badgeLabel}</Text>
+
+          {/* Token reward */}
+          <View style={[modalStyles.rewardBox, { backgroundColor: '#43A047' + '14' }]}>
+            <FontAwesome6 name="leaf" size={14} color="#43A047" solid />
+            <Text style={modalStyles.rewardText}>+{challenge.rewardTokens} EcoTokens earned</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[modalStyles.btn, { backgroundColor: challenge.color }]}
+            onPress={onClose}
+            activeOpacity={0.85}
+          >
+            <Text style={modalStyles.btnText}>Awesome! 🌍</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+  card:          { width: '82%', borderRadius: 28, padding: 28, alignItems: 'center', gap: 12, overflow: 'hidden' },
+  bgIcon:        { position: 'absolute', top: -20, right: -20 },
+  badgePill:     { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
+  badgePillText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  iconCircle:    { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 2, marginTop: 4 },
+  congrats:      { fontSize: 12, fontWeight: '700', opacity: 0.5, textTransform: 'uppercase', letterSpacing: 1.2 },
+  title:         { fontSize: 22, fontWeight: '800', textAlign: 'center', letterSpacing: -0.3 },
+  badge:         { fontSize: 15, fontWeight: '700' },
+  rewardBox:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14 },
+  rewardText:    { fontSize: 15, fontWeight: '700', color: '#43A047' },
+  btn:           { paddingHorizontal: 40, paddingVertical: 14, borderRadius: 20, marginTop: 4 },
+  btnText:       { color: '#fff', fontSize: 15, fontWeight: '800' },
+});
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function CommunityScreen() {
   const { colors, scheme } = useAppTheme();
@@ -205,6 +295,21 @@ export default function CommunityScreen() {
   const [completedIds, setCompletedIds]   = useState<string[]>([]);
   const [joiningId, setJoiningId]         = useState<string | null>(null);
   const [leavingId, setLeavingId]         = useState<string | null>(null);
+
+  // ── Online/offline indicator ──────────────────────────────────────────
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener(state => {
+      setIsOnline(state.isConnected ?? true);
+    });
+    return unsub;
+  }, []);
+
+  // ── Challenge completion modal ─────────────────────────────────────────
+  const [pendingCompletion, setPendingCompletion] = useState<Challenge | null>(null);
+  // Tracks challenge IDs that already showed the modal this session
+  // to prevent re-firing on re-renders or app resume.
+  const firedCompletions = useRef<Set<string>>(new Set());
 
   const tabAnim   = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -314,10 +419,52 @@ export default function CommunityScreen() {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 7);
     const weekActivities = activities.filter(a => { const d = new Date(a.date); return d >= weekStart && d < weekEnd; });
+
     const newProgress: Record<string, number> = { ...progressMap };
-    liveChallenges.forEach(ch => { if (!joinedIds.includes(ch.id)) return; newProgress[ch.id] = getChallengeProgress(ch, weekActivities); });
+    liveChallenges.forEach(ch => {
+      if (!joinedIds.includes(ch.id)) return;
+      newProgress[ch.id] = getChallengeProgress(ch, weekActivities);
+    });
     setProgressMap(newProgress);
-  }, [activities, joinedIds, liveChallenges]);
+
+    // ── Completion detection ─────────────────────────────────────────────
+    // Check every joined challenge that just hit or crossed its target
+    // and hasn't been marked complete yet.
+    if (!currentUid) return;
+    const weekId = getCurrentWeekId();
+    const progressRef = doc(db, 'users', currentUid, 'challengeProgress', weekId);
+
+    for (const ch of liveChallenges) {
+      if (!joinedIds.includes(ch.id))              continue; // not joined
+      if (completedIds.includes(ch.id))            continue; // already done
+      if (firedCompletions.current.has(ch.id))     continue; // modal already shown this session
+      if ((newProgress[ch.id] ?? 0) < ch.goal.target) continue; // not reached
+
+      // Mark as fired immediately so concurrent effect calls don't double-fire
+      firedCompletions.current.add(ch.id);
+
+      // Update local state
+      setCompletedIds(prev => [...prev, ch.id]);
+
+      // Persist completion + credit reward tokens to Firestore
+      (async () => {
+        try {
+          await Promise.all([
+            updateDoc(progressRef, { completedIds: arrayUnion(ch.id) }),
+            updateDoc(doc(db, 'users', currentUid), { tokens: increment(ch.rewardTokens) }),
+          ]);
+        } catch (e) {
+          console.warn('Challenge completion write failed:', e);
+        }
+      })();
+
+      // Haptic + show modal (only one modal at a time — queue handled by
+      // the user dismissing before the next one can appear)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setPendingCompletion(ch);
+      break; // show one at a time; remaining completions surface on next effect run
+    }
+  }, [activities, joinedIds, liveChallenges, completedIds, currentUid]);
 
   const handleJoin = async (challengeId: string) => {
     if (!currentUid || joiningId) return;
@@ -606,9 +753,15 @@ export default function CommunityScreen() {
             Week of {getWeekLabel()} · resets Sunday
           </Text>
         </View>
-        <View style={[styles.weekBadge, { backgroundColor: colors.tint + '18' }]}>
-          <FontAwesome6 name="tower-broadcast" size={12} color={colors.tint} />
-          <Text style={[styles.weekBadgeText, { color: colors.tint }]}>Live</Text>
+        <View style={[styles.weekBadge, { backgroundColor: isOnline ? colors.tint + '18' : '#EF5350' + '18' }]}>
+          <FontAwesome6
+            name={isOnline ? 'tower-broadcast' : 'wifi'}
+            size={12}
+            color={isOnline ? colors.tint : '#EF5350'}
+          />
+          <Text style={[styles.weekBadgeText, { color: isOnline ? colors.tint : '#EF5350' }]}>
+            {isOnline ? 'Live' : 'Offline'}
+          </Text>
         </View>
       </View>
 
@@ -743,6 +896,12 @@ export default function CommunityScreen() {
           </View>
         </ScrollView>
       )}
+
+      {/* ── Challenge complete modal ── */}
+      <ChallengeCompleteModal
+        challenge={pendingCompletion}
+        onClose={() => setPendingCompletion(null)}
+      />
     </SafeAreaView>
   );
 }
