@@ -5,7 +5,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { CHALLENGES, type Challenge } from '@/src/utils/challengeData';
 import { calculateStreak } from '@/src/utils/ecoLogic';
 import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
-import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { getAuth } from 'firebase/auth';
@@ -40,11 +40,12 @@ interface MilestoneStats {
   totalActivities:    number;
   currentStreak:      number;
   totalCO2:           number;
-  walkingActivities:  number;
-  cyclingActivities:  number;
+  walkingActivities:     number;
+  runningActivities:     number;
+  cyclingActivities:     number;
   electricityActivities: number;
-  waterActivities:    number;
-  uniqueCategories:   number;
+  waterActivities:       number;
+  uniqueCategories:      number;
 }
 
 interface Milestone {
@@ -52,6 +53,8 @@ interface Milestone {
   title:       string;
   description: string;
   icon:        string;
+  /** Icon library — defaults to FA6 if omitted */
+  lib?:        'FA6' | 'MCO' | 'Ionicons';
   color:       string;
   /** Returns 0–1 fractional progress, clamped. Used for locked hints. */
   progress:    (s: MilestoneStats) => number;
@@ -59,6 +62,8 @@ interface Milestone {
 }
 
 const MILESTONES: Milestone[] = [
+
+  // ── General ───────────────────────────────────────────────────────────────
   {
     id: 'first_step',
     title: 'First Step',
@@ -68,37 +73,15 @@ const MILESTONES: Milestone[] = [
     check: s => s.totalActivities >= 1,
   },
   {
-    id: 'token_100',
-    title: 'Token Starter',
-    description: 'Earn 100 EcoTokens',
-    icon: 'leaf', color: '#43A047',
-    progress: s => Math.min(s.totalTokens / 100, 1),
-    check: s => s.totalTokens >= 100,
+    id: 'all_categories',
+    title: 'All-Rounder',
+    description: 'Log at least one activity in every category',
+    icon: 'apps', lib: 'Ionicons', color: '#AB47BC',
+    progress: s => Math.min(s.uniqueCategories / 5, 1),
+    check: s => s.uniqueCategories >= 5,
   },
-  {
-    id: 'token_500',
-    title: 'Token Collector',
-    description: 'Earn 500 EcoTokens',
-    icon: 'seedling', color: '#FBC02D',
-    progress: s => Math.min(s.totalTokens / 500, 1),
-    check: s => s.totalTokens >= 500,
-  },
-  {
-    id: 'token_1000',
-    title: 'Token Hoarder',
-    description: 'Earn 1,000 EcoTokens',
-    icon: 'tree', color: '#F57F17',
-    progress: s => Math.min(s.totalTokens / 1000, 1),
-    check: s => s.totalTokens >= 1000,
-  },
-  {
-    id: 'token_5000',
-    title: 'EcoVerse Legend',
-    description: 'Earn 5,000 EcoTokens',
-    icon: 'tree-city', color: '#FF6F00',
-    progress: s => Math.min(s.totalTokens / 5000, 1),
-    check: s => s.totalTokens >= 5000,
-  },
+
+  // ── Streaks ────────────────────────────────────────────────────────────────
   {
     id: 'streak_3',
     title: 'Heat Wave',
@@ -116,37 +99,97 @@ const MILESTONES: Milestone[] = [
     check: s => s.currentStreak >= 7,
   },
   {
+    id: 'streak_14',
+    title: 'Fortnight Force',
+    description: 'Keep a 14-day streak',
+    icon: 'fire', color: '#E64A19',
+    progress: s => Math.min(s.currentStreak / 14, 1),
+    check: s => s.currentStreak >= 14,
+  },
+  {
     id: 'streak_30',
     title: 'Solar Flare',
     description: 'Keep a 30-day streak',
-    icon: 'sun', color: '#FFB300',
+    icon: 'sunny', lib: 'Ionicons', color: '#FFB300',
     progress: s => Math.min(s.currentStreak / 30, 1),
     check: s => s.currentStreak >= 30,
   },
   {
-    id: 'activities_10',
-    title: 'Getting Started',
-    description: 'Log 10 activities',
-    icon: 'clipboard-check', color: '#29B6F6',
-    progress: s => Math.min(s.totalActivities / 10, 1),
-    check: s => s.totalActivities >= 10,
+    id: 'streak_60',
+    title: 'Unstoppable',
+    description: 'Keep a 60-day streak',
+    icon: 'lightning-bolt', lib: 'MCO', color: '#BF360C',
+    progress: s => Math.min(s.currentStreak / 60, 1),
+    check: s => s.currentStreak >= 60,
   },
   {
-    id: 'activities_50',
-    title: 'Eco Veteran',
-    description: 'Log 50 activities',
-    icon: 'shield', color: '#0288D1',
-    progress: s => Math.min(s.totalActivities / 50, 1),
-    check: s => s.totalActivities >= 50,
+    id: 'streak_100',
+    title: 'Centurion',
+    description: 'Keep a 100-day streak',
+    icon: 'infinity', color: '#880E4F',
+    progress: s => Math.min(s.currentStreak / 100, 1),
+    check: s => s.currentStreak >= 100,
+  },
+
+  // ── EcoTokens ─────────────────────────────────────────────────────────────
+  {
+    id: 'token_100',
+    title: 'Token Starter',
+    description: 'Earn 100 EcoTokens',
+    icon: 'leaf', color: '#43A047',
+    progress: s => Math.min(s.totalTokens / 100, 1),
+    check: s => s.totalTokens >= 100,
   },
   {
-    id: 'activities_100',
-    title: 'Century Club',
-    description: 'Log 100 activities',
-    icon: 'medal', color: '#7B1FA2',
-    progress: s => Math.min(s.totalActivities / 100, 1),
-    check: s => s.totalActivities >= 100,
+    id: 'token_500',
+    title: 'Token Collector',
+    description: 'Earn 500 EcoTokens',
+    icon: 'sprout', lib: 'MCO', color: '#FBC02D',
+    progress: s => Math.min(s.totalTokens / 500, 1),
+    check: s => s.totalTokens >= 500,
   },
+  {
+    id: 'token_1000',
+    title: 'Token Hoarder',
+    description: 'Earn 1,000 EcoTokens',
+    icon: 'tree', color: '#F57F17',
+    progress: s => Math.min(s.totalTokens / 1000, 1),
+    check: s => s.totalTokens >= 1000,
+  },
+  {
+    id: 'token_2500',
+    title: 'Token Titan',
+    description: 'Earn 2,500 EcoTokens',
+    icon: 'star', color: '#FB8C00',
+    progress: s => Math.min(s.totalTokens / 2500, 1),
+    check: s => s.totalTokens >= 2500,
+  },
+  {
+    id: 'token_5000',
+    title: 'EcoVerse Legend',
+    description: 'Earn 5,000 EcoTokens',
+    icon: 'pine-tree', lib: 'MCO', color: '#FF6F00',
+    progress: s => Math.min(s.totalTokens / 5000, 1),
+    check: s => s.totalTokens >= 5000,
+  },
+  {
+    id: 'token_10000',
+    title: 'Token Master',
+    description: 'Earn 10,000 EcoTokens lifetime',
+    icon: 'crown', color: '#F9A825',
+    progress: s => Math.min(s.totalTokens / 10000, 1),
+    check: s => s.totalTokens >= 10000,
+  },
+  {
+    id: 'token_25000',
+    title: 'EcoVerse Elite',
+    description: 'Earn 25,000 EcoTokens lifetime',
+    icon: 'shield-crown', lib: 'MCO', color: '#E65100',
+    progress: s => Math.min(s.totalTokens / 25000, 1),
+    check: s => s.totalTokens >= 25000,
+  },
+
+  // ── CO₂ saved ─────────────────────────────────────────────────────────────
   {
     id: 'co2_1',
     title: 'Carbon Cutter',
@@ -167,12 +210,36 @@ const MILESTONES: Milestone[] = [
     id: 'co2_50',
     title: 'CO₂ Crusader',
     description: 'Save 50 kg of CO₂',
-    icon: 'shield-halved', color: '#1B5E20',
+    icon: 'leaf-circle', lib: 'MCO', color: '#1B5E20',
     progress: s => Math.min(s.totalCO2 / 50, 1),
     check: s => s.totalCO2 >= 50,
   },
+  {
+    id: 'co2_100',
+    title: 'Carbon Slayer',
+    description: 'Save 100 kg of CO₂',
+    icon: 'earth-europe', color: '#00695C',
+    progress: s => Math.min(s.totalCO2 / 100, 1),
+    check: s => s.totalCO2 >= 100,
+  },
+  {
+    id: 'co2_250',
+    title: 'Climate Champion',
+    description: 'Save 250 kg of CO₂',
+    icon: 'globe', lib: 'Ionicons', color: '#004D40',
+    progress: s => Math.min(s.totalCO2 / 250, 1),
+    check: s => s.totalCO2 >= 250,
+  },
+  {
+    id: 'co2_1000',
+    title: 'Carbon Warrior',
+    description: 'Save 1,000 kg of CO₂',
+    icon: 'planet', lib: 'Ionicons', color: '#1A237E',
+    progress: s => Math.min(s.totalCO2 / 1000, 1),
+    check: s => s.totalCO2 >= 1000,
+  },
 
-  // ── Per-category milestones ────────────────────────────────────────────────
+  // ── Walking ───────────────────────────────────────────────────────────────
   {
     id: 'walking_first',
     title: 'First Steps',
@@ -182,6 +249,34 @@ const MILESTONES: Milestone[] = [
     check: s => s.walkingActivities >= 1,
   },
   {
+    id: 'walking_marathon',
+    title: 'Marathon Walker',
+    description: 'Log 50 walking activities',
+    icon: 'walk', lib: 'MCO', color: '#2E7D32',
+    progress: s => Math.min(s.walkingActivities / 50, 1),
+    check: s => s.walkingActivities >= 50,
+  },
+
+  // ── Running ───────────────────────────────────────────────────────────────
+  {
+    id: 'running_first',
+    title: 'Off the Blocks',
+    description: 'Log your first run',
+    icon: 'person-running', color: '#FF7043',
+    progress: s => Math.min(s.runningActivities / 1, 1),
+    check: s => s.runningActivities >= 1,
+  },
+  {
+    id: 'running_50',
+    title: 'Pavement Pounder',
+    description: 'Log 50 running activities',
+    icon: 'run', lib: 'MCO', color: '#E64A19',
+    progress: s => Math.min(s.runningActivities / 50, 1),
+    check: s => s.runningActivities >= 50,
+  },
+
+  // ── Cycling ───────────────────────────────────────────────────────────────
+  {
     id: 'cycling_first',
     title: 'Wheel Life',
     description: 'Log your first cycle ride',
@@ -189,6 +284,16 @@ const MILESTONES: Milestone[] = [
     progress: s => Math.min(s.cyclingActivities / 1, 1),
     check: s => s.cyclingActivities >= 1,
   },
+  {
+    id: 'cycling_century',
+    title: 'Cycle Century',
+    description: 'Log 30 cycling activities',
+    icon: 'bike', lib: 'MCO', color: '#0277BD',
+    progress: s => Math.min(s.cyclingActivities / 30, 1),
+    check: s => s.cyclingActivities >= 30,
+  },
+
+  // ── Electricity ───────────────────────────────────────────────────────────
   {
     id: 'electricity_first',
     title: 'Power Saver',
@@ -198,6 +303,16 @@ const MILESTONES: Milestone[] = [
     check: s => s.electricityActivities >= 1,
   },
   {
+    id: 'electricity_25',
+    title: 'Grid Buster',
+    description: 'Log 25 electricity savings',
+    icon: 'lightning-bolt-circle', lib: 'MCO', color: '#F9A825',
+    progress: s => Math.min(s.electricityActivities / 25, 1),
+    check: s => s.electricityActivities >= 25,
+  },
+
+  // ── Water ─────────────────────────────────────────────────────────────────
+  {
     id: 'water_first',
     title: 'Drop Counter',
     description: 'Log your first water saving',
@@ -206,45 +321,23 @@ const MILESTONES: Milestone[] = [
     check: s => s.waterActivities >= 1,
   },
   {
-    id: 'all_categories',
-    title: 'All-Rounder',
-    description: 'Log at least one activity in every category',
-    icon: 'layer-group', color: '#AB47BC',
-    progress: s => Math.min(s.uniqueCategories / 5, 1),
-    check: s => s.uniqueCategories >= 5,
+    id: 'water_25',
+    title: 'Flow Stopper',
+    description: 'Log 25 water savings',
+    icon: 'water', lib: 'Ionicons', color: '#0097A7',
+    progress: s => Math.min(s.waterActivities / 25, 1),
+    check: s => s.waterActivities >= 25,
   },
 
-  // ── Streak milestones ──────────────────────────────────────────────────────
+  // ── Total activity count ───────────────────────────────────────────────────
   {
-    id: 'streak_14',
-    title: 'Fortnight Force',
-    description: 'Keep a 14-day streak',
-    icon: 'fire', color: '#E64A19',
-    progress: s => Math.min(s.currentStreak / 14, 1),
-    check: s => s.currentStreak >= 14,
+    id: 'activities_10',
+    title: 'Getting Started',
+    description: 'Log 10 activities',
+    icon: 'clipboard-check', color: '#29B6F6',
+    progress: s => Math.min(s.totalActivities / 10, 1),
+    check: s => s.totalActivities >= 10,
   },
-
-  // ── Token milestones ───────────────────────────────────────────────────────
-  {
-    id: 'token_2500',
-    title: 'Token Titan',
-    description: 'Earn 2,500 EcoTokens',
-    icon: 'star', color: '#FB8C00',
-    progress: s => Math.min(s.totalTokens / 2500, 1),
-    check: s => s.totalTokens >= 2500,
-  },
-
-  // ── CO₂ milestones ─────────────────────────────────────────────────────────
-  {
-    id: 'co2_100',
-    title: 'Carbon Slayer',
-    description: 'Save 100 kg of CO₂',
-    icon: 'earth-europe', color: '#00695C',
-    progress: s => Math.min(s.totalCO2 / 100, 1),
-    check: s => s.totalCO2 >= 100,
-  },
-
-  // ── Activity count milestones ──────────────────────────────────────────────
   {
     id: 'activities_25',
     title: 'Consistent',
@@ -253,45 +346,27 @@ const MILESTONES: Milestone[] = [
     progress: s => Math.min(s.totalActivities / 25, 1),
     check: s => s.totalActivities >= 25,
   },
-
-  // ── Long-term / hard milestones ────────────────────────────────────────────
   {
-    id: 'token_10000',
-    title: 'Token Master',
-    description: 'Earn 10,000 EcoTokens lifetime',
-    icon: 'crown', color: '#F9A825',
-    progress: s => Math.min(s.totalTokens / 10000, 1),
-    check: s => s.totalTokens >= 10000,
+    id: 'activities_50',
+    title: 'Eco Veteran',
+    description: 'Log 50 activities',
+    icon: 'shield-checkmark', lib: 'Ionicons', color: '#0288D1',
+    progress: s => Math.min(s.totalActivities / 50, 1),
+    check: s => s.totalActivities >= 50,
   },
   {
-    id: 'token_25000',
-    title: 'EcoVerse Elite',
-    description: 'Earn 25,000 EcoTokens lifetime',
-    icon: 'shield-crown', color: '#E65100',
-    progress: s => Math.min(s.totalTokens / 25000, 1),
-    check: s => s.totalTokens >= 25000,
-  },
-  {
-    id: 'streak_60',
-    title: 'Unstoppable',
-    description: 'Keep a 60-day streak',
-    icon: 'fire-flame-curved', color: '#BF360C',
-    progress: s => Math.min(s.currentStreak / 60, 1),
-    check: s => s.currentStreak >= 60,
-  },
-  {
-    id: 'streak_100',
-    title: 'Centurion',
-    description: 'Keep a 100-day streak',
-    icon: 'infinity', color: '#880E4F',
-    progress: s => Math.min(s.currentStreak / 100, 1),
-    check: s => s.currentStreak >= 100,
+    id: 'activities_100',
+    title: 'Century Club',
+    description: 'Log 100 activities',
+    icon: 'medal', color: '#7B1FA2',
+    progress: s => Math.min(s.totalActivities / 100, 1),
+    check: s => s.totalActivities >= 100,
   },
   {
     id: 'activities_200',
     title: 'Dedicated',
     description: 'Log 200 activities',
-    icon: 'chart-line', color: '#00838F',
+    icon: 'analytics', lib: 'Ionicons', color: '#00838F',
     progress: s => Math.min(s.totalActivities / 200, 1),
     check: s => s.totalActivities >= 200,
   },
@@ -303,39 +378,8 @@ const MILESTONES: Milestone[] = [
     progress: s => Math.min(s.totalActivities / 500, 1),
     check: s => s.totalActivities >= 500,
   },
-  {
-    id: 'co2_250',
-    title: 'Climate Champion',
-    description: 'Save 250 kg of CO₂',
-    icon: 'earth-americas', color: '#004D40',
-    progress: s => Math.min(s.totalCO2 / 250, 1),
-    check: s => s.totalCO2 >= 250,
-  },
-  {
-    id: 'co2_1000',
-    title: 'Carbon Warrior',
-    description: 'Save 1,000 kg of CO₂',
-    icon: 'shield', color: '#1A237E',
-    progress: s => Math.min(s.totalCO2 / 1000, 1),
-    check: s => s.totalCO2 >= 1000,
-  },
-  {
-    id: 'walking_marathon',
-    title: 'Marathon Walker',
-    description: 'Log 50 walking activities',
-    icon: 'person-walking', color: '#2E7D32',
-    progress: s => Math.min(s.walkingActivities / 50, 1),
-    check: s => s.walkingActivities >= 50,
-  },
-  {
-    id: 'cycling_century',
-    title: 'Cycle Century',
-    description: 'Log 30 cycling activities',
-    icon: 'bicycle', color: '#0277BD',
-    progress: s => Math.min(s.cyclingActivities / 30, 1),
-    check: s => s.cyclingActivities >= 30,
-  },
 ];
+
 
 // ── Completed challenge record ─────────────────────────────────────────────────
 interface CompletedChallenge {
@@ -468,7 +512,9 @@ function MilestoneBadge({
         },
       ]}>
         {unlocked ? (
-          <FontAwesome6 name={m.icon} size={24} color={m.color} solid />
+          m.lib === 'MCO'     ? <MaterialCommunityIcons name={m.icon as any} size={24} color={m.color} /> :
+          m.lib === 'Ionicons' ? <Ionicons name={m.icon as any} size={24} color={m.color} /> :
+          <FontAwesome6 name={m.icon as any} size={24} color={m.color} solid />
         ) : (
           <FontAwesome6 name="lock" size={18} color={c.text + '25'} />
         )}
@@ -600,6 +646,7 @@ export default function AchievementsScreen() {
     currentStreak:   calculateStreak(activities),
     totalCO2:        userProfile?.totalCarbonSaved ?? 0,
     walkingActivities:     activities.filter(a => a.category === 'walking').length,
+    runningActivities:     activities.filter(a => a.category === 'running').length,
     cyclingActivities:     activities.filter(a => a.category === 'cycling').length,
     electricityActivities: activities.filter(a => a.category === 'electricity').length,
     waterActivities:       activities.filter(a => a.category === 'water').length,

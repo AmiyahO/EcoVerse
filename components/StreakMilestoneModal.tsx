@@ -26,23 +26,47 @@ const MILESTONES: Record<number, {
   3: {
     color:    '#FF7043',
     title:    '3-Day Streak!',
-    subtitle: "You're building a habit. Keep the momentum going — log again tomorrow!",
-    icon:     'fire',
+    subtitle: "You're building a habit. Keep the momentum going — log again tomorrow.",
+    icon:     'fire-flame-simple',
   },
   7: {
-    color:    '#F9A825',
+    color:    '#F4511E',
     title:    '7-Day Streak!',
     subtitle: "A full week of eco-action. That's real commitment — you're making a difference.",
     icon:     'fire-flame-curved',
   },
+  14: {
+    color:    '#E64A19',
+    title:    '14-Day Streak!',
+    subtitle: "Two weeks straight. Your eco habits are taking root — keep going.",
+    icon:     'fire',
+  },
+  30: {
+    color:    '#FFB300',
+    title:    '30-Day Streak!',
+    subtitle: "A whole month of daily eco action. You're not just building habits — you're living them.",
+    icon:     'fire',
+  },
+  60: {
+    color:    '#BF360C',
+    title:    '60-Day Streak!',
+    subtitle: "Two months without missing a day. Your consistency is extraordinary.",
+    icon:     'fire',
+  },
+  100: {
+    color:    '#880E4F',
+    title:    '100-Day Streak!',
+    subtitle: "100 days. You're a force of nature — literally. The planet thanks you.",
+    icon:     'fire',
+  },
 };
 
-// Fallback for any future milestone
+// Fallback for any milestone not explicitly defined
 function getMilestone(days: number) {
   return MILESTONES[days] ?? {
     color:    '#FF7043',
     title:    `${days}-Day Streak!`,
-    subtitle: `${days} days in a row. Keep it going!`,
+    subtitle: `${days} days in a row. You're unstoppable — keep going.`,
     icon:     'fire',
   };
 }

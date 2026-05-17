@@ -16,6 +16,10 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 // ── Handler (set once at app boot in _layout.tsx) ───────────────────────────
+// Note: Android notification appearance (icon, colour) is controlled by the
+// app notification icon asset and channel lightColor (set to #4CAF50 in
+// requestNotifPermission). Notification titles/bodies are plain text —
+// visual identity comes from the channel, not text content.
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
