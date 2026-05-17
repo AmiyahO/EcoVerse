@@ -73,7 +73,9 @@ app/
 │   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
 │   └── profile.tsx      # Profile — gradient hero, streak calendar, weekly goal progress,
 │                        #   level badge (tappable → /leveling), level-up modal,
-│                        #   What's Next card → future-vision
+│                        #   Achievements card → /achievements, What's Next card → future-vision.
+│                        #   XP bar: 12px height with rank-colour glow shadow.
+│                        #   dynamicTarget guarded against 0 (Math.max(..., 1))
 │
 ├── activity/
 │   ├── _layout.tsx      # Activity screens navigator
@@ -169,10 +171,11 @@ src/
     │                         #   with merge:true after every activity save/edit/HC import.
     ├── levelSystem.ts        # Leveling system — getLevelInfo(), getRankInfo(), RANKS array,
     │                         #   tokensForLevel(). Formula: 500 × (L-1)². 8 rank tiers.
-    ├── challengeData.ts      # 5 weekly challenges (Step Sprint, Power Saver, Green Commuter,
-    │                         #   Consistency Champion, Water Warrior). getChallengeProgress()
-    │                         #   derives live progress from activities array. getCurrentWeekId()
-    │                         #   uses Sunday-based local date key.
+    ├── challengeData.ts      # Static fallback challenge array (11 entries: 7 movement + 4 CO₂).
+    │                         #   getChallengeProgress() handles steps/distance/kwh/litres/
+    │                         #   activities/co2/tokens metrics. co2 metric reads co2Saved
+    │                         #   from activity document (written by add.tsx at save time).
+    │                         #   getCurrentWeekId() uses Sunday-based local date key.
     ├── co2Equivalents.ts     # Real-world CO₂ equivalent lookup and formatter
     └── dateUtils.ts          # isToday, isThisWeek, localMidnightToday, localEndOfDay,
                               #   toLocalISOString (UTC→local for Health Connect dates)
@@ -416,14 +419,14 @@ Accessible via the third tab. Two sections via segmented control:
 
 ### Weekly Challenges
 
-**Weekly pool (18 templates — Cloud Function picks 2 easy + 2 medium + 1 hard/epic each Sunday):**
+**Weekly pool (22 templates — Cloud Function picks 2 easy + 2 medium + 1 hard/epic + 1 CO₂ = 6 challenges each Sunday):**
 
 | Difficulty | Challenges |
 |------------|-----------|
-| Easy (4) | Step Sprint (20k steps), Green Commuter (15 km), Weekend Warrior (3 activities), Daily Mover (5 activities) |
-| Medium (7) | Night Runner (8 km run), Urban Trekker (12 km walk), Two-Wheel Hero (20 km cycle), Consistency Champion (7 active days), Sprint Master (6 runs), Eco Pedaler (8 cycles), Eco Explorer (12 activities) |
-| Hard (4) | Marathon Mood (50k steps), Coastal Cruiser (30 km cycle), Distance Crusher (30 km all), Movement Marathon (20 activities) |
-| Epic (3) | The Century Quest (100k steps, 500 tokens), Distance Dynamo (50 km, 450 tokens), Ultra Runner (25 km run, 400 tokens) |
+| Easy (4) | Step Sprint (20k steps), Green Commuter (15 km), Daily Mover (5 activities), Carbon Starter (0.5 kg CO₂) |
+| Medium (7) | Sprint Starter (8 km run), Urban Trekker (12 km walk), Two-Wheel Hero (20 km cycle), Consistency Champion (7 active days), Sprint Master (6 runs), Eco Pedaler (8 cycles), Eco Explorer (12 activities), Green Impact (1 kg CO₂) |
+| Hard (4) | Marathon Mood (50k steps), Coastal Cruiser (30 km cycle), Distance Crusher (30 km all), Movement Marathon (20 activities), Climate Contender (2 kg CO₂) |
+| Epic (3) | The Century Quest (100k steps, 500 tokens), Distance Dynamo (50 km, 450 tokens), Ultra Runner (25 km run, 400 tokens), Carbon Crusher (5 kg CO₂, 400 tokens) |
 
 **Monthly pool (5 templates — all appended on the first Sunday of each month):**
 
@@ -437,6 +440,8 @@ Accessible via the third tab. Two sections via segmented control:
 
 - Progress calculated client-side from activities array via `getChallengeProgress()`
   (handles steps, distance, kwh, litres, activities, co2 metrics)
+- CO₂ challenges use `goal.metric: co2`; progress read from `co2Saved` field written to each activity document at save time
+- CO₂ challenge templates carry `challengeGroup: 'co2'`; Cloud Function draws one per week from this pool independently of the difficulty shuffle
 - Summary strip shows Joined / Completed / Available (count reflects live Firestore challenge count)
 - Difficulty badge on each card (green easy / orange medium / red hard / purple epic)
 - **Join** appends challengeId to `joinedIds` + caches metadata in `challengeTitles` map
@@ -448,11 +453,11 @@ Accessible via the third tab. Two sections via segmented control:
 
 ## 🏅 Achievements Screen
 
-`achievements.tsx` — accessible from the Profile tab, two sections:
+`achievements.tsx` — accessible from the Profile tab via an Achievements card (`router.push('/achievements')`), two sections:
 
-**Challenge Badges** — loads all `challengeProgress` sub-collection docs. For each `completedId`, resolves metadata from cached `challengeTitles` map (fallback: static `CHALLENGES` array). Badges sorted newest-first.
+**Challenge Badges** — loads all `challengeProgress` sub-collection docs. For each `completedId`, resolves metadata from cached `challengeTitles` map (fallback: static `CHALLENGES` array). Renders as horizontal cards with coloured left accent stripe, icon, badge label, challenge name, week earned, difficulty pill, and token reward. Badges sorted newest-first.
 
-**Milestones** — 14 static badges checked against live stats: tokens (100/500/1 000/5 000), streak (3/7/30 days), activities (1/10/50/100), CO₂ (1/10/50 kg). Locked badges show padlock + `???`.
+**Milestones** — 14 static badges in a 2-column grid, checked against live stats: tokens (100/500/1 000/5 000), streak (3/7/30 days), activities (1/10/50/100), CO₂ (1/10/50 kg). Unlocked cards show tinted background + checkmark. Locked cards show dashed border, padlock, `???` title, and a fractional progress bar hinting at remaining distance. Hero banner shows rank emoji, level, total badges, and an overall completion percentage. Stat pills row shows challenge count, milestone progress, and current streak.
 
 ---
 
@@ -629,6 +634,9 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Utility baseline wrong for non-EU users | `calculateSaving()` hardcoded 290 kWh/month regardless of region | `getRegionalBaseline(category, region)` passed as optional 4th param |
 | Challenges show Joined after weekly rollover | No current-week `challengeProgress` doc; local state retained previous week's `joinedIds` | Clear state when doc absent; fire missed-challenge notification |
 | Cloud Function log counts differ from actual batch | `randomPick()` called again inside `console.log` — independent reshuffle | Store `pickedEasy/pickedMedium/pickedHard` as named vars; reference directly |
+| Community screen shows 11 challenges instead of Firestore count | `useState<Challenge[]>(CHALLENGES)` seeded initial state with full 11-item static array before fetch resolved | Changed to `useState([])` + added `loadingChallenges` spinner; fallback only fires inside `fetchChallengesForWeek()` |
+| Cloud Function writes wrong `weekId` (previous Sunday) | Cloud Run executes in UTC; `new Date().getDay()` returns Saturday (6) when fired at 00:01 Cyprus time (UTC+3 = Saturday 21:01 UTC) | `getSundayDateString()` now extracts Cyprus local date via `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Nicosia' })` before computing Sunday offset |
+| No CO₂ challenge in weekly rotation | Old deployed function pre-dated CO₂ pool logic; `co2Pool` was not yet in the Cloud Function | Redeployed with `co2Pool` filter on `challengeGroup === 'co2'`; guaranteed slot drawn independently of difficulty shuffle |
 
 ---
 
