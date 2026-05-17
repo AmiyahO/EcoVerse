@@ -155,7 +155,7 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
             onPress={onClose}
             android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
           >
-            <Text style={styles.buttonText}>Keep Going! 🌿</Text>
+            <Text style={styles.buttonText}>Keep Going!</Text>
           </Pressable>
 
           {/* Small next-level hint */}
