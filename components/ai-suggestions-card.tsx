@@ -18,10 +18,13 @@ interface Props {
   weeklyCO2: number;
   activeDaysThisWeek: number;
   streak: number;
+  /** When true, hides the card's own header (title + refresh button) since
+   *  the parent modal already provides a header. */
+  inModal?: boolean;
 }
 
 export default function AISuggestionsCard({
-  activities, weeklyTokens, weeklyCO2, activeDaysThisWeek, streak,
+  activities, weeklyTokens, weeklyCO2, activeDaysThisWeek, streak, inModal = false,
 }: Props) {
   const { colors } = useAppTheme();
   const [tips, setTips] = useState<AISuggestion[]>([]);
@@ -85,39 +88,41 @@ export default function AISuggestionsCard({
     : 'Powered by Gemini · Updates daily';
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface }]}>
+    <View style={[styles.card, !inModal && { backgroundColor: colors.surface }]}>
 
-      {/* Header */}
-      <View style={styles.headerRow}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.sparkleWrap, { backgroundColor: colors.tint + '18' }]}>
-            <FontAwesome6 name="wand-magic-sparkles" size={13} color={colors.tint} />
-          </View>
-          <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
-            AI Suggestions
-          </ThemedText>
-          {rateLimited && userTriedRefresh && !loading && (
-            <View style={[styles.offlineBadge, { backgroundColor: colors.surfaceMuted }]}>
-              <ThemedText style={[styles.offlineBadgeText, { color: colors.text }]}>Cached</ThemedText>
+      {/* Header — hidden when rendered inside a modal that already has one */}
+      {!inModal && (
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <View style={[styles.sparkleWrap, { backgroundColor: colors.tint + '18' }]}>
+              <FontAwesome6 name="wand-magic-sparkles" size={13} color={colors.tint} />
             </View>
-          )}
-        </View>
+            <ThemedText type="defaultSemiBold" style={{ color: colors.text, fontSize: 15 }}>
+              AI Suggestions
+            </ThemedText>
+            {rateLimited && userTriedRefresh && !loading && (
+              <View style={[styles.offlineBadge, { backgroundColor: colors.surfaceMuted }]}>
+                <ThemedText style={[styles.offlineBadgeText, { color: colors.text }]}>Cached</ThemedText>
+              </View>
+            )}
+          </View>
 
-        <Pressable
-          onPress={() => load(true)}
-          disabled={refreshing || loading}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.refreshBtn,
-            { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
-          ]}
-        >
-          {refreshing
-            ? <ActivityIndicator size={12} color={colors.tint} />
-            : <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
-          }
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={() => load(true)}
+            disabled={refreshing || loading}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.refreshBtn,
+              { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
+            ]}
+          >
+            {refreshing
+              ? <ActivityIndicator size={12} color={colors.tint} />
+              : <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
+            }
+          </Pressable>
+        </View>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -164,7 +169,25 @@ export default function AISuggestionsCard({
       )}
 
       {!loading && !error && (
-        <ThemedText style={[styles.footerLabel, { color: colors.text }]}>{footerText}</ThemedText>
+        <View style={styles.footerRow}>
+          <ThemedText style={[styles.footerLabel, { color: colors.text, flex: 1 }]}>{footerText}</ThemedText>
+          {inModal && (
+            <Pressable
+              onPress={() => load(true)}
+              disabled={refreshing || loading}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.refreshBtn,
+                { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
+              ]}
+            >
+              {refreshing
+                ? <ActivityIndicator size={12} color={colors.tint} />
+                : <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
+              }
+            </Pressable>
+          )}
+        </View>
       )}
     </View>
   );
@@ -172,6 +195,7 @@ export default function AISuggestionsCard({
 
 const styles = StyleSheet.create({
   card: { padding: 16, borderRadius: 16, gap: 12 },
+  footerRow:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
   headerRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sparkleWrap: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },

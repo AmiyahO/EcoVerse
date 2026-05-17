@@ -419,7 +419,7 @@ function EcoScoreModal({
 
         {/* Close */}
         <Pressable
-          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surface, opacity: pressed ? 0.6 : 1 }]}
           onPress={dismiss}
         >
           <ThemedText style={[styles.modalCloseText, { color: colors.text }]}>Close</ThemedText>
@@ -470,22 +470,22 @@ function AIModal({
         <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
         <View style={styles.modalHeader}>
           <View>
-            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>AI Eco Tips</ThemedText>
-            <ThemedText style={[styles.modalSub, { color: colors.text }]}>Personalised suggestions for you</ThemedText>
+            <ThemedText style={[styles.modalTitle, { color: colors.text }]}>AI EcoTips</ThemedText>
           </View>
           <FontAwesome6 name="wand-magic-sparkles" size={20} color={colors.tint} />
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
           <AISuggestionsCard
             activities={activities}
             weeklyTokens={weeklyTokens}
             weeklyCO2={weeklyCO2}
             activeDaysThisWeek={activeDays}
             streak={streak}
+            inModal
           />
         </ScrollView>
         <Pressable
-          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.6 : 1 }]}
+          style={({ pressed }) => [styles.modalClose, { backgroundColor: colors.surface, opacity: pressed ? 0.6 : 1 }]}
           onPress={dismiss}
         >
           <ThemedText style={[styles.modalCloseText, { color: colors.text }]}>Close</ThemedText>
@@ -591,15 +591,13 @@ export default function HomeScreen() {
         {/* ── Greeting ── */}
         <View style={styles.greeting}>
           <View style={styles.greetingLeft}>
-            <FontAwesome6
-              name={getGreeting(firstName).icon as any}
-              size={16}
-              color={colors.tint}
-              style={styles.greetingIcon}
-            />
             <ThemedText style={[styles.greetingName, { color: colors.text }]}>
               {getGreeting(firstName).text}
             </ThemedText>
+            <FontAwesome6
+              name={getGreeting(firstName).icon as any}
+              size={18}
+            />
           </View>
           <Pressable
             style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.tint, opacity: pressed ? 0.75 : 1 }]}

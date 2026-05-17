@@ -77,6 +77,7 @@ export default function AddActivityScreen() {
   const userProfile   = useActivityStore(s => s.userProfile);
   const setCelebrated = useActivityStore(s => s.setCelebrated);
   const celebrated    = useActivityStore(s => s.celebrated);
+  const triggerStreakMilestone = useActivityStore(s => s.triggerStreakMilestone);
   const streak        = calculateStreak(activities);
 
   const [category, setCategory]       = useState<ActivityCategory | null>(null);
@@ -300,13 +301,27 @@ export default function AddActivityScreen() {
       }
     }
 
+    // ── Streak milestone check ────────────────────────────────────────────────
+    // Calculate what the streak will be AFTER this activity is saved.
+    // The store hasn't updated yet so we simulate it by checking if today
+    // would be a new streak day (not already in the current streak).
+    const todayStr = toLocalISOString(selectedDate);
+    const alreadyLoggedToday = activities.some((a: any) => a.date === todayStr);
+    const newStreak = alreadyLoggedToday ? streak : streak + 1;
+    const STREAK_MILESTONES = [3, 7, 14, 30];
+    const hitMilestone = STREAK_MILESTONES.includes(newStreak) && !alreadyLoggedToday;
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     // Navigate back first — let the screen transition complete (~400ms),
-    // THEN trigger the celebration so it doesn't fire mid-animation.
+    // THEN trigger celebrations so they don't fire mid-animation.
     router.back();
     if (shouldCelebrate) {
       setTimeout(() => setCelebrated(false), 420);
+    }
+    if (hitMilestone) {
+      // Stagger slightly after weekly goal if both fire simultaneously
+      setTimeout(() => triggerStreakMilestone(newStreak), shouldCelebrate ? 800 : 420);
     }
   };
 

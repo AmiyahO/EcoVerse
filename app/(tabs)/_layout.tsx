@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { FontAwesome6 as FA6 } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { LevelUpModal } from '@/components/LevelUpModal';
+import { StreakMilestoneModal } from '@/components/StreakMilestoneModal';
 
 function isThisWeek(date: string) {
   const d = new Date(date);
@@ -34,6 +35,9 @@ export default function TabLayout() {
   const pendingLevel   = useActivityStore((s) => s.pendingLevel);
   const clearLevelUp   = useActivityStore((s) => s.clearLevelUp);
   const totalTokens    = useActivityStore((s) => s.userProfile?.tokens ?? 0);
+  const streakMilestonePending = useActivityStore((s) => s.streakMilestonePending);
+  const pendingStreakDays      = useActivityStore((s) => s.pendingStreakDays);
+  const clearStreakMilestone   = useActivityStore((s) => s.clearStreakMilestone);
 
   const dynamicTarget = userProfile?.weeklyTarget ?? 500;
   const loading       = !userProfile;
@@ -48,6 +52,8 @@ export default function TabLayout() {
   const slideAnim      = useRef(new Animated.Value(-300)).current;
   const dismissTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiRef    = useRef<any>(null);
+
+  const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
 
   const dismissCelebration = () => {
     Animated.timing(slideAnim, {
@@ -188,6 +194,12 @@ export default function TabLayout() {
         newLevel={pendingLevel}
         totalTokens={totalTokens}
         onClose={clearLevelUp}
+      />
+
+      <StreakMilestoneModal
+        visible={streakMilestonePending}
+        streakDays={pendingStreakDays}
+        onClose={clearStreakMilestone}
       />
     </View>
   );

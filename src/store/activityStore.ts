@@ -58,6 +58,8 @@ type ActivityState = {
   _hasHydrated: boolean;
   levelUpPending: boolean;
   pendingLevel: number;
+  streakMilestonePending: boolean;
+  pendingStreakDays: number;
   // Not persisted — resets on every cold boot.
   // Prevents level-up firing on the initial Firestore snapshot that populates
   // the profile (where prevTokens=0 → newTokens=1500 looks like a level-up).
@@ -78,6 +80,8 @@ type ActivityState = {
   setHasHydrated:           () => void;
   triggerLevelUp:           (newLevel: number) => void;
   clearLevelUp:             () => void;
+  triggerStreakMilestone:   (days: number) => void;
+  clearStreakMilestone:     () => void;
   setEcoScoreSnapshots:     (snapshots: EcoScoreSnapshot[]) => void;
 };
 
@@ -92,6 +96,8 @@ export const useActivityStore = create<ActivityState>()(
       _hasHydrated:   false,
       levelUpPending: false,
       pendingLevel:   0,
+      streakMilestonePending: false,
+      pendingStreakDays:      0,
       _profileLoaded: false,
       ecoScoreSnapshots: [],
 
@@ -168,6 +174,9 @@ export const useActivityStore = create<ActivityState>()(
       triggerLevelUp: (newLevel) => set({ levelUpPending: true, pendingLevel: newLevel }),
 
       clearLevelUp:   ()          => set({ levelUpPending: false, pendingLevel: 0 }),
+
+      triggerStreakMilestone: (days) => set({ streakMilestonePending: true, pendingStreakDays: days }),
+      clearStreakMilestone:   ()     => set({ streakMilestonePending: false, pendingStreakDays: 0 }),
 
       setEcoScoreSnapshots: (snapshots) => set({ ecoScoreSnapshots: snapshots }),
     }),
