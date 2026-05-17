@@ -28,6 +28,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
   Animated,
@@ -327,7 +328,7 @@ export default function CommunityScreen() {
 
       if (!auth.currentUser) return;
 
-      const entries: LeaderboardEntry[] = snap.docs.map((d, i) => {
+      const rawEntries: LeaderboardEntry[] = snap.docs.map((d, i) => {
         const data = d.data();
         return {
           uid: d.id,
@@ -336,7 +337,19 @@ export default function CommunityScreen() {
           weeklyEcoScore: data.weeklyEcoScore ?? 0,
           showOnLeaderboard: data.showOnLeaderboard ?? false,
           isCurrentUser: d.id === currentUid,
-          rank: i + 1,
+          rank: i + 1, // temporary, overwritten below
+        };
+      });
+
+      // Assign tied ranks: users with the same score get the same rank number.
+      // e.g. two users at score 50 both get rank 2, next user gets rank 4.
+      const entries: LeaderboardEntry[] = rawEntries.map((entry, i, arr) => {
+        if (i === 0) return { ...entry, rank: 1 };
+        const prevScore = arr[i - 1].weeklyEcoScore;
+        const prevRank  = arr[i - 1].rank;
+        return {
+          ...entry,
+          rank: entry.weeklyEcoScore === prevScore ? prevRank : i + 1,
         };
       });
       setLeaderboard(entries);
@@ -409,6 +422,14 @@ export default function CommunityScreen() {
     fetchChallengeState();
     fetchChallengesForWeek().then(challenges => { setLiveChallenges(challenges); setLoadingChallenges(false); });
   }, [currentUid, fetchLeaderboard, fetchChallengeState]);
+
+  // Refresh leaderboard every time the user navigates to this tab,
+  // so score updates from add.tsx are reflected without a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      if (currentUid) fetchLeaderboard();
+    }, [currentUid, fetchLeaderboard])
+  );
 
   useEffect(() => {
     if (!joinedIds.length) return;
@@ -823,8 +844,8 @@ export default function CommunityScreen() {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tint} />}
               ListHeaderComponent={
                 <>
-                  {/* Podium */}
-                  {leaderboard.length >= 1 && (
+                  {/* Podium — only show when at least one user has a score > 0 */}
+                  {leaderboard.length >= 1 && leaderboard.some(e => e.weeklyEcoScore > 0) && (
                     <Podium entries={leaderboard.slice(0, Math.min(3, leaderboard.length))} displayFor={displayFor} colors={colors} />
                   )}
                   {leaderboard.length > 3 && (

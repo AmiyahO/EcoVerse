@@ -139,22 +139,23 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      {/* ── Confetti cannon — always mounted, fired via ref only ──────────────
-          Keeping it outside the conditional banner so it isn't
-          unmounted/remounted on each celebration, which avoids a re-mount
-          stutter. count reduced from 120 → 60 to prevent JS thread freeze. */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={confettiRef}
-          count={60}
-          origin={{ x: 200, y: 0 }}
-          autoStart={false}
-          fadeOut
-          explosionSpeed={250}
-          fallSpeed={3000}
-          colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#26C6DA', '#ffffff']}
-        />
-      </View>
+      {/* ── Confetti cannon — only mounted during a celebration ──────────────
+          Gated on showCelebration so no artifact renders when idle.
+          Fired via ref 150ms after banner starts to decouple from spring anim. */}
+      {showCelebration && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <ConfettiCannon
+            ref={confettiRef}
+            count={60}
+            origin={{ x: 200, y: 0 }}
+            autoStart={false}
+            fadeOut
+            explosionSpeed={250}
+            fallSpeed={3000}
+            colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#26C6DA', '#ffffff']}
+          />
+        </View>
+      )}
 
       {/* ── Global Celebration Banner ── */}
       {showCelebration && (

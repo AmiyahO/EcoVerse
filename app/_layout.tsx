@@ -182,13 +182,25 @@ export default function RootLayout() {
               const data = docSnap.data();
               setHasFinishedOnboarding(data.hasFinishedOnboarding ?? false);
               setUserRegion(data.region || 'GLOBAL_AVG');
+
+              // Resolve photoURL: prefer Firestore doc value, fall back to
+              // Firebase Auth (populated for Google users), then existing
+              // Zustand value (prevents a null flash on re-login if the
+              // Firestore snapshot arrives before the photoURL field is set).
+              const existingPhotoURL = useActivityStore.getState().userProfile?.photoURL ?? null;
+              const resolvedPhotoURL =
+                data.photoURL ||
+                currentUser.photoURL ||
+                existingPhotoURL ||
+                null;
+
               setUserProfile({
                 displayName: data.displayName || '',
                 email: data.email || currentUser.email || '',
-                photoURL: data.photoURL || null,
+                photoURL: resolvedPhotoURL,
                 weeklyTarget: data.weeklyTarget || 500,
-                tokens:          data.tokens ?? 0,
-                totalCarbonSaved: data.totalCarbonSaved ?? 0
+                tokens:           data.tokens ?? 0,
+                totalCarbonSaved: data.totalCarbonSaved ?? 0,
               });
               // Keep ref in sync — activities listener reads this to avoid
               // reading stale Zustand state before setUserProfile has fired.
@@ -196,6 +208,14 @@ export default function RootLayout() {
                 weeklyTarget: data.weeklyTarget || 500,
                 userRegion:   data.region || 'GLOBAL_AVG',
               };
+
+              // If Firebase Auth has a photoURL but the Firestore doc doesn't
+              // (e.g. Google sign-in photoURL not yet persisted), write it back
+              // so future sessions load correctly without needing auth.currentUser.
+              if (!data.photoURL && currentUser.photoURL) {
+                setDoc(doc(db, 'users', currentUser.uid), { photoURL: currentUser.photoURL }, { merge: true }).catch(() => {});
+              }
+
               readyFlags.current.userDoc = true;
               maybeWriteSnapshot(currentUser.uid);
             }

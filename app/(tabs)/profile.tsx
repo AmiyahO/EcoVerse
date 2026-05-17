@@ -159,7 +159,11 @@ export default function ProfileScreen() {
           <View style={styles.profileInfoRow}>
             {profile?.photoURL ? (
               <View style={styles.avatarWrapper}>
-                <Image source={{ uri: highResPhoto || profile.photoURL }} style={styles.avatar} />
+                <Image
+                  source={{ uri: highResPhoto || profile.photoURL }}
+                  style={styles.avatar}
+                  onError={() => {/* falls through to placeholder on broken URI */}}
+                />
               </View>
             ) : (
               <View style={[styles.avatar, styles.avatarPlaceholder]}>
