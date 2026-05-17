@@ -36,13 +36,11 @@ export default function OnboardingStep1() {
 
       {/* Logo */}
       <Animated.View style={[styles.logoWrap, { opacity: fade, transform: [{ translateY: slideY }] }]}>
-        <View style={[styles.logoRing, { borderColor: isDark ? 'rgba(139,233,79,0.25)' : 'rgba(46,125,50,0.2)' }]}>
-          <Image
-            source={require('@/assets/images/logo.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </View>
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
         <Text style={[styles.tagline, { color: mottoColor }]}>TRACK YOUR IMPACT</Text>
       </Animated.View>
 
@@ -90,8 +88,7 @@ const styles = StyleSheet.create({
   orbCenter:     { position: 'absolute', top: '38%', left: '50%', marginLeft: -100, width: 200, height: 200, borderRadius: 100 },
 
   logoWrap:  { alignItems: 'center', marginTop: 8 },
-  logoRing:  { width: 148, height: 148, borderRadius: 74, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  logo:      { width: 120, height: 120 },
+  logo:      { width: 130, height: 130, marginBottom: 4 },
   tagline:   { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.9 },
 
   copy:         { gap: 14 },

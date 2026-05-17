@@ -43,9 +43,7 @@ export default function OnboardingStep7() {
       <View style={[styles.glow, { backgroundColor: isDark ? '#2E7D3228' : '#A5D6A730' }]} />
 
       <Animated.View style={[styles.logoWrap, { opacity: fade, transform: [{ scale: scaleAnim }] }]}>
-        <View style={[styles.logoRing, { borderColor: isDark ? 'rgba(139,233,79,0.3)' : 'rgba(46,125,50,0.22)' }]}>
-          <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
-        </View>
+        <Image source={require('@/assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
         <Text style={[styles.tagline, { color: mottoColor }]}>TRACK YOUR IMPACT</Text>
       </Animated.View>
 
@@ -88,17 +86,16 @@ export default function OnboardingStep7() {
 const styles = StyleSheet.create({
   container:    { flex: 1, paddingHorizontal: 28, paddingTop: 50, paddingBottom: 16, alignItems: 'center', justifyContent: 'space-between' },
   glow:         { position: 'absolute', top: '18%', left: '50%', marginLeft: -110, width: 220, height: 220, borderRadius: 110 },
-  logoWrap:     { alignItems: 'center', gap: 10 },
-  logoRing:     { width: 150, height: 150, borderRadius: 75, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-  logo:         { width: 120, height: 120 },
+  logoWrap:     { alignItems: 'center', gap: 8 },
+  logo:         { width: 130, height: 130 },
   tagline:      { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.85 },
   headlineWrap: { alignItems: 'center', gap: 10 },
   headline:     { fontSize: 34, fontWeight: '800', textAlign: 'center', letterSpacing: -0.5 },
   subhead:      { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   highlights:   { width: '100%', gap: 10 },
-  highlightRow: { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, borderWidth: 1 },
-  highlightIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  highlightText:{ fontSize: 14, fontWeight: '500' },
+  highlightRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
+  highlightIconWrap: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  highlightText:{ fontSize: 14, fontWeight: '500', flex: 1, flexWrap: 'wrap' },
   footnoteRow:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   footnote:     { fontSize: 13, textAlign: 'center' },
 });
