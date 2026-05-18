@@ -99,10 +99,15 @@ app/
 │
 ├── onboarding/
 │   ├── index.tsx        # Onboarding orchestrator — 7 steps, writes hasFinishedOnboarding
-│   ├── _onboardingWrapper.tsx  # PagerView wrapper with animated dots, theme-aware
-│   └── 1.tsx – 7.tsx   # Welcome, how it works, category preview, tokens/streaks,
-│                        #   permissions (HC + notifications permission flow), region
-│                        #   selection, ready screen
+│   ├── _onboardingWrapper.tsx  # PagerView wrapper with animated pill dots + step counter
+│   │                           #   (e.g. "3 / 7"), theme-aware. "Get Started 🌱" on last step.
+│   └── 1.tsx – 7.tsx   # 1: Welcome (stats pills), 2: How it works (4 steps incl. community),
+│                        #   3: Track & Earn (categories + token rates + streak/rank teaser),
+│                        #   4: Community (challenge + leaderboard preview, privacy note),
+│                        #   5: Permissions (HC real requestHealthPermissions, notifications
+│                        #     via expo-notifications requestPermissionsAsync, camera via
+│                        #     expo-camera — all properly implemented, re-check on AppState
+│                        #     'active'), 6: Region selection, 7: All Set (updated highlights)
 │
 ├── health-connect-setup.tsx   # HC permission flow with per-app instructions
 ├── health-connect-sync.tsx    # Bulk sync — selectable checklist of exercise sessions +
@@ -140,7 +145,8 @@ src/
 ├── store/
 │   ├── activityStore.ts # Zustand store — activities, userProfile (tokens,
 │   │                    #   totalCarbonSaved), celebration, levelUpPending,
-│   │                    #   pendingLevel, _hasHydrated, _profileLoaded,
+│   │                    #   pendingLevel, streakMilestonePending, pendingStreakDays,
+│   │                    #   _hasHydrated, _profileLoaded,
 │   │                    #   ecoScoreSnapshots (weekly history, loaded from Firestore).
 │   │                    #   Activity type includes co2Saved? and tokensEarned? fields.
 │   │                    #   duplicateActivity() creates a dated copy and returns
@@ -209,9 +215,15 @@ components/
 │                             #   specific date via fetchStepsForDate(); not always today.
 │                             #   useEffect re-runs on both category and selectedDate change.
 │                             #   Header shows 'May 8 from Health Connect' for past dates.
-├── LevelUpModal.tsx          # Level-up celebration modal — animated rank badge,
-│                             #   floating emoji, pulsing glow, confetti, flavour text,
-│                             #   next-level hint. Uses getRankInfo() for colour + emoji.
+├── LevelUpModal.tsx          # Level-up celebration modal — animated rank icon
+│                             #   (MaterialCommunityIcons), floating icon in rounded tile,
+│                             #   pulsing glow, confetti (count 70, optimised), haptic on
+│                             #   confetti fire, flavour text, next-level hint.
+│                             #   Uses getRankInfo() for colour + icon name.
+├── StreakMilestoneModal.tsx   # Streak milestone modal — fires at 3/7/14/30/60/100 days.
+│                             #   Animated scale-in, floating fire icon, streak number hero,
+│                             #   pulsing glow, haptic. Triggered via activityStore
+│                             #   triggerStreakMilestone(days) + clearStreakMilestone().
 ├── streak-calendar-sheet.tsx # Bottom sheet streak calendar. longestStreak prop
 │                             # displays "Best Nd" pill in header. Day circles use
 │                             # two absolute-positioned layers (dayRing + dayFill) with
@@ -279,16 +291,16 @@ The EcoScore ring on the dashboard uses colour zones: red (<50), amber (50–74)
 
 Formula: tokens needed to reach Level L = **500 × (L−1)²**. Level = `floor(sqrt(totalTokens / 500)) + 1`.
 
-| Rank | Min Level | Token Range |
-|------|-----------|-------------|
-| Seed 🌱 | 1 | 0 |
-| Sprout 🌿 | 2 | 500 – 2,499 |
-| Sapling 🌳 | 4 | 2,500 – 15,999 |
-| Grove Keeper 🌲 | 7 | 16,000 – 49,999 |
-| Eco Guardian 🛡️ | 11 | 50,000 – 112,499 |
-| Oak Warden 🪵 | 16 | 112,500 – 199,999 |
-| Forest Elder 🌲 | 21 | 200,000 – 449,999 |
-| Eco Legend ✨ | 31 | 450,000+ |
+| Rank | Icon (MaterialCommunityIcons) | Min Level | Token Range |
+|------|-------------------------------|-----------|-------------|
+| Seed | seed | 1 | 0 |
+| Sprout | sprout | 2 | 500 – 2,499 |
+| Sapling | tree | 4 | 2,500 – 15,999 |
+| Grove Keeper | pine-tree | 7 | 16,000 – 49,999 |
+| Eco Guardian | shield-half-full | 11 | 50,000 – 112,499 |
+| Oak Warden | shield-home | 16 | 112,500 – 199,999 |
+| Forest Elder | forest | 21 | 200,000 – 449,999 |
+| Eco Legend | shield-crown | 31 | 450,000+ |
 
 `LevelUpModal` fires on actual token increases — **not** on app boot (guarded by `_profileLoaded` flag). The rank pill on the Profile hero card is tappable and routes to `/leveling`.
 
@@ -303,12 +315,15 @@ Cumulative CO₂ savings are translated into a relatable real-world comparison d
 | Load of laundry | 0.185 | Carbon Trust |
 | km not driven | 0.192 | DESNZ GHG factors 2023 |
 | Plastic bottle | 0.083 | Franklin Associates |
-| Cup of coffee | 0.021 | Carbon Trust |
 | Hour of streaming | 0.036 | IEA 2023 |
-| Balloon of CO₂ | 0.00196 | STP calculation |
+| Hot shower (8 min) | 0.262 | 9kW × 0.475 kg/kWh |
 | km of flying | 0.255 | ICAO per-passenger-km |
 | Hour of AC | 0.580 | 1.5kW × global grid avg |
-| Beef burger | 2.500 | Poore & Nemecek 2018 |
+| Incandescent bulb (1 hr) | 0.022 | 60W × 0.475 kg/kWh grid avg |
+| kWh of grid electricity | 0.475 | IEA global average 2023 |
+| Tree absorbing CO₂ (1 day) | 0.060 | ~22 kg/year ÷ 365 |
+
+Food and diet equivalents intentionally excluded — EcoVerse does not track food consumption.
 
 ---
 
@@ -405,6 +420,8 @@ Notification logic lives in `src/services/notificationService.ts`. All notificat
 | Streak at-risk alert | Daily at user-chosen time | Off |
 | Missed challenge nudge | One-shot on first app open of new week if prior week had joined-but-incomplete challenges | Automatic |
 
+All notification titles and bodies are **plain text** (no emoji). Visual identity in the notification shade is provided by the Android channel `lightColor: '#4CAF50'` and the app's notification icon asset — not by text content.
+
 ### Settings integration
 
 Notification preferences are stored in `AsyncStorage` under the key `'notifSettings'` as a JSON object matching `NotifSettings`. Any toggle or time change in Settings calls `applyNotifSettings()`, which cancels all scheduled notifications and reschedules them from scratch.
@@ -485,9 +502,9 @@ Accessible via the third tab. Two sections via segmented control:
 
 `achievements.tsx` — accessible from the Profile tab via an Achievements card (`router.push('/achievements')`), two sections:
 
-**Challenge Badges** — loads all `challengeProgress` sub-collection docs. For each `completedId`, resolves metadata from cached `challengeTitles` map (fallback: static `CHALLENGES` array). Renders as horizontal cards with coloured left accent stripe, icon, badge label, challenge name, week earned, difficulty pill, and token reward. Badges sorted newest-first.
+**Challenge Badges** — loads all `challengeProgress` sub-collection docs. For each `completedId`, resolves metadata from cached `challengeTitles` map (fallback: static `CHALLENGES` array). Renders as **2-column collectible badge tiles** (icon centred in a glow ring, badge label below, difficulty pill, week earned, token reward, colour accent bottom strip). Badges sorted newest-first.
 
-**Milestones** — 14 static badges in a 2-column grid, checked against live stats: tokens (100/500/1 000/5 000), streak (3/7/30 days), activities (1/10/50/100), CO₂ (1/10/50 kg). Unlocked cards show tinted background + checkmark. Locked cards show dashed border, padlock, `???` title, and a fractional progress bar hinting at remaining distance. Hero banner shows rank emoji, level, total badges, and an overall completion percentage. Stat pills row shows challenge count, milestone progress, and current streak.
+**Milestones** — 38 static badges in a 2-column grid across 7 groups: General, Streaks (3/7/14/30/60/100 days), EcoTokens (100/500/1k/2.5k/5k/10k/25k), CO₂ (1/10/50/100/250/1000 kg), per-category firsts + activity counts (walking, running, cycling, electricity, water), and total activity count milestones (10/25/50/100/200/500). Icons use `FontAwesome6`, `MaterialCommunityIcons`, and `Ionicons` — `lib` field on `Milestone` interface selects the correct component. Unlocked cards show tinted background + checkmark. Locked cards show dashed border, padlock, `???` title, and a fractional progress bar. Hero banner shows rank icon (MaterialCommunityIcons), level, total badges, and completion percentage. `MilestoneStats` includes per-category activity counts, uniqueCategories, uniqueCategoriesThisWeek, and currentStreak.
 
 ---
 
@@ -545,6 +562,14 @@ Two data sources merged:
 - Slide-in banner + confetti fires on any tab when goal is reached (via `(tabs)/_layout.tsx`)
 - Keyed to `celebratedWeek` (Sunday date string), auto-resets each week
 - Re-fires if user raises their target above current count
+- Confetti `ConfettiCannon` gated on `showCelebration` state — not always mounted (prevents visible origin artifact when idle). Count reduced 120 → 60; fired 150ms after banner animation starts to decouple from spring animation
+- `setCelebrated(false)` reset on every new auth session (`onAuthStateChanged`) to prevent re-fire after sign-out/sign-in
+
+### Haptic Feedback
+- Save activity (`add.tsx`): `Haptics.notificationAsync(Success)` before `router.back()`
+- Delete activity (`activity.tsx`): `Haptics.notificationAsync(Warning)` in `handleDelete`
+- Level-up modal (`LevelUpModal.tsx`): `Haptics.notificationAsync(Success)` alongside confetti start (250ms delay)
+- Streak milestone modal (`StreakMilestoneModal.tsx`): `Haptics.notificationAsync(Success)` on `visible` = true
 
 ### Leveling System
 - Rank pill on Profile hero card is a `Pressable` → `router.push('/leveling')`
@@ -555,6 +580,7 @@ Two data sources merged:
 ### Streak System
 - Grace period: streak counts from yesterday if today has no activity yet
 - Streak multiplier: +10% per 5-day streak, capped at +50%
+- **Streak milestone modals** — `StreakMilestoneModal` fires at 3/7/14/30/60/100 days. Triggered in `add.tsx` via `triggerStreakMilestone(newStreak)` after `commitActivity()` when the post-save streak hits a milestone threshold. Staggered 800ms after weekly goal celebration if both fire simultaneously. State lives in `activityStore` (`streakMilestonePending`, `pendingStreakDays`). Rendered globally in `(tabs)/_layout.tsx` alongside `LevelUpModal`.
 
 ### EcoScore Ring
 - Colour zones: red (<50), amber (50–74), green (≥75)
@@ -594,12 +620,12 @@ Redesigned with a gradient hero banner and a featured full-width 8-week CO₂ ch
 
 - **Theme:** Full light/dark mode with system-follow option, persisted via `themeStore`. `_hydrated` flag prevents flash on cold boot
 - **Login:** Soft green gradient (light) / deep forest green (dark). Inline error messages
-- **Dashboard:** Time-based greeting, EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal), CO₂ card with weekly total and transport-only week-on-week % comparison (falls back to all-CO₂ labelled "all CO₂" when no transport data logged), real-world CO₂ equivalent, quick stats row, recent activity, AI Eco Tips pill button (tap opens bottom-sheet modal with `AISuggestionsCard`). `paddingBottom: 90` ensures last item clears tab bar.
+- **Dashboard:** Time-based greeting with contextual icon (AntDesign `sunny` amber morning / FA6 `cloud-sun` green afternoon / AntDesign `moon` indigo evening) rendered to the right of the text. Name truncated at 12 chars to prevent layout break. `greetingLeft` is `flex:1 flexShrink:1`. EcoScore hero with zone-coloured SVG ring (tappable — opens EcoScore modal with "Tap any point to inspect" hint below each chart), CO₂ card with weekly total and transport-only week-on-week % comparison (redundant sub-label removed), real-world CO₂ equivalent, quick stats row, recent activity, AI Eco Tips pill button (tap opens bottom-sheet modal with `AISuggestionsCard` — modal header title + sparkle icon, card's own header with refresh button and footer text visible below). `paddingBottom: 90` ensures last item clears tab bar.
 - **Stats:** Gradient hero banner (CO₂ total, EcoTokens from Firestore, distance, top activity) + featured 8-week CO₂ chart + three swipeable card rows. Bar chart uses transparent responder overlay for reliable instant tap — no Victory Native pan gesture dependency
 - **Activity screen:** Category colour accent bars, coloured filter chips, weekly grouping, empty state with CTA. Long-press on any card triggers a haptic + custom bottom-sheet action sheet with Duplicate and Delete options.
 - **Community:** Podium (top 3) + flat list rows (4+), score dot badges, sticky "You" bar, challenge cards with coloured left accent, summary strip
 - **Profile:** 3-stop gradient hero with 3-stat row (Tokens | Activities | CO₂ saved). Streak badge shows current streak with dynamic Best-Nd pill: tint-coloured when current streak < best (motivational), gold `#FFD166` with 🏆 when matched/beaten. `calculateLongestStreak()` walks full activity history for longest consecutive-day run. Streak calendar bottom sheet shows "Best Nd" trophy pill in header. Goal progress bar.
-- **Leveling screen:** Gradient hero card using rank colour, staggered tier cards, locked tiers dimmed with lock icon
+- **Leveling screen:** Gradient hero card using rank colour (light mode: white → rank+30 → rank+18 to prevent washed-out appearance). No nav bar — minimal back button inside hero card top-left. Rank icons use `MaterialCommunityIcons` throughout (seed/sprout/tree/pine-tree/shield-half-full/shield-home/forest/shield-crown). Chevron-right removed from NextRankPill. Staggered tier cards, locked tiers dimmed with lock icon.
 - **Settings:** iOS-style uppercase section headers, coloured icon rows, live cloud sync timestamp, HC connection status, leaderboard opt-in toggle, in-app Terms of Service and Privacy Policy modals
 - **Settings Notifications:** Permission request row expands into four live toggles + time picker bottom sheet once granted
 - **Onboarding:** 7-step pager with animated transitions, theme-aware backgrounds
@@ -675,6 +701,15 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | EcoScore snapshot chart ordering wrong (W19–W21 before W9–W18) | `orderBy('weekKey', 'desc')` sorts lexicographically; mixed `YYYY-MM-DD` and `YYYY-Wnn` doc keys interleave incorrectly | `loadEcoScoreSnapshots()` now orders by `updatedAt desc` — always chronological regardless of key format |
 | Calendar day numbers missing on current-month reopening | `overflow: 'hidden'` + `borderWidth` on `dayCircle` (View with `borderRadius: 999`) causes Android to clip child text into the border region when no explicit `backgroundColor` is set | Replaced single `dayCircle` View with two absolute-positioned layers: `dayRing` (border only) and `dayFill` (background only); `ThemedText` is a direct child of `dayCell` — never inside an `overflow:hidden` container |
 | HC banner shows today's steps even when a past date is selected | `fetchTodaySteps()` always queries today regardless of the date picker value | `fetchStepsForDate(selectedDate)` added; banner re-fetches on `selectedDate` change; walking sessions filtered to selected date for past days |
+| Confetti artifact visible at bottom of screen | `ConfettiCannon` always mounted outside conditional — renders visible origin element when idle | Gated cannon on `showCelebration` — only mounted during celebration |
+| Weekly goal celebration re-fires after sign-out + sign-in | `celebrated: true` persisted from previous session; progress check fires before activities load | `setCelebrated(false)` called in `onAuthStateChanged` on every new sign-in |
+| Profile photo missing after email re-login | `photoURL` race: snapshot could arrive before server value | Resolution order: Firestore → `currentUser.photoURL` → existing Zustand value → null |
+| Leaderboard shows deleted users | Leaderboard doc not deleted with user account | `handleDeleteAccount` now deletes both `users/{uid}` and `leaderboard/{uid}` in `Promise.all` |
+| Podium shows all users even when all have 0 EcoScore | No zero-score guard | Podium hidden when no user has score > 0; "Week just started!" banner shown instead |
+| Equal EcoScores assigned different ranks | Sequential `i + 1` rank regardless of score ties | Two-pass: same score → same rank; next score → skips (competition ranking) |
+| Leaderboard doesn't update after EcoScore changes without reload | No focus-based refresh | `useFocusEffect` in community.tsx refreshes leaderboard on every tab visit |
+| Celebration fires mid-navigation transition | `setCelebrated(false)` called before `router.back()` | Navigate first; delay `setCelebrated(false)` 420ms |
+| `successTitle` "Sync" clips the y in HC sync success screen | `letterSpacing: -0.5` clips descenders at view bounds | Changed to `letterSpacing: 0` |
 | Bill saving compared previous reading vs current (gameable) | `calculateSaving()` used `previousReading` as comparison when available | Comparison always uses `getRegionalBaseline()` regardless of history; previous reading shown as display-only context in UI |
 | Challenge completion silent (no feedback) | No modal or haptic on completion; tokens credited but no user acknowledgement | `ChallengeCompleteModal` fires with haptic on goal.target crossed; `firedCompletions` ref prevents re-showing |
 | Community 'Live' badge shows when offline | No network state tracked | `NetInfo.addEventListener` drives badge: green 'Live' / red 'Offline' |
@@ -693,6 +728,48 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Predictive AI Coach | Behaviour-pattern ML model, proactive nudges, smart goal calibration, carbon forecasting |
 
 ---
+
+
+## 🔊 Sound Effects (SFX) — Deferred / Next Session
+
+**Status: Not yet implemented. Requires a separate session with prebuild.**
+
+### Feature Overview
+
+Two complementary audio layers:
+
+**1. Gamification Sound Pack** — Short SFX tied to user achievements:
+- Level-up chime when a new rank is reached (fires in `LevelUpModal` on open)
+- Token earn tone when EcoTokens are credited (fires in `add.tsx` after `commitActivity()`)
+- Activity save success tone (fires in `add.tsx` alongside haptic)
+- Challenge/weekly goal completion sound (fires in `(tabs)/_layout.tsx` celebration banner)
+
+**2. Eco-Immersive Micro-Interactions** — Subtle ambient audio + haptic on screen transitions:
+- Low-frequency atmospheric tone + gentle vibration when Stats or Community tabs open and charts animate in
+- Paired with existing `expo-haptics` calls using `expo-av` for the audio layer
+
+### Technical Requirements
+
+- **Library:** `expo-av` (already installed)
+- **Requires prebuild:** `npx expo run:android` — `expo-av` uses native modules
+- **Asset files needed:** `.mp3` or `.wav` files added to `assets/sounds/`:
+  - `level-up.mp3` — bright ascending chime
+  - `token-earn.mp3` — soft "cha-ching" or chime
+  - `activity-save.mp3` — short success tone
+  - `goal-reached.mp3` — celebratory fanfare (short)
+  - `ambient-stats.mp3` — subtle low atmospheric tone (optional)
+- **Not linked to Firebase** — all SFX are local asset files triggered client-side by existing state/events
+- **Volume:** Keep short (< 1s for action SFX, < 3s for ambient). Respect device silent mode via `expo-av` `playsInSilentModeIOS` (Android handles automatically).
+
+### Integration Points
+
+| Sound | File | Trigger location |
+|-------|------|-----------------|
+| Level-up chime | `LevelUpModal.tsx` | `useEffect` when `visible` becomes true (alongside confetti + haptic) |
+| Token earn | `add.tsx` | After `commitActivity()`, alongside `Haptics.notificationAsync` |
+| Activity save | `add.tsx` | Same location as token earn (or same sound) |
+| Goal reached | `(tabs)/_layout.tsx` | Inside the `setTimeout(() => {...}, 400)` celebration block |
+| Stats ambient | `stats.tsx` | `useFocusEffect` on tab focus |
 
 ## 📋 Pre-Shipping Checklist
 
