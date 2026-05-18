@@ -10,7 +10,7 @@
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash-light.png",
-      "resizeMode": "cover",
+      "resizeMode": "contain",
       "backgroundColor": "#0B0F0C",
       "dark": {
         "image": "./assets/images/splash-dark.png",

@@ -40,6 +40,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 | AI tips | Google Gemini API (24h cached, data-aware prompts, food/diet excluded) |
 | OCR | Expo Camera + Google ML Kit / Vision API |
 | Notifications | `expo-notifications` (local scheduled — daily reminder, weekly recap, missed-day nudge, streak-at-risk) |
+| Audio | `expo-audio` (SFX — level-up chime, activity save, goal reached; preloaded at boot via `sfx.ts`) |
 | Primary platform | Android (minSdkVersion 26 / Android 8.0) |
 
 ---
@@ -568,8 +569,25 @@ Two data sources merged:
 ### Haptic Feedback
 - Save activity (`add.tsx`): `Haptics.notificationAsync(Success)` before `router.back()`
 - Delete activity (`activity.tsx`): `Haptics.notificationAsync(Warning)` in `handleDelete`
+- Delete activity (`details.tsx`): `Haptics.notificationAsync(Warning)` in `confirmDelete()`
 - Level-up modal (`LevelUpModal.tsx`): `Haptics.notificationAsync(Success)` alongside confetti start (250ms delay)
 - Streak milestone modal (`StreakMilestoneModal.tsx`): `Haptics.notificationAsync(Success)` on `visible` = true
+- Edit profile save (`edit-profile.tsx`): already had `Haptics.notificationAsync(Success/Error)` — no change needed
+
+### Sound Effects (SFX)
+Implemented via `expo-audio` (migrated from deprecated `expo-av`). Shared utility: `src/utils/sfx.ts`.
+
+- `preloadSounds()` called once at app boot in `app/_layout.tsx`
+- `playSound(key, delayMs?)` — rewinds, plays, skips if already playing, silently ignores errors
+- Assets stored in `assets/sounds/` (mix of `.mp3` and `.wav`)
+
+| Sound | File | Trigger |
+|-------|------|---------|
+| Level-up chime | `level-up` | `LevelUpModal.tsx` on open, alongside haptic (250ms delay) |
+| Activity save | `activity-save` | `add.tsx` after `commitActivity()` for all categories. Also `edit.tsx` after update, `edit-profile.tsx` after save |
+| Goal reached | `goal-reached` | `(tabs)/_layout.tsx` celebration block with 1500ms delay to avoid overlap. Also `community.tsx` on `ChallengeCompleteModal` |
+
+> Water activities use `activity-save` (not a coin sound). `token-earn` asset kept in `assets/sounds/` but not triggered.
 
 ### Leveling System
 - Rank pill on Profile hero card is a `Pressable` → `router.push('/leveling')`
@@ -705,6 +723,7 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Weekly goal celebration re-fires after sign-out + sign-in | `celebrated: true` persisted from previous session; progress check fires before activities load | `setCelebrated(false)` called in `onAuthStateChanged` on every new sign-in |
 | Profile photo missing after email re-login | `photoURL` race: snapshot could arrive before server value | Resolution order: Firestore → `currentUser.photoURL` → existing Zustand value → null |
 | Leaderboard shows deleted users | Leaderboard doc not deleted with user account | `handleDeleteAccount` now deletes both `users/{uid}` and `leaderboard/{uid}` in `Promise.all` |
+| Leaderboard stale after activity deletion | `persistWeeklyEcoScore()` not called after `deleteDoc` in `activity.tsx` `handleDelete` or `details.tsx` `confirmDelete` | `persistWeeklyEcoScore()` added to both delete handlers, filtering out the deleted activity before computing the new score |
 | Podium shows all users even when all have 0 EcoScore | No zero-score guard | Podium hidden when no user has score > 0; "Week just started!" banner shown instead |
 | Equal EcoScores assigned different ranks | Sequential `i + 1` rank regardless of score ties | Two-pass: same score → same rank; next score → skips (competition ranking) |
 | Leaderboard doesn't update after EcoScore changes without reload | No focus-based refresh | `useFocusEffect` in community.tsx refreshes leaderboard on every tab visit |
@@ -730,46 +749,11 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 ---
 
 
-## 🔊 Sound Effects (SFX) — Deferred / Next Session
+## 🔊 Sound Effects (SFX)
 
-**Status: Not yet implemented. Requires a separate session with prebuild.**
+**Status: Implemented.** Uses `expo-audio` (migrated from deprecated `expo-av` — removed in SDK 54).
 
-### Feature Overview
-
-Two complementary audio layers:
-
-**1. Gamification Sound Pack** — Short SFX tied to user achievements:
-- Level-up chime when a new rank is reached (fires in `LevelUpModal` on open)
-- Token earn tone when EcoTokens are credited (fires in `add.tsx` after `commitActivity()`)
-- Activity save success tone (fires in `add.tsx` alongside haptic)
-- Challenge/weekly goal completion sound (fires in `(tabs)/_layout.tsx` celebration banner)
-
-**2. Eco-Immersive Micro-Interactions** — Subtle ambient audio + haptic on screen transitions:
-- Low-frequency atmospheric tone + gentle vibration when Stats or Community tabs open and charts animate in
-- Paired with existing `expo-haptics` calls using `expo-av` for the audio layer
-
-### Technical Requirements
-
-- **Library:** `expo-av` (already installed)
-- **Requires prebuild:** `npx expo run:android` — `expo-av` uses native modules
-- **Asset files needed:** `.mp3` or `.wav` files added to `assets/sounds/`:
-  - `level-up.mp3` — bright ascending chime
-  - `token-earn.mp3` — soft "cha-ching" or chime
-  - `activity-save.mp3` — short success tone
-  - `goal-reached.mp3` — celebratory fanfare (short)
-  - `ambient-stats.mp3` — subtle low atmospheric tone (optional)
-- **Not linked to Firebase** — all SFX are local asset files triggered client-side by existing state/events
-- **Volume:** Keep short (< 1s for action SFX, < 3s for ambient). Respect device silent mode via `expo-av` `playsInSilentModeIOS` (Android handles automatically).
-
-### Integration Points
-
-| Sound | File | Trigger location |
-|-------|------|-----------------|
-| Level-up chime | `LevelUpModal.tsx` | `useEffect` when `visible` becomes true (alongside confetti + haptic) |
-| Token earn | `add.tsx` | After `commitActivity()`, alongside `Haptics.notificationAsync` |
-| Activity save | `add.tsx` | Same location as token earn (or same sound) |
-| Goal reached | `(tabs)/_layout.tsx` | Inside the `setTimeout(() => {...}, 400)` celebration block |
-| Stats ambient | `stats.tsx` | `useFocusEffect` on tab focus |
+See Haptic Feedback + Sound Effects section under Gamification System above for full details. Ambient stats sound deferred.
 
 ## 📋 Pre-Shipping Checklist
 
