@@ -18,6 +18,7 @@
       }
     },
     "android": {
+      "minSdkVersion": 26,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png"
       },
@@ -44,7 +45,8 @@
       "react-native-health-connect",
       "@react-native-community/datetimepicker",
       "expo-notifications",
-      "expo-audio"
+      "expo-audio",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
