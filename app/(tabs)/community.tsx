@@ -59,7 +59,7 @@ function generateAlias(uid: string): string {
   let hash = 0;
   for (let i = 0; i < uid.length; i++) hash = (Math.imul(31, hash) + uid.charCodeAt(i)) | 0;
   const h = hash >>> 0;
-  return `${ADJECTIVES[h % ADJECTIVES.length]}${NOUNS[(h >> 4) % NOUNS.length]} · ${(h % 9000) + 1000}`;
+  return `${ADJECTIVES[h % ADJECTIVES.length]}${NOUNS[(h >>> 4) % NOUNS.length]} · ${(h % 9000) + 1000}`;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -86,6 +86,26 @@ const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
   hard:   { bg: '#FCE4EC', text: '#C62828' },
   epic:   { bg: '#EDE7F6', text: '#4527A0' },
 };
+
+function AvatarImage({ uri, size, radius, fallbackSize, fallbackColor }: {
+  uri: string; size: number; radius: number; fallbackSize: number; fallbackColor: string;
+}) {
+  const [error, setError] = useState(false);
+  if (error) {
+    return (
+      <View style={{ width: size, height: size, borderRadius: radius, alignItems: 'center', justifyContent: 'center', backgroundColor: fallbackColor + '25' }}>
+        <FontAwesome6 name="seedling" size={fallbackSize} color={fallbackColor} />
+      </View>
+    );
+  }
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: radius }}
+      onError={() => setError(true)}
+    />
+  );
+}
 
 function scoreColor(score: number) {
   if (score >= 75) return '#43A047';
@@ -129,19 +149,12 @@ function Podium({
               podiumStyles.avatarRing,
               { borderColor: medal.color, width: isCenter ? 60 : 48, height: isCenter ? 60 : 48, borderRadius: isCenter ? 30 : 24 },
             ]}>
-              {entry.photoURL && entry.showOnLeaderboard ? (
-                <Image
-                  source={{ uri: entry.photoURL }}
-                  style={{ width: isCenter ? 54 : 42, height: isCenter ? 54 : 42, borderRadius: isCenter ? 27 : 21 }}
-                />
-              ) : (
-                <View style={[
-                  podiumStyles.avatarFallback,
-                  { backgroundColor: medal.color + '25', width: isCenter ? 54 : 42, height: isCenter ? 54 : 42, borderRadius: isCenter ? 27 : 21 },
-                ]}>
-                  <FontAwesome6 name="sprout" size={isCenter ? 22 : 18} color={medal.color} />
-                </View>
-              )}
+              {entry.photoURL && entry.showOnLeaderboard
+                ? <AvatarImage uri={entry.photoURL} size={isCenter ? 54 : 42} radius={isCenter ? 27 : 21} fallbackSize={isCenter ? 22 : 18} fallbackColor={medal.color} />
+                : <View style={[podiumStyles.avatarFallback, { backgroundColor: medal.color + '25', width: isCenter ? 54 : 42, height: isCenter ? 54 : 42, borderRadius: isCenter ? 27 : 21 }]}>
+                    <FontAwesome6 name="seedling" size={isCenter ? 22 : 18} color={medal.color} />
+                  </View>
+              }
             </View>
 
             {/* Medal icon */}
@@ -331,12 +344,14 @@ export default function CommunityScreen() {
 
       const rawEntries: LeaderboardEntry[] = snap.docs.map((d, i) => {
         const data = d.data();
+        const optedIn = data.showOnLeaderboard === true;
         return {
           uid: d.id,
-          displayName: data.displayName ?? null,
-          photoURL: data.photoURL ?? null,
+          // Only expose real name/photo if user has explicitly opted in
+          displayName: optedIn ? (data.displayName ?? null) : null,
+          photoURL:    optedIn ? (data.photoURL ?? null)    : null,
           weeklyEcoScore: data.weeklyEcoScore ?? 0,
-          showOnLeaderboard: data.showOnLeaderboard ?? false,
+          showOnLeaderboard: optedIn,
           isCurrentUser: d.id === currentUid,
           rank: i + 1, // temporary, overwritten below
         };
@@ -361,7 +376,8 @@ export default function CommunityScreen() {
         const myDoc = await getDoc(doc(db, 'leaderboard', currentUid));
         if (myDoc.exists()) {
           const d = myDoc.data();
-          setMyEntry({ uid: currentUid, displayName: d.displayName ?? null, photoURL: d.photoURL ?? null, weeklyEcoScore: d.weeklyEcoScore ?? 0, showOnLeaderboard: d.showOnLeaderboard ?? false, isCurrentUser: true, rank: 999 });
+          const optedIn = d.showOnLeaderboard === true;
+          setMyEntry({ uid: currentUid, displayName: optedIn ? (d.displayName ?? null) : null, photoURL: optedIn ? (d.photoURL ?? null) : null, weeklyEcoScore: d.weeklyEcoScore ?? 0, showOnLeaderboard: optedIn, isCurrentUser: true, rank: 999 });
         }
       }
     } catch (e) {
@@ -580,13 +596,12 @@ export default function CommunityScreen() {
           {item.rank}
         </Text>
 
-        {item.photoURL && item.showOnLeaderboard ? (
-          <Image source={{ uri: item.photoURL }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatarFallback, { backgroundColor: colors.surfaceMuted }]}>
-            <FontAwesome6 name="sprout" size={16} color={colors.text + '88'} />
-          </View>
-        )}
+        {item.photoURL && item.showOnLeaderboard
+          ? <AvatarImage uri={item.photoURL} size={38} radius={19} fallbackSize={16} fallbackColor={colors.text + '88'} />
+          : <View style={[styles.avatarFallback, { backgroundColor: colors.surfaceMuted }]}>
+              <FontAwesome6 name="seedling" size={16} color={colors.text + '88'} />
+            </View>
+        }
 
         <Text
           style={[styles.rowName, { color: isMe ? colors.tint : colors.text }, isMe && { fontWeight: '700' }]}

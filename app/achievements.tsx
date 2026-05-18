@@ -504,7 +504,7 @@ function MilestoneBadge({
         {
           width: MILESTONE_COL,
           backgroundColor: unlocked
-            ? (isDark ? m.color + '18' : m.color + '10')
+            ? (isDark ? m.color + '18' : m.color + '22')
             : c.surface,
           borderColor: unlocked ? m.color + '50' : c.surfaceMuted,
           borderWidth: unlocked ? 1.5 : 1,
@@ -515,7 +515,7 @@ function MilestoneBadge({
       <View style={[
         milestoneStyles.iconWrap,
         {
-          backgroundColor: unlocked ? m.color + '22' : (isDark ? '#ffffff0a' : '#0000000a'),
+          backgroundColor: unlocked ? (isDark ? m.color + '22' : m.color + '30') : (isDark ? '#ffffff0a' : '#0000000a'),
           borderColor:     unlocked ? m.color + '55' : (isDark ? '#ffffff18' : '#00000015'),
           borderStyle:     unlocked ? 'solid' : 'dashed',
         },
@@ -719,13 +719,12 @@ export default function AchievementsScreen() {
         <LinearGradient
           colors={isDark
             ? [rank.color + '35', rank.color + '15', colors.surface]
-            : [rank.color + '25', rank.color + '08', colors.surface]}
+            : [rank.color + '70', rank.color + '35', colors.surface]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[styles.heroBanner, { borderColor: rank.color + '30' }]}
-        >
+          style={[styles.heroBanner, { borderColor: isDark ? rank.color + '30' : rank.color + '80' }]}        >
           {/* Rank glow circle */}
-          <View style={[styles.rankGlow, { backgroundColor: rank.color + '20' }]}>
+          <View style={[styles.rankGlow, { backgroundColor: isDark ? rank.color + '20' : rank.color + '30' }]}>
             <MaterialCommunityIcons name={rank.icon as any} size={28} color={rank.color} />
           </View>
 
@@ -739,7 +738,7 @@ export default function AchievementsScreen() {
           </View>
 
           {/* Completion arc */}
-          <View style={[styles.pctBubble, { borderColor: rank.color + '40', backgroundColor: isDark ? rank.color + '20' : rank.color + '12' }]}>
+          <View style={[styles.pctBubble, { borderColor: rank.color + '40', backgroundColor: isDark ? rank.color + '20' : rank.color + '35' }]}>
             <Text style={[styles.pctNum, { color: rank.color }]}>{overallPct}%</Text>
             <Text style={[styles.pctLabel, { color: rank.color }]}>done</Text>
           </View>

@@ -1,7 +1,7 @@
 // onboarding/5.tsx — Permissions (properly implemented)
 import {
   View, Text, StyleSheet, Animated, Pressable,
-  ActivityIndicator, Linking, AppState, AppStateStatus, Platform,
+  ActivityIndicator, Linking, AppState, AppStateStatus, Platform, ScrollView,
 } from 'react-native';
 import { useEffect, useRef, useState } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -164,7 +164,12 @@ export default function OnboardingStep5() {
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.container, { backgroundColor: bg }]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={[styles.orbBR, { backgroundColor: isDark ? '#29B6F615' : '#29B6F612' }]} />
 
       <Animated.View style={[styles.header, { opacity: fade }]}>
@@ -242,19 +247,19 @@ export default function OnboardingStep5() {
           Your data is stored securely in Firebase. No ads, no third-party sharing, ever.
         </Text>
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 28, paddingTop: 60, paddingBottom: 16 },
+  container: { paddingHorizontal: 28, paddingTop: 60, paddingBottom: 24 },
   orbBR:     { position: 'absolute', bottom: 60, right: -60, width: 200, height: 200, borderRadius: 100 },
   header:    { marginBottom: 24, gap: 6 },
   eyebrow:   { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
   headline:  { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
   subhead:   { fontSize: 14, lineHeight: 20, marginTop: 4 },
 
-  list:     { gap: 10, marginBottom: 16, flex: 1 },
+  list:     { gap: 10, marginBottom: 16 },
   permCard: { flexDirection: 'row', gap: 14, alignItems: 'flex-start', borderRadius: 14, padding: 14, borderWidth: 1 },
   permIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, flexShrink: 0 },
   permText: { flex: 1, gap: 4 },

@@ -7,11 +7,12 @@ import { router } from 'expo-router';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore  } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
 import { isToday, isThisWeek } from '@/src/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
-import { doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth } from '@/src/firebase/config';
+import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -271,17 +272,22 @@ export default function ActivityScreen() {
   };
 
   const handleDelete = async (item: any) => {
-    useActivityStore.getState().removeActivity(item.id);
     const uid = auth.currentUser?.uid;
-    if (uid) await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    const tokens = calculateTokens(item);
+    const carbon = calculateCarbonSaved(item, useActivityStore.getState().userRegion);
 
-    // Recalculate leaderboard score after deletion so it reflects immediately
-    const store = useActivityStore.getState();
-    const remainingActivities = store.activities.filter(a => a.id !== item.id);
-    const weeklyTarget = store.userProfile?.weeklyTarget ?? 500;
-    const userRegion = store.userRegion ?? 'GLOBAL_AVG';
-    persistWeeklyEcoScore(remainingActivities, weeklyTarget, userRegion).catch(() => {});
+    useActivityStore.getState().removeActivity(item.id);
+    if (uid) {
+      await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
+      await updateDoc(doc(db, 'users', uid), {
+        tokens:           increment(-tokens),
+        totalCarbonSaved: increment(-carbon),
+      });
+      const store = useActivityStore.getState();
+      const remaining = store.activities.filter(a => a.id !== item.id);
+      persistWeeklyEcoScore(remaining, store.userProfile?.weeklyTarget ?? 500, store.userRegion ?? 'GLOBAL_AVG').catch(() => {});
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
   };
 
   return (

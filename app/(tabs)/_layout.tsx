@@ -39,6 +39,7 @@ export default function TabLayout() {
   const streakMilestonePending = useActivityStore((s) => s.streakMilestonePending);
   const pendingStreakDays      = useActivityStore((s) => s.pendingStreakDays);
   const clearStreakMilestone   = useActivityStore((s) => s.clearStreakMilestone);
+  const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
 
   const dynamicTarget = userProfile?.weeklyTarget ?? 500;
   const loading       = !userProfile;
@@ -63,6 +64,11 @@ export default function TabLayout() {
       useNativeDriver: true,
     }).start(() => setShowCelebration(false));
   };
+
+  // Reset celebrated flag if we're in a new week
+  useEffect(() => {
+    if (hasHydrated) checkAndResetCelebration();
+  }, [hasHydrated]);
 
   // If tokens drop below target (e.g. activity deleted), reset celebrated flag
   useEffect(() => {

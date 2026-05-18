@@ -318,9 +318,8 @@ export default function AddActivityScreen() {
     // Navigate back first — let the screen transition complete (~400ms),
     // THEN trigger celebrations so they don't fire mid-animation.
     router.back();
-    if (shouldCelebrate) {
-      setTimeout(() => setCelebrated(false), 420);
-    }
+   // setCelebrated is handled by _layout.tsx when it detects progress >= 1
+// Do NOT reset it here — that causes the celebration to re-fire on foreground
     if (hitMilestone) {
       // Stagger slightly after weekly goal if both fire simultaneously
       setTimeout(() => triggerStreakMilestone(newStreak), shouldCelebrate ? 800 : 420);

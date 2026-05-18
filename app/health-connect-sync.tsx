@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   successTitleBlock: {
     alignItems: 'center', gap: 8, marginBottom: 32, width: '100%',
   },
-  successTitle: { fontSize: 30, fontWeight: '900', textAlign: 'center', letterSpacing: 0 },
+  successTitle: { fontSize: 30, fontWeight: '900', textAlign: 'center', letterSpacing: 0, lineHeight: 40 },
   successSub:   { fontSize: 15, opacity: 0.55, textAlign: 'center', lineHeight: 22, flexShrink: 1, width: '100%' },
 
   successStats: {

@@ -48,7 +48,10 @@ export default function OnboardingStep7() {
       </Animated.View>
 
       <Animated.View style={[{ opacity: fade }, styles.headlineWrap]}>
-        <Text style={[styles.headline, { color: headline }]}>You're all set! 🌱</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={[styles.headline, { color: headline }]}>You're all set!</Text>
+          <FontAwesome6 name="seedling" size={28} color={mottoColor} />
+        </View>        
         <Text style={[styles.subhead, { color: subhead }]}>
           Start logging your first activity and watch your impact grow.
         </Text>

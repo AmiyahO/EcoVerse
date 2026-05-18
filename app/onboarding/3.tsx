@@ -13,11 +13,11 @@ const CATEGORIES = [
 ];
 
 const RANKS = [
-  { emoji: '🌱', name: 'Seed',         color: '#81C784' },
-  { emoji: '🌿', name: 'Sprout',       color: '#4CAF50' },
-  { emoji: '🌳', name: 'Sapling',      color: '#2E7D32' },
-  { emoji: '🌲', name: 'Grove Keeper', color: '#1B5E20' },
-  { emoji: '🛡️', name: 'Eco Guardian', color: '#26C6DA' },
+  { icon: 'seedling', color: '#81C784' },
+  { icon: 'leaf',     color: '#4CAF50' },
+  { icon: 'tree',     color: '#2E7D32' },
+  { icon: 'shield',   color: '#1B5E20' },
+  { icon: 'star',     color: '#26C6DA' },
 ];
 
 export default function OnboardingStep3() {
@@ -98,12 +98,12 @@ export default function OnboardingStep3() {
           <Text style={[styles.bonusTitle, { color: headline }]}>Streak multiplier</Text>
         </View>
         <Text style={[styles.bonusDesc, { color: tokenText }]}>
-          Log every day to build a streak. Every 5-day streak adds +10% tokens (up to +50%). Climb 8 nature-themed ranks from Seed 🌱 to Eco Legend ✨.
+          Log every day to build a streak. Every 5-day streak adds +10% tokens (up to +50%). Climb 8 nature-themed ranks from Seed to Eco Legend.
         </Text>
         <View style={styles.rankRow}>
-          {RANKS.map((r) => (
-            <View key={r.name} style={styles.rankChip}>
-              <Text style={styles.rankEmoji}>{r.emoji}</Text>
+          {RANKS.map((r, i) => (
+            <View key={i} style={[styles.rankChip, { backgroundColor: r.color + '20' }]}>
+              <FontAwesome6 name={r.icon as any} size={14} color={r.color} />
             </View>
           ))}
           <Text style={[styles.rankMore, { color: tokenText }]}>+3 more</Text>
@@ -134,7 +134,6 @@ const styles = StyleSheet.create({
   bonusTitle: { fontSize: 15, fontWeight: '700' },
   bonusDesc:  { fontSize: 13, lineHeight: 19 },
   rankRow:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  rankChip:  { width: 32, height: 32, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center' },
-  rankEmoji: { fontSize: 18 },
+  rankChip:  { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   rankMore:  { fontSize: 12, marginLeft: 2 },
 });

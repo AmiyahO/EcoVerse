@@ -101,7 +101,7 @@ function TierCard({
       <View style={[
         tcS.card,
         { backgroundColor: colors.surface },
-        isCurrentTier && { borderWidth: 1.5, borderColor: rank.color + '55', backgroundColor: isDark ? rank.color + '10' : rank.color + '06' },
+          isCurrentTier && { borderWidth: 1.5, borderColor: rank.color + '55', backgroundColor: isDark ? rank.color + '10' : rank.color + '15' },
       ]}>
         {/* Left colour strip */}
         <View style={[tcS.strip, { backgroundColor: isLocked ? rank.color + '25' : rank.color }]} />
@@ -217,10 +217,10 @@ export default function LevelingScreen() {
           <LinearGradient
             colors={isDark
               ? [rank.color + 'B5', rank.color + '45', colors.surface + 'EE']
-              : ['#FFFFFF', rank.color + '30', rank.color + '18']}
+              : ['#FFFFFF', rank.color + '55', rank.color + '35']}
             start={isDark ? { x: 0.1, y: 0 } : { x: 0, y: 0 }}
             end={isDark ? { x: 0.9, y: 1 }   : { x: 1, y: 1 }}
-            style={[s.heroCard, { borderColor: isDark ? rank.color + '55' : rank.color + '80' }]}
+            style={[s.heroCard, { borderColor: isDark ? rank.color + '55' : rank.color + 'BB' }]}
           >
             {/* Decorative blobs */}
             <View style={[s.blob, { width: 170, height: 170, top: -55, right: -55, backgroundColor: rank.color + '14' }]} />
