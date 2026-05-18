@@ -10,10 +10,6 @@
     },
     "preview": {
       "distribution": "internal",
-      "buildType": "apk",
-      "env": {
-        "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyAST2VAO7Y9uB0xuW_5zBLKrb7ghItoOSE"
-      }
     },
     "production": {
       "autoIncrement": true
