@@ -1,5 +1,5 @@
 // onboarding/6.tsx — Region
-import { View, Text, StyleSheet, Animated, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Animated, Pressable, ScrollView } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '@/hooks/useAppTheme';
@@ -36,7 +36,11 @@ export default function OnboardingStep6({ region, setRegion }: { region: string;
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.container, { backgroundColor: bg }]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.orbTR, { backgroundColor: isDark ? '#4CAF5018' : '#4CAF5012' }]} />
 
       <Animated.View style={[styles.header, { opacity: fade }]}>
@@ -79,23 +83,23 @@ export default function OnboardingStep6({ region, setRegion }: { region: string;
       <Animated.Text style={[styles.footnote, { opacity: fade, color: footnote }]}>
         You can change this anytime in Settings.
       </Animated.Text>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 60, paddingBottom: 16 },
-  orbTR:     { position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80 },
-  header:    { marginBottom: 20, gap: 6 },
-  eyebrow:   { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
-  headline:  { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
-  subhead:   { fontSize: 13, lineHeight: 19, marginTop: 4 },
-  listWrap:  { gap: 8, flex: 1 },
+  container:    { paddingHorizontal: 24, paddingTop: 60, paddingBottom: 24 },
+  orbTR:        { position: 'absolute', top: -50, right: -50, width: 160, height: 160, borderRadius: 80 },
+  header:       { marginBottom: 20, gap: 6 },
+  eyebrow:      { fontSize: 11, fontWeight: '800', letterSpacing: 3, opacity: 0.8 },
+  headline:     { fontSize: 32, fontWeight: '800', lineHeight: 40, letterSpacing: -0.5 },
+  subhead:      { fontSize: 13, lineHeight: 19, marginTop: 4 },
+  listWrap:     { gap: 8, marginBottom: 16 },
   regionRow:    { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12 },
   regionFlag:   { fontSize: 24 },
   regionTextCol:{ flex: 1 },
   regionLabel:  { fontSize: 15, fontWeight: '600' },
   regionHint:   { fontSize: 11, marginTop: 1 },
   radioEmpty:   { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
-  footnote:     { textAlign: 'center', fontSize: 12, marginTop: 12 },
+  footnote:     { textAlign: 'center', fontSize: 12 },
 });

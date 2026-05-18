@@ -131,7 +131,15 @@ export default function ProfileScreen() {
     : ['#2E7D32', '#00897B', '#006064'];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StreakCalendarSheet
+        visible={calendarVisible}
+        onClose={() => setCalendarVisible(false)}
+        activities={activities}
+        streak={streak}
+        longestStreak={longestStreak}
+      />
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* ── Hero Card ── */}
@@ -398,15 +406,8 @@ export default function ProfileScreen() {
         </Pressable>
 
       </ScrollView>
-
-      <StreakCalendarSheet
-        visible={calendarVisible}
-        onClose={() => setCalendarVisible(false)}
-        activities={activities}
-        streak={streak}
-        longestStreak={longestStreak}
-      />
     </SafeAreaView>
+    </View>
   );
 }
 

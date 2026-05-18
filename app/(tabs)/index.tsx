@@ -565,7 +565,7 @@ export default function HomeScreen() {
     comparison.direction === 'down' ? '↓' : '—';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <EcoScoreModal
         visible={showEcoModal}
         onClose={() => setShowEcoModal(false)}
@@ -587,6 +587,7 @@ export default function HomeScreen() {
         colors={colors}
         scheme={scheme}
       />
+      <SafeAreaView edges={['top']} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
 
         {/* ── Greeting ── */}
@@ -816,7 +817,8 @@ export default function HomeScreen() {
         </Pressable>
 
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 

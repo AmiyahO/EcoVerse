@@ -515,7 +515,7 @@ export default function StatsScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.background }}>
 
       {/* ═══════════════════════════════════════════════════
           HERO — sticky, sits above the scroll view

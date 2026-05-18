@@ -291,8 +291,8 @@ export default function ActivityScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Custom action sheet */}
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Custom action sheet — outside SafeAreaView so it renders above tab bar */}
       {actionSheet && (
         <ActivityActionSheet
           activity={actionSheet}
@@ -301,6 +301,7 @@ export default function ActivityScreen() {
           onDelete={() => handleDelete(actionSheet)}
         />
       )}
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
 
       {/* Header */}
       <View style={styles.header}>
@@ -397,6 +398,7 @@ export default function ActivityScreen() {
         />
       )}
     </SafeAreaView>
+    </View>
   );
 }
 
@@ -520,7 +522,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 60,
+    marginTop: -40,
     gap: 12,
   },
   emptyIconCircle: {

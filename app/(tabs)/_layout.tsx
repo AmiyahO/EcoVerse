@@ -57,8 +57,6 @@ export default function TabLayout() {
   const dismissTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confettiRef    = useRef<any>(null);
 
-  const [streakMilestone, setStreakMilestone] = useState<number | null>(null);
-
   const dismissCelebration = () => {
     Animated.timing(slideAnim, {
       toValue: -300,
@@ -91,8 +89,6 @@ export default function TabLayout() {
           tension: 60,
           friction: 10,
         }).start();
-        // Fire confetti 150ms after banner starts sliding in — decoupled so
-        // the banner animation isn't competing with particle spawning
         setTimeout(() => confettiRef.current?.start(), 150);
         dismissTimeout.current = setTimeout(() => dismissCelebration(), 4000);
       }, 400);
@@ -159,9 +155,6 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      {/* ── Confetti cannon — only mounted during a celebration ──────────────
-          Gated on showCelebration so no artifact renders when idle.
-          Fired via ref 150ms after banner starts to decouple from spring anim. */}
       {showCelebration && (
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <ConfettiCannon
@@ -177,7 +170,6 @@ export default function TabLayout() {
         </View>
       )}
 
-      {/* ── Global Celebration Banner ── */}
       {showCelebration && (
         <Animated.View
           style={[styles.celebrationBanner, { transform: [{ translateY: slideAnim }] }]}

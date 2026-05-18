@@ -1,13 +1,13 @@
 // onboarding/7.tsx — All Set
-import { View, Text, StyleSheet, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, ScrollView } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FontAwesome6 } from '@expo/vector-icons';
 
 const HIGHLIGHTS = [
-  { icon: 'chart-line',     color: '#29B6F6', text: 'Track CO₂ savings in real time' },
-  { icon: 'leaf',           color: '#4CAF50', text: 'Earn tokens and climb 8 rank tiers' },
-  { icon: 'users',          color: '#FF7043', text: 'Weekly challenges and a global leaderboard' },
+  { icon: 'chart-line',          color: '#29B6F6', text: 'Track CO₂ savings in real time' },
+  { icon: 'leaf',                color: '#4CAF50', text: 'Earn tokens and climb 8 rank tiers' },
+  { icon: 'users',               color: '#FF7043', text: 'Weekly challenges and a global leaderboard' },
   { icon: 'wand-magic-sparkles', color: '#FFC107', text: 'AI-powered eco tips, personalised to you' },
 ];
 
@@ -39,7 +39,11 @@ export default function OnboardingStep7() {
   }, []);
 
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: bg }}
+      contentContainerStyle={[styles.container, { backgroundColor: bg }]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.glow, { backgroundColor: isDark ? '#2E7D3228' : '#A5D6A730' }]} />
 
       <Animated.View style={[styles.logoWrap, { opacity: fade, transform: [{ scale: scaleAnim }] }]}>
@@ -47,11 +51,11 @@ export default function OnboardingStep7() {
         <Text style={[styles.tagline, { color: mottoColor }]}>TRACK YOUR IMPACT</Text>
       </Animated.View>
 
-      <Animated.View style={[{ opacity: fade }, styles.headlineWrap]}>
+      <Animated.View style={[styles.headlineWrap, { opacity: fade }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <Text style={[styles.headline, { color: headline }]}>You're all set!</Text>
           <FontAwesome6 name="seedling" size={28} color={mottoColor} />
-        </View>        
+        </View>
         <Text style={[styles.subhead, { color: subhead }]}>
           Start logging your first activity and watch your impact grow.
         </Text>
@@ -82,12 +86,12 @@ export default function OnboardingStep7() {
         <FontAwesome6 name="seedling" size={13} color={mottoColor} />
         <Text style={[styles.footnote, { color: footnote }]}>Together we can make a difference</Text>
       </Animated.View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:    { flex: 1, paddingHorizontal: 28, paddingTop: 50, paddingBottom: 16, alignItems: 'center', justifyContent: 'space-between' },
+  container:    { paddingHorizontal: 28, paddingTop: 50, paddingBottom: 24, alignItems: 'center', gap: 28 },
   glow:         { position: 'absolute', top: '18%', left: '50%', marginLeft: -110, width: 220, height: 220, borderRadius: 110 },
   logoWrap:     { alignItems: 'center', gap: 8 },
   logo:         { width: 130, height: 130 },
