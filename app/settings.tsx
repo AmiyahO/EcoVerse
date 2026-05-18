@@ -1,4 +1,5 @@
 // settings.tsx
+import appJson from '@/app.json';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { auth, db } from '@/src/firebase/config';
@@ -526,7 +527,7 @@ export default function SettingsScreen() {
 
         <Section title="About">
           <Row icon="leaf-outline" iconColor="#4CAF50" label="Version"
-            value="1.0.1 Beta" chevron={false} separator={true} />
+            value={appJson.expo.version + " Beta"} chevron={false} separator={true} />
           <Row icon="chatbubble-ellipses-outline" iconColor="#29B6F6" label="Send feedback"
             onPress={handleFeedback} separator={false} />
         </Section>
@@ -539,7 +540,7 @@ export default function SettingsScreen() {
         </Section>
 
         <ThemedText style={[styles.footerText, { color: colors.text }]}>
-          EcoVerse · v1.0.1 Beta
+          EcoVerse · v{appJson.expo.version} Beta
         </ThemedText>
 
       </ScrollView>
