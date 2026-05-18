@@ -313,7 +313,7 @@ export default function AddActivityScreen() {
     const hitMilestone = STREAK_MILESTONES.includes(newStreak) && !alreadyLoggedToday;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    playSound('token-earn').catch(() => {});
+    playSound('activity-save').catch(() => {});
 
     // Navigate back first — let the screen transition complete (~400ms),
     // THEN trigger celebrations so they don't fire mid-animation.

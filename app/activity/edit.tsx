@@ -12,6 +12,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { playSound } from '@/src/utils/sfx';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -138,6 +139,7 @@ export default function EditActivityScreen() {
       );
 
       updateActivity(activity.id, updatedData);
+      playSound('activity-save').catch(() => {});
 
       Alert.alert('Updated', 'Activity updated successfully.', [
         { text: 'OK', onPress: () => router.back() },

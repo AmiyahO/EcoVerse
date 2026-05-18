@@ -7,8 +7,9 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { auth, db } from '@/src/firebase/config';
 import { useState } from 'react';
 import { doc, updateDoc, increment } from 'firebase/firestore';
-import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore  } from '@/src/utils/ecoLogic';
 import { FontAwesome6 } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -63,6 +64,16 @@ export default function ActivityDetailsScreen() {
                 tokens:           increment(-tokens),
                 totalCarbonSaved: increment(-carbon),
               });
+
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
+              const store = useActivityStore.getState();
+              const remainingActivities = store.activities.filter(a => a.id !== activity.id);
+              persistWeeklyEcoScore(
+                remainingActivities,
+                store.userProfile?.weeklyTarget ?? 500,
+                store.userRegion ?? 'GLOBAL_AVG',
+              ).catch(() => {});
 
               // Now safe to remove locally and navigate
               removeActivity(activity.id);

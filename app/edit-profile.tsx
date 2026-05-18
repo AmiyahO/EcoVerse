@@ -19,6 +19,7 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { playSound } from '@/src/utils/sfx';
 
 const CLOUD_NAME    = 'dn70uuubp';
 const UPLOAD_PRESET = 'ecoverse_default';
@@ -139,6 +140,7 @@ export default function EditProfileScreen() {
         totalCarbonSaved: userProfile?.totalCarbonSaved ?? 0,
       });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      playSound('activity-save').catch(() => {});
       router.back();
     } catch (e) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

@@ -76,7 +76,7 @@ export default function TabLayout() {
       setCelebrated(true);
       setTimeout(() => {
         setShowCelebration(true);
-        playSound('goal-reached').catch(() => {});
+        playSound('goal-reached', 1500).catch(() => {});
         Animated.spring(slideAnim, {
           toValue: 0,
           useNativeDriver: true,

@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { useMemo, useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome6 } from '@expo/vector-icons';
-import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS } from '@/src/utils/ecoLogic';
+import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore  } from '@/src/utils/ecoLogic';
 import { isToday, isThisWeek } from '@/src/utils/dateUtils';
 import * as Haptics from 'expo-haptics';
 import { doc, deleteDoc, setDoc } from 'firebase/firestore';
@@ -275,6 +275,13 @@ export default function ActivityScreen() {
     const uid = auth.currentUser?.uid;
     if (uid) await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    // Recalculate leaderboard score after deletion so it reflects immediately
+    const store = useActivityStore.getState();
+    const remainingActivities = store.activities.filter(a => a.id !== item.id);
+    const weeklyTarget = store.userProfile?.weeklyTarget ?? 500;
+    const userRegion = store.userRegion ?? 'GLOBAL_AVG';
+    persistWeeklyEcoScore(remainingActivities, weeklyTarget, userRegion).catch(() => {});
   };
 
   return (

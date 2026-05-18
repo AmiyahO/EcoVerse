@@ -1,8 +1,5 @@
 // src/utils/sfx.ts
-import { Audio } from 'expo-av';
-
-// Preloaded sound map — call preloadSounds() once on app boot
-const sounds: Record<string, Audio.Sound> = {};
+import { AudioPlayer, createAudioPlayer } from 'expo-audio';
 
 const SOUND_ASSETS: Record<string, any> = {
   'level-up':      require('../../assets/sounds/level-up.mp3'),
@@ -11,20 +8,26 @@ const SOUND_ASSETS: Record<string, any> = {
   'goal-reached':  require('../../assets/sounds/goal-reached.mp3'),
 };
 
+const players: Record<string, AudioPlayer> = {};
+
 export async function preloadSounds() {
-  await Audio.setAudioModeAsync({ playsInSilentModeIOS: false });
   for (const [key, asset] of Object.entries(SOUND_ASSETS)) {
-    const { sound } = await Audio.Sound.createAsync(asset, { shouldPlay: false, volume: 0.8 });
-    sounds[key] = sound;
+    const player = createAudioPlayer(asset);
+    player.volume = 0.8;
+    players[key] = player;
   }
 }
 
-export async function playSound(key: keyof typeof SOUND_ASSETS) {
+export async function playSound(key: string, delayMs = 0) {
   try {
-    const sound = sounds[key];
-    if (!sound) return;
-    await sound.setPositionAsync(0); // rewind in case it was played before
-    await sound.playAsync();
+    const player = players[key];
+    if (!player) return;
+    if (delayMs > 0) {
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+    if (player.playing) return; // don't interrupt a currently playing sound
+    player.seekTo(0);
+    player.play();
   } catch {
     // Silently fail — SFX should never crash the app
   }
