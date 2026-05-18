@@ -23,6 +23,7 @@ import {
 import { scanBillFromCamera, OCRCandidate } from '@/src/services/billOCR';
 import OCRCandidatePicker, { OCRNoResultSheet } from '@/components/ocr-candidate-picker';
 import HealthConnectBanner from '@/components/health-connect-banner';
+import { playSound } from '@/src/utils/sfx';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking',     label: 'Walking',     icon: 'person-walking' },
@@ -312,6 +313,7 @@ export default function AddActivityScreen() {
     const hitMilestone = STREAK_MILESTONES.includes(newStreak) && !alreadyLoggedToday;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    playSound('token-earn').catch(() => {});
 
     // Navigate back first — let the screen transition complete (~400ms),
     // THEN trigger celebrations so they don't fire mid-animation.

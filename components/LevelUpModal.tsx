@@ -15,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { getRankInfo } from '@/src/utils/levelSystem';
+import { playSound } from '@/src/utils/sfx';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -68,6 +69,7 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
       const t = setTimeout(() => {
         confettiRef.current?.start();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        playSound('level-up').catch(() => {});
       }, 250);
       return () => clearTimeout(t);
     }

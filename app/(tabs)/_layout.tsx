@@ -13,6 +13,7 @@ import { FontAwesome6 as FA6 } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { LevelUpModal } from '@/components/LevelUpModal';
 import { StreakMilestoneModal } from '@/components/StreakMilestoneModal';
+import { playSound } from '@/src/utils/sfx';
 
 function isThisWeek(date: string) {
   const d = new Date(date);
@@ -75,6 +76,7 @@ export default function TabLayout() {
       setCelebrated(true);
       setTimeout(() => {
         setShowCelebration(true);
+        playSound('goal-reached').catch(() => {});
         Animated.spring(slideAnim, {
           toValue: 0,
           useNativeDriver: true,

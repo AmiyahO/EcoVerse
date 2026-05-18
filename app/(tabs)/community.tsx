@@ -47,6 +47,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { sendMissedChallengeNotification } from '@/src/services/notificationService';
+import { playSound } from '@/src/utils/sfx';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
@@ -482,6 +483,7 @@ export default function CommunityScreen() {
       // Haptic + show modal (only one modal at a time — queue handled by
       // the user dismissing before the next one can appear)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      playSound('goal-reached').catch(() => {});
       setPendingCompletion(ch);
       break; // show one at a time; remaining completions surface on next effect run
     }

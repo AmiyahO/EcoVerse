@@ -17,7 +17,7 @@ import {
 } from '@/src/services/notificationService';
 configureNotificationHandler();
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { preloadSounds } from '@/src/utils/sfx';
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
@@ -323,6 +323,10 @@ export default function RootLayout() {
       // null = doc not written yet, wait
     }
   }, [user, hasFinishedOnboarding, loading, authResolved, userDocReady]);
+
+  useEffect(() => {
+    preloadSounds().catch(() => {}); // preload all SFX silently on boot
+  }, []);
 
   if (loading) {
     const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
