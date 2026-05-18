@@ -46,6 +46,7 @@ interface MilestoneStats {
   electricityActivities: number;
   waterActivities:       number;
   uniqueCategories:      number;
+  uniqueCategoriesThisWeek: number;
 }
 
 interface Milestone {
@@ -80,6 +81,14 @@ const MILESTONES: Milestone[] = [
     progress: s => Math.min(s.uniqueCategories / 5, 1),
     check: s => s.uniqueCategories >= 5,
   },
+  {
+  id: 'variety_week',
+  title: 'Eco Polymath',
+  description: 'Log all 5 activity types in a single week',
+  icon: 'star-four-points', lib: 'MCO', color: '#6A1B9A',
+  progress: s => Math.min(s.uniqueCategoriesThisWeek / 5, 1),
+  check: s => s.uniqueCategoriesThisWeek >= 5,
+},
 
   // ── Streaks ────────────────────────────────────────────────────────────────
   {
@@ -651,6 +660,16 @@ export default function AchievementsScreen() {
     electricityActivities: activities.filter(a => a.category === 'electricity').length,
     waterActivities:       activities.filter(a => a.category === 'water').length,
     uniqueCategories:      new Set(activities.map(a => a.category)).size,
+    uniqueCategoriesThisWeek: new Set(
+      activities
+        .filter(a => {
+          const d = new Date(a.date);
+          const now = new Date();
+          const sun = new Date(now); sun.setDate(now.getDate() - now.getDay()); sun.setHours(0,0,0,0);
+          return d >= sun;
+        })
+        .map(a => a.category)
+    ).size,
   };
 
   const totalTokens = userProfile?.tokens ?? 0;
