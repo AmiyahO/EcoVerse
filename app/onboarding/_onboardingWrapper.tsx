@@ -3,6 +3,7 @@ import PagerView from 'react-native-pager-view';
 import { View, Pressable, Text, StyleSheet, Animated } from 'react-native';
 import { useRef, ReactNode, useState, useEffect } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface OnboardingWrapperProps {
   steps: ReactNode[];
@@ -12,6 +13,7 @@ interface OnboardingWrapperProps {
 export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapperProps) {
   const pagerRef = useRef<PagerView>(null);
   const { scheme, colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const isDark = scheme !== 'light';
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -63,6 +65,7 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
       <View style={[styles.bottomBar, {
         backgroundColor: bg,
         borderTopColor: barBorder,
+        paddingBottom: Math.max(22, insets.bottom + 8),
       }]}>
         {/* Pill dots + step counter */}
         <View style={styles.dotsAndLabel}>
@@ -121,7 +124,6 @@ export default function OnboardingWrapper({ steps, onFinish }: OnboardingWrapper
 const styles = StyleSheet.create({
   bottomBar: {
     paddingHorizontal: 24,
-    paddingBottom: 22,
     paddingTop: 12,
     gap: 14,
     borderTopWidth: StyleSheet.hairlineWidth,

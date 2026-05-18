@@ -724,6 +724,19 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Profile photo missing after email re-login | `photoURL` race: snapshot could arrive before server value | Resolution order: Firestore → `currentUser.photoURL` → existing Zustand value → null |
 | Leaderboard shows deleted users | Leaderboard doc not deleted with user account | `handleDeleteAccount` now deletes both `users/{uid}` and `leaderboard/{uid}` in `Promise.all` |
 | Leaderboard stale after activity deletion | `persistWeeklyEcoScore()` not called after `deleteDoc` in `activity.tsx` `handleDelete` or `details.tsx` `confirmDelete` | `persistWeeklyEcoScore()` added to both delete handlers, filtering out the deleted activity before computing the new score |
+| Action-sheet activity delete not decrementing tokens/carbon | `handleDelete` in `activity.tsx` called `deleteDoc` but never called `increment(-tokens)` or `increment(-carbon)` on the user doc, nor `persistWeeklyEcoScore()` | Added `updateDoc` with `increment(-tokens)` and `increment(-carbon)` on the user doc, plus `persistWeeklyEcoScore()` call with remaining activities |
+| Leaderboard fallback avatar shows Chinese/Japanese character instead of sprout | `FontAwesome6 name="sprout"` is a Pro-only icon; free tier renders a random glyph from the font table that resembles a CJK character | Replaced all three `"sprout"` usages in `community.tsx` with `"seedling"` (FA6 free) |
+| `generateAlias` produces `undefined` noun for some UIDs | `h >> 4` (signed right shift) returns negative values for large hashes; `NOUNS[-7]` = `undefined` | Changed to `h >>> 4` (unsigned right shift), matching the `h >>> 0` pattern used for the hash itself |
+| `showOnLeaderboard` field absent from leaderboard doc for new users | `persistWeeklyEcoScore()` only writes `weeklyEcoScore` to the leaderboard doc; the toggle in Settings is never touched by new users, so `showOnLeaderboard` is never written | `settings.tsx` onSnapshot handler now writes `showOnLeaderboard: optedIn` to the leaderboard doc with `merge:true` on every settings load, backfilling the field for all existing users |
+| Onboarding screen 3 rank emoji chips render inconsistently across devices | Emoji rendering varies by Android font version; chips used raw emoji characters | Replaced `RANKS` array emoji with FontAwesome6 icon names (`seedling`, `leaf`, `tree`, `shield`, `star`); rendered as `FontAwesome6` components inside coloured chip views |
+| Onboarding screen 5 privacy note overlaps camera permission card when permissions unganted | `list` had `flex:1` inside a fixed `View`; granted cards shrink but the note stays at bottom causing overlap | Converted outer `View` to `ScrollView` with `flexGrow:1`; removed `flex:1` from `list` style |
+| Onboarding screen 7 emoji in headline renders inconsistently | Raw 🌱 emoji in `Text` renders at different sizes/baselines on different Android versions | Replaced with inline `FontAwesome6 name="seedling"` alongside the headline text in a `flexDirection:'row'` wrapper |
+| Privacy Policy and Terms of Service screens have no back button | Both screens rendered `WebView` directly inside `SafeAreaView` with no header | Added a header `View` with a `Pressable` back button (`router.back()`) and `Ionicons arrow-back` above the `WebView` in both screens |
+| Edit profile avatar initial letter clipped top and bottom | `overflow:'hidden'` on the avatar `View` clips the large initial `Text` into the border region | Applied `overflow:'hidden'` conditionally — only when `photoURL` is set (photo needs clipping); initial letter container uses `overflow:'visible'` |
+| HC sync success screen "Sync Complete!" text clips descenders (y, p) | `successTitle` style had no explicit `lineHeight`; large `fontSize:30` with default tight line height clips descenders at view boundary | Added `lineHeight:40` to `successTitle` style |
+| Leveling screen hero card and tier cards too faint in light mode | Gradient used `rank.color+'30'`/`'18'`; current tier background used `rank.color+'06'` | Increased to `rank.color+'55'`/`'35'` for gradient, `rank.color+'15'` for current tier background, `rank.color+'BB'` for hero card border |
+| Achievements screen hero banner too faint in light mode | Gradient used `rank.color+'25'`/`'08'`; pct bubble used `rank.color+'12'` | Increased to `rank.color+'70'`/`'35'` for gradient; `rank.color+'35'` for pct bubble; `rank.color+'30'` for glow; `rank.color+'80'` for border; milestone badges from `'10'`/`'22'` to `'22'`/`'30'` |
+| Gemini API key committed to git via `eas.json` env block | Key added directly to `eas.json` under `build.preview.env` and pushed to GitHub; GitGuardian detected the exposure | Old key revoked in Google AI Studio; new key created; stored as EAS environment variable via `eas env:create --scope project` (plain text visibility); `eas.json` env block removed |
 | Podium shows all users even when all have 0 EcoScore | No zero-score guard | Podium hidden when no user has score > 0; "Week just started!" banner shown instead |
 | Equal EcoScores assigned different ranks | Sequential `i + 1` rank regardless of score ties | Two-pass: same score → same rank; next score → skips (competition ranking) |
 | Leaderboard doesn't update after EcoScore changes without reload | No focus-based refresh | `useFocusEffect` in community.tsx refreshes leaderboard on every tab visit |
@@ -739,12 +752,15 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 
 `future-vision.tsx` — four planned directions, all labelled "Planned — not yet live":
 
-| Direction | Summary |
-|-----------|---------|
-| EcoToken Marketplace | Redeem tokens for partner discounts, municipal bill credits, public transport perks |
-| Friend Accountability | Opt-in friend circles with EcoScore sharing, shared weekly challenges, gentle nudges |
-| Municipal & Civic Integration | Smart meter auto-sync, city-wide EcoScore dashboards, Green Deal community challenges |
-| Predictive AI Coach | Behaviour-pattern ML model, proactive nudges, smart goal calibration, carbon forecasting |
+| Direction | Phase | Summary |
+|-----------|-------|---------|
+| EcoToken Marketplace | 3 | Redeem tokens for partner discounts, municipal bill credits, public transport perks |
+| Friend Accountability | 3 | Opt-in friend circles with EcoScore sharing, shared weekly challenges, gentle nudges |
+| More Regions & Countries | 3 | 50+ countries with localised grid emission factors, country-specific benchmarks, regional leaderboards |
+| Offline Mode | 3 | Local-first activity logging, queue-and-sync on reconnect, offline leaderboard cache |
+| Accessibility & Personalisation | 3 | Reduce Motion toggle, custom app tint, high contrast mode, larger text scaling |
+| Municipal & Civic Integration | 4 | Smart meter auto-sync, city-wide EcoScore dashboards, Green Deal community challenges |
+| Predictive AI Coach | 4 | Behaviour-pattern ML model, proactive nudges, smart goal calibration, carbon forecasting |
 
 ---
 
@@ -759,7 +775,7 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 
 - [x] Terms of Service and Privacy Policy (required for Play Store)
 - [x] Firebase Auth email templates configured (verification + password reset, EcoVerse branding)
-- [ ] Move Gemini API key to Firebase Cloud Function
+- [x] Gemini API key moved out of codebase — stored as EAS environment variable (`eas env:create`); old exposed key revoked
 - [x] Replace `FEEDBACK_FORM_URL` in `settings.tsx` with actual Google Form / Typeform link
 - [ ] Test on 360dp-wide emulator (Pixel 3a size)
 - [ ] Remove remaining debug `console.warn` statements in `aiSuggestions.ts`

@@ -14,6 +14,7 @@ import ConfettiCannon from 'react-native-confetti-cannon';
 import { LevelUpModal } from '@/components/LevelUpModal';
 import { StreakMilestoneModal } from '@/components/StreakMilestoneModal';
 import { playSound } from '@/src/utils/sfx';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function isThisWeek(date: string) {
   const d = new Date(date);
@@ -26,6 +27,7 @@ function isThisWeek(date: string) {
 
 export default function TabLayout() {
   const { scheme, colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const activities     = useActivityStore(s => s.activities);
   const userProfile    = useActivityStore(s => s.userProfile);
@@ -114,6 +116,10 @@ export default function TabLayout() {
           tabBarButton: HapticTab,
           animation: 'fade',
           sceneStyle: { backgroundColor: colors.background },
+          tabBarStyle: {
+            paddingBottom: insets.bottom,
+            height: 60 + insets.bottom,
+          },
         }}
       >
         <Tabs.Screen
