@@ -598,7 +598,8 @@ Implemented via `expo-audio` (migrated from deprecated `expo-av`). Shared utilit
 ### Streak System
 - Grace period: streak counts from yesterday if today has no activity yet
 - Streak multiplier: +10% per 5-day streak, capped at +50%
-- **Streak milestone modals** — `StreakMilestoneModal` fires at 3/7/14/30/60/100 days. Triggered in `add.tsx` via `triggerStreakMilestone(newStreak)` after `commitActivity()` when the post-save streak hits a milestone threshold. Staggered 800ms after weekly goal celebration if both fire simultaneously. State lives in `activityStore` (`streakMilestonePending`, `pendingStreakDays`). Rendered globally in `(tabs)/_layout.tsx` alongside `LevelUpModal`.
+- **Streak milestone modals** — `StreakMilestoneModal` fires at 3/7/14/30/60/100 days.
+- **Achievement unlock modal** — `AchievementModal` fires when a milestone is newly earned. State in `activityStore` (`achievementPending`, `pendingAchievementId`, `unlockedAchievementIds` — persisted). `achievementMap.ts` maps all 38 milestone IDs to display info. Detection in `achievements.tsx`: first visit silently seeds all earned milestones (no modal); subsequent visits show modal for one new achievement per visit. Rendered globally in `(tabs)/_layout.tsx`. Triggered in `add.tsx` via `triggerStreakMilestone(newStreak)` after `commitActivity()` when the post-save streak hits a milestone threshold. Staggered 800ms after weekly goal celebration if both fire simultaneously. State lives in `activityStore` (`streakMilestonePending`, `pendingStreakDays`). Rendered globally in `(tabs)/_layout.tsx` alongside `LevelUpModal`.
 
 ### EcoScore Ring
 - Colour zones: red (<50), amber (50–74), green (≥75)
@@ -672,6 +673,7 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 > **After a clean prebuild:** `npx expo prebuild --clean` resets `android/gradle.properties`. Re-add `minSdkVersion=26`.
 
 > **Expo Go is not supported** — EcoVerse uses native modules (Victory Native v41 Skia, Health Connect, `@react-native-community/datetimepicker`) that require a custom dev build. For development: uninstall the release APK first (signing conflict), then use `npx expo run:android` over USB with USB debugging enabled.
+
 
 > **app.json:** Add `"expo-notifications"` to the plugins array for notification support.
 
@@ -754,6 +756,13 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Onboarding step 7 content cramps together on smaller screens | `justifyContent:'space-between'` with fixed `paddingTop:50` squeezes items on short screens | Outer `View` replaced with `ScrollView` using `gap:28` in `contentContainerStyle` |
 | Activity screen empty state sits too low | `emptyState` style had `paddingTop:60` pushing centred content down | Replaced `paddingTop:60` with `marginTop:-40` |
 | Dead `streakMilestone` state in `(tabs)/_layout.tsx` | `const [streakMilestone, setStreakMilestone]` declared but never read or updated | Removed unused state declaration |
+| Streak milestone modal shows wrong day / 7-day never fires on HC import | `triggerStreakMilestone()` only called in `add.tsx` manual log path; HC bulk import bypassed it. `STREAK_MILESTONES` in `add.tsx` also missing 60 and 100 | Added streak check in `health-connect-sync.tsx` after `commitSync()`; extended threshold array to `[3, 7, 14, 30, 60, 100]` |
+| Achievement screen freeze on first visit | `unlockedAchievementIds` empty on first visit → every earned milestone looked new → `triggerAchievement()` set `achievementPending: true` → modal overlay rendered with null content, blocking all touch | First-visit seeding: silently marks all currently-unlocked milestones without firing modal; modal only fires for achievements earned after seeding |
+| Missed challenge notification fires on every community screen refresh | `sendMissedChallengeNotification()` inside `fetchChallengeState()` with no session guard; called on mount, `currentUid` change, and every pull-to-refresh | Added `missedNotifFiredRef = useRef(false)` guard; notification fires at most once per app session |
+| Gemini API 400 / 404 errors | Model name `gemini-2.5-flash-preview-05-20` invalid; `maxOutputTokens: 8192` exceeded free tier; `responseMimeType: "application/json"` unsupported on preview models | Model → `gemini-2.5-flash`; `maxOutputTokens` stays at `8192`; only `responseMimeType` removed; error body logging added |
+| `streak-calendar-sheet.tsx` summary row invisible in dark mode | `colors.surfaceMuted + '80'` is string concatenation producing invalid hex | Replaced with explicit `rgba(255,255,255,0.08)` dark / `rgba(27,67,50,0.07)` light |
+| Health Connect setup ✅ emoji in alert title | `Alert.alert('✅ Connected!')` — emoji renders inconsistently across Android OEMs | Removed emoji: `Alert.alert('Connected!')` |
+| Challenge privacy note misleading | "Only completions are visible to others" — completions are not visible either | Corrected to "Challenge progress and completions are private — only you can see them" |
 
 ---
 
@@ -796,14 +805,12 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 
 ---
 
-## ⚠️ Known Issues (Testing Phase — Not Yet Fixed)
+## ✅ Previously Known Issues — Now Fixed
 
-These were identified after the APK was sent out for testing and are deferred to a subsequent build.
-
-| Issue | Detail |
-|-------|--------|
-| Modal bottom edge behind phone navigation bar | Bottom-sheet modals (`EcoScoreModal`, `AIModal`, `StreakCalendarSheet`) still clip behind the system navigation bar in three-button nav mode. Moving them outside `SafeAreaView` fixed the full-overlay issue but the sheet's own `paddingBottom` doesn't add `useSafeAreaInsets().bottom`. Fix: read insets inside each modal and add to `paddingBottom`. |
-| Leaderboard rank number skips + sticky "You" row inconsistent | When two users share the same EcoScore, the main list correctly applies competition ranking (both show rank 2; rank 3 is skipped). However the sticky "You" row appears to derive its rank independently and shows rank 3 instead of rank 4, and the fourth-place user row may show an inconsistent rank. Root cause: sticky row and main list rows compute display rank from different sources. |
+| Issue | Fix |
+|-------|-----|
+| Modal bottom edge behind phone navigation bar | Added `useSafeAreaInsets().bottom` inside `EcoScoreModal`, `AIModal`, `StreakCalendarSheet`; `paddingBottom: Math.max(36, insets.bottom + 20)` applied inline on each sheet container |
+| Leaderboard rank ties (3+ way) and sticky "You" row inconsistent | Replaced `.map()` with `for`-loop reading already-computed rank from output array; sticky bar rank computed from `usersAbove + 1` instead of hardcoded `999` |
 
 ## 👩🏽‍💻 Author
 
