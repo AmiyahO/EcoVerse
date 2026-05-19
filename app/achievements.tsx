@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 // 2-column grid for milestones: more space for rich cards
@@ -597,7 +597,6 @@ const milestoneStyles = StyleSheet.create({
 export default function AchievementsScreen() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
-  const insets = useSafeAreaInsets();
   const { activities, userProfile } = useActivityStore();
   const triggerAchievement     = useActivityStore(s => s.triggerAchievement);
   const markAchievementSeen    = useActivityStore(s => s.markAchievementSeen);
@@ -795,7 +794,7 @@ export default function AchievementsScreen() {
 
       </View>{/* end stickyHeader */}
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(32, insets.bottom + 16) }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* ── Challenge Badges ── */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Challenge Badges</Text>
