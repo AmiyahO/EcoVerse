@@ -21,7 +21,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 // 2-column grid for milestones: more space for rich cards
@@ -597,6 +597,7 @@ const milestoneStyles = StyleSheet.create({
 export default function AchievementsScreen() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
+  const insets = useSafeAreaInsets();
   const { activities, userProfile } = useActivityStore();
   const triggerAchievement     = useActivityStore(s => s.triggerAchievement);
   const markAchievementSeen    = useActivityStore(s => s.markAchievementSeen);
@@ -685,17 +686,31 @@ export default function AchievementsScreen() {
   );
 
   // ── Achievement unlock detection ─────────────────────────────────────────
-  // On every render, check for milestones that are now unlocked but haven't
-  // been seen before. Fire the modal for the first new one found and mark it.
+  // On first visit ever, silently seed all currently-unlocked milestones as
+  // "seen" so we don't bombard the user with modals for achievements they
+  // earned before the feature existed. Only fire the modal for achievements
+  // unlocked AFTER the first seeding visit.
   useEffect(() => {
     if (loading) return;
-    for (const id of unlockedMilestoneIds) {
-      if (!unlockedAchievementIds.includes(id) && ACHIEVEMENT_MAP[id]) {
-        markAchievementSeen(id);
-        // Small delay so the screen finishes rendering before modal appears
-        setTimeout(() => triggerAchievement(id), 600);
-        break; // show one at a time — next visit will catch the next one
+    const newIds = [...unlockedMilestoneIds].filter(
+      id => !unlockedAchievementIds.includes(id)
+    );
+    if (newIds.length === 0) return;
+
+    const isFirstVisit = unlockedAchievementIds.length === 0;
+
+    if (isFirstVisit) {
+      // Silently mark all as seen — no modal on first visit
+      newIds.forEach(id => markAchievementSeen(id));
+    } else {
+      // Subsequent visits: show modal for one newly earned achievement
+      const toShow = newIds.find(id => ACHIEVEMENT_MAP[id]);
+      if (toShow) {
+        markAchievementSeen(toShow);
+        setTimeout(() => triggerAchievement(toShow), 600);
       }
+      // Mark the rest as seen silently so they don't pile up
+      newIds.filter(id => id !== toShow).forEach(id => markAchievementSeen(id));
     }
   }, [loading, unlockedMilestoneIds.size]);
 
@@ -780,7 +795,7 @@ export default function AchievementsScreen() {
 
       </View>{/* end stickyHeader */}
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: Math.max(32, insets.bottom + 16) }]} showsVerticalScrollIndicator={false}>
         {/* ── Challenge Badges ── */}
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Challenge Badges</Text>
@@ -870,7 +885,7 @@ const styles = StyleSheet.create({
   root:          { flex: 1 },
   loadingCenter: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stickyHeader:  { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, borderBottomWidth: StyleSheet.hairlineWidth },
-  scroll:        { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 },
+  scroll:        { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 32 }, // base; overridden inline with insets
 
   // Header
   headerRow:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },

@@ -1,5 +1,6 @@
 // activity/add.tsx
 import { ThemedText } from '@/components/themed-text';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
@@ -72,6 +73,7 @@ function formatDisplayDate(date: Date): string {
 
 export default function AddActivityScreen() {
   const { colors, scheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const isDark = scheme === 'dark';
   const activities    = useActivityStore(s => s.activities);
   const userRegion    = useActivityStore(s => s.userRegion);
@@ -354,7 +356,7 @@ export default function AddActivityScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[styles.container, { paddingBottom: Math.max(40, insets.bottom + 24) }]}
         keyboardShouldPersistTaps="handled"
       >
 
@@ -688,7 +690,7 @@ function Input({
 }
 
 const styles = StyleSheet.create({
-  container:  { padding: 16, gap: 20, paddingBottom: 40 },
+  container:  { padding: 16, gap: 20, paddingBottom: 40 }, // base; overridden inline
   section:    { gap: 10 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 

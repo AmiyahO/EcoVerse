@@ -179,7 +179,7 @@ export default function HealthConnectSetupScreen() {
 
     if (status === 'granted') {
       Alert.alert(
-        '✅ Connected!',
+        'Connected!',
         'EcoVerse can now read your activity data from Health Connect. Your steps and workouts will auto-fill when you log activities.',
         [{ text: 'Great!', onPress: () => router.back() }]
       );
