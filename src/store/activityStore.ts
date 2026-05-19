@@ -60,6 +60,8 @@ type ActivityState = {
   pendingLevel: number;
   streakMilestonePending: boolean;
   pendingStreakDays: number;
+  achievementPending: boolean;
+  pendingAchievementId: string;
   // Not persisted — resets on every cold boot.
   // Prevents level-up firing on the initial Firestore snapshot that populates
   // the profile (where prevTokens=0 → newTokens=1500 looks like a level-up).
@@ -82,6 +84,10 @@ type ActivityState = {
   clearLevelUp:             () => void;
   triggerStreakMilestone:   (days: number) => void;
   clearStreakMilestone:     () => void;
+  triggerAchievement:       (id: string) => void;
+  clearAchievement:         () => void;
+  unlockedAchievementIds:   string[];
+  markAchievementSeen:      (id: string) => void;
   setEcoScoreSnapshots:     (snapshots: EcoScoreSnapshot[]) => void;
 };
 
@@ -98,6 +104,9 @@ export const useActivityStore = create<ActivityState>()(
       pendingLevel:   0,
       streakMilestonePending: false,
       pendingStreakDays:      0,
+      achievementPending:     false,
+      pendingAchievementId:   '',
+      unlockedAchievementIds: [],
       _profileLoaded: false,
       ecoScoreSnapshots: [],
 
@@ -178,6 +187,14 @@ export const useActivityStore = create<ActivityState>()(
       triggerStreakMilestone: (days) => set({ streakMilestonePending: true, pendingStreakDays: days }),
       clearStreakMilestone:   ()     => set({ streakMilestonePending: false, pendingStreakDays: 0 }),
 
+      triggerAchievement:  (id) => set({ achievementPending: true, pendingAchievementId: id }),
+      clearAchievement:    ()   => set({ achievementPending: false, pendingAchievementId: '' }),
+      markAchievementSeen: (id) => set(state => ({
+        unlockedAchievementIds: state.unlockedAchievementIds.includes(id)
+          ? state.unlockedAchievementIds
+          : [...state.unlockedAchievementIds, id],
+      })),
+
       setEcoScoreSnapshots: (snapshots) => set({ ecoScoreSnapshots: snapshots }),
     }),
     {
@@ -185,8 +202,9 @@ export const useActivityStore = create<ActivityState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist celebration state — everything else rehydrates from Firestore
       partialize: state => ({
-        celebrated:     state.celebrated,
-        celebratedWeek: state.celebratedWeek,
+        celebrated:            state.celebrated,
+        celebratedWeek:        state.celebratedWeek,
+        unlockedAchievementIds: state.unlockedAchievementIds,
       }),
       onRehydrateStorage: () => state => {
         state?.setHasHydrated();

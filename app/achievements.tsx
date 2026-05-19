@@ -5,6 +5,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { CHALLENGES, type Challenge } from '@/src/utils/challengeData';
 import { calculateStreak } from '@/src/utils/ecoLogic';
 import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
+import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
 import { FontAwesome6, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -597,6 +598,9 @@ export default function AchievementsScreen() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
   const { activities, userProfile } = useActivityStore();
+  const triggerAchievement     = useActivityStore(s => s.triggerAchievement);
+  const markAchievementSeen    = useActivityStore(s => s.markAchievementSeen);
+  const unlockedAchievementIds = useActivityStore(s => s.unlockedAchievementIds);
   const auth = getAuth();
   const uid  = auth.currentUser?.uid;
 
@@ -679,6 +683,21 @@ export default function AchievementsScreen() {
   const unlockedMilestoneIds = new Set(
     MILESTONES.filter(m => m.check(stats)).map(m => m.id)
   );
+
+  // ── Achievement unlock detection ─────────────────────────────────────────
+  // On every render, check for milestones that are now unlocked but haven't
+  // been seen before. Fire the modal for the first new one found and mark it.
+  useEffect(() => {
+    if (loading) return;
+    for (const id of unlockedMilestoneIds) {
+      if (!unlockedAchievementIds.includes(id) && ACHIEVEMENT_MAP[id]) {
+        markAchievementSeen(id);
+        // Small delay so the screen finishes rendering before modal appears
+        setTimeout(() => triggerAchievement(id), 600);
+        break; // show one at a time — next visit will catch the next one
+      }
+    }
+  }, [loading, unlockedMilestoneIds.size]);
 
   const unlockedMilestones = unlockedMilestoneIds.size;
   const totalMilestones    = MILESTONES.length;

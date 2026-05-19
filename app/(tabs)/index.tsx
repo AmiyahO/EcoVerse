@@ -1,6 +1,6 @@
 // (tabs)/index.tsx (dashboard)
 import { ThemedText } from '@/components/themed-text';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import { FontAwesome6, AntDesign } from '@expo/vector-icons';
@@ -258,6 +258,7 @@ function EcoScoreModal({
   const [tab, setTab] = useState<'sparkline' | 'history'>('sparkline');
   const slideY  = useRef(new Animated.Value(600)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const insets  = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
@@ -292,7 +293,7 @@ function EcoScoreModal({
         <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
       </Animated.View>
 
-      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, paddingBottom: Math.max(36, insets.bottom + 20), transform: [{ translateY: slideY }] }]}>
         {/* Handle */}
         <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
 
@@ -444,6 +445,7 @@ function AIModal({
 }) {
   const slideY  = useRef(new Animated.Value(700)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const insets  = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) {
@@ -468,7 +470,7 @@ function AIModal({
       <Animated.View style={[styles.modalBackdrop, { opacity }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
       </Animated.View>
-      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, transform: [{ translateY: slideY }] }]}>
+      <Animated.View style={[styles.modalSheet, { backgroundColor: bgSheet, paddingBottom: Math.max(36, insets.bottom + 20), transform: [{ translateY: slideY }] }]}>
         <View style={[styles.modalHandle, { backgroundColor: colors.text + '20' }]} />
         <View style={styles.modalHeader}>
           <View>

@@ -1,5 +1,6 @@
 // components/streak-calendar-sheet.tsx
 import { Modal, View, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FontAwesome6 } from '@expo/vector-icons';
@@ -45,6 +46,7 @@ interface Props {
 
 export default function StreakCalendarSheet({ visible, onClose, activities, streak, longestStreak = 0 }: Props) {
   const { colors, scheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const today = new Date();
   const [viewMonth, setViewMonth] = React.useState(today.getMonth());
@@ -95,7 +97,7 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.sheet, { backgroundColor: sheetBg }]} onPress={e => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { backgroundColor: sheetBg, paddingBottom: Math.max(32, insets.bottom + 16) }]} onPress={e => e.stopPropagation()}>
 
           {/* Handle */}
           <View style={[styles.handle, { backgroundColor: colors.text + '20' }]} />
@@ -208,7 +210,7 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
           </View>
 
           {/* Month summary */}
-          <View style={[styles.summaryRow, { backgroundColor: colors.surfaceMuted + '80', borderRadius: 12 }]}>
+          <View style={[styles.summaryRow, { backgroundColor: scheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(27,67,50,0.07)', borderRadius: 12 }]}>
             <View style={styles.summaryItem}>
               <ThemedText style={[styles.summaryVal, { color: colors.tint }]}>{activeDayCount}</ThemedText>
               <ThemedText style={[styles.summaryLabel, { color: colors.text }]}>Active days</ThemedText>

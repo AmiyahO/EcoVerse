@@ -302,6 +302,7 @@ export default function CommunityScreen() {
   const [myEntry, setMyEntry]             = useState<LeaderboardEntry | null>(null);
   const [loadingLB, setLoadingLB]         = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
+  const missedNotifFiredRef = useRef(false); // guard: fire at most once per session
 
   const [liveChallenges, setLiveChallenges] = useState<Challenge[]>([]);
   const [loadingChallenges, setLoadingChallenges] = useState(true);
@@ -359,15 +360,21 @@ export default function CommunityScreen() {
 
       // Assign tied ranks: users with the same score get the same rank number.
       // e.g. two users at score 50 both get rank 2, next user gets rank 4.
-      const entries: LeaderboardEntry[] = rawEntries.map((entry, i, arr) => {
-        if (i === 0) return { ...entry, rank: 1 };
-        const prevScore = arr[i - 1].weeklyEcoScore;
-        const prevRank  = arr[i - 1].rank;
-        return {
-          ...entry,
-          rank: entry.weeklyEcoScore === prevScore ? prevRank : i + 1,
-        };
-      });
+      // Uses a for-loop so each step reads the already-computed rank from
+      // the previous entry (not the temp sequential rank in rawEntries).
+      const entries: LeaderboardEntry[] = [];
+      for (let i = 0; i < rawEntries.length; i++) {
+        if (i === 0) {
+          entries.push({ ...rawEntries[i], rank: 1 });
+        } else {
+          const prevScore = rawEntries[i - 1].weeklyEcoScore;
+          const prevRank  = entries[i - 1].rank;
+          entries.push({
+            ...rawEntries[i],
+            rank: rawEntries[i].weeklyEcoScore === prevScore ? prevRank : i + 1,
+          });
+        }
+      }
       setLeaderboard(entries);
       const me = entries.find(e => e.isCurrentUser);
       if (me) {
@@ -377,7 +384,11 @@ export default function CommunityScreen() {
         if (myDoc.exists()) {
           const d = myDoc.data();
           const optedIn = d.showOnLeaderboard === true;
-          setMyEntry({ uid: currentUid, displayName: optedIn ? (d.displayName ?? null) : null, photoURL: optedIn ? (d.photoURL ?? null) : null, weeklyEcoScore: d.weeklyEcoScore ?? 0, showOnLeaderboard: optedIn, isCurrentUser: true, rank: 999 });
+          // User not in top 50 — compute their rank from their score vs leaderboard
+          const myScore = d.weeklyEcoScore ?? 0;
+          const usersAbove = entries.filter(e => e.weeklyEcoScore > myScore).length;
+          const computedRank = usersAbove + 1;
+          setMyEntry({ uid: currentUid, displayName: optedIn ? (d.displayName ?? null) : null, photoURL: optedIn ? (d.photoURL ?? null) : null, weeklyEcoScore: myScore, showOnLeaderboard: optedIn, isCurrentUser: true, rank: computedRank });
         }
       }
     } catch (e) {
@@ -423,8 +434,10 @@ export default function CommunityScreen() {
           const prevJoined: string[]    = prev.joinedIds   ?? [];
           const prevCompleted: string[] = prev.completedIds ?? [];
           const missedIds = prevJoined.filter(id => !prevCompleted.includes(id));
-          if (missedIds.length > 0) {
-            // Fire a single "you had unfinished challenges" notification
+          if (missedIds.length > 0 && !missedNotifFiredRef.current) {
+            // Fire at most once per app session — guard prevents re-firing on
+            // every pull-to-refresh or tab navigation while the week has no doc.
+            missedNotifFiredRef.current = true;
             await sendMissedChallengeNotification(missedIds.length).catch(() => {});
           }
         }
@@ -941,7 +954,7 @@ export default function CommunityScreen() {
           <View style={styles.privacyNote}>
             <FontAwesome6 name="shield-halved" size={11} color={colors.tint} />
             <Text style={[styles.privacyText, { color: colors.text }]}>
-              Progress is private. Only completions are visible to others.
+              Challenge progress and completions are private — only you can see them.
             </Text>
           </View>
         </ScrollView>

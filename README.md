@@ -671,6 +671,8 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 
 > **After a clean prebuild:** `npx expo prebuild --clean` resets `android/gradle.properties`. Re-add `minSdkVersion=26`.
 
+> **Expo Go is not supported** — EcoVerse uses native modules (Victory Native v41 Skia, Health Connect, `@react-native-community/datetimepicker`) that require a custom dev build. For development: uninstall the release APK first (signing conflict), then use `npx expo run:android` over USB with USB debugging enabled.
+
 > **app.json:** Add `"expo-notifications"` to the plugins array for notification support.
 
 ---
@@ -745,6 +747,13 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Bill saving compared previous reading vs current (gameable) | `calculateSaving()` used `previousReading` as comparison when available | Comparison always uses `getRegionalBaseline()` regardless of history; previous reading shown as display-only context in UI |
 | Challenge completion silent (no feedback) | No modal or haptic on completion; tokens credited but no user acknowledgement | `ChallengeCompleteModal` fires with haptic on goal.target crossed; `firedCompletions` ref prevents re-showing |
 | Community 'Live' badge shows when offline | No network state tracked | `NetInfo.addEventListener` drives badge: green 'Live' / red 'Offline' |
+| Google Sign-In `DEVELOPER_ERROR` on release APK | Release APK and dev build have different signing keys; only one SHA-1 registered in Firebase | Added both debug SHA-1 (`./gradlew signingReport`) and release SHA-1 (`eas credentials → Keystore`) to Firebase Console → Project Settings → Android App (`com.amirah.ecoverse`). Downloaded and replaced `google-services.json` |
+| Double bottom padding above tab bar on all tab screens | `SafeAreaView` without `edges` prop adds bottom inset on top of the tab bar's own inset handling in `(tabs)/_layout.tsx` | Added `edges={['top']}` to `SafeAreaView` on `index.tsx`, `activity.tsx`, `stats.tsx`, `profile.tsx`. `community.tsx` already correct |
+| `EcoScoreModal`, `AIModal`, `StreakCalendarSheet` render behind tab bar; phone nav becomes transparent | Modals rendered inside `SafeAreaView` which clips their z-order below the tab bar | Wrapped each screen in outer `View`; moved affected modals outside `SafeAreaView`; `SafeAreaView edges={['top']}` kept around scroll content only. `LevelUpModal` and `StreakMilestoneModal` unaffected — use React Native `Modal` which renders above everything |
+| Onboarding step 6 footnote appears inside last region row when button navigation active | `listWrap` had `flex:1` inside fixed-height `View`; button nav adds extra height pushing footnote into overlap | Outer `View` replaced with `ScrollView`; `flex:1` removed from `listWrap` |
+| Onboarding step 7 content cramps together on smaller screens | `justifyContent:'space-between'` with fixed `paddingTop:50` squeezes items on short screens | Outer `View` replaced with `ScrollView` using `gap:28` in `contentContainerStyle` |
+| Activity screen empty state sits too low | `emptyState` style had `paddingTop:60` pushing centred content down | Replaced `paddingTop:60` with `marginTop:-40` |
+| Dead `streakMilestone` state in `(tabs)/_layout.tsx` | `const [streakMilestone, setStreakMilestone]` declared but never read or updated | Removed unused state declaration |
 
 ---
 
@@ -777,12 +786,24 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 - [x] Firebase Auth email templates configured (verification + password reset, EcoVerse branding)
 - [x] Gemini API key moved out of codebase — stored as EAS environment variable (`eas env:create`); old exposed key revoked
 - [x] Replace `FEEDBACK_FORM_URL` in `settings.tsx` with actual Google Form / Typeform link
-- [ ] Test on 360dp-wide emulator (Pixel 3a size)
+- [ ] Test on 360dp-wide emulator (Pixel 3a size) — tested on Samsung Galaxy A55 5G; Pixel 3a emulator not run due to memory constraints (documented as limitation in thesis)
 - [ ] Remove remaining debug `console.warn` statements in `aiSuggestions.ts`
 - [ ] Play Store listing — icon, screenshots, description, Privacy Policy URL
 - [ ] © 2026 Amirah Yahaya. All rights reserved. to About section in Settings
 
 ---
+
+
+---
+
+## ⚠️ Known Issues (Testing Phase — Not Yet Fixed)
+
+These were identified after the APK was sent out for testing and are deferred to a subsequent build.
+
+| Issue | Detail |
+|-------|--------|
+| Modal bottom edge behind phone navigation bar | Bottom-sheet modals (`EcoScoreModal`, `AIModal`, `StreakCalendarSheet`) still clip behind the system navigation bar in three-button nav mode. Moving them outside `SafeAreaView` fixed the full-overlay issue but the sheet's own `paddingBottom` doesn't add `useSafeAreaInsets().bottom`. Fix: read insets inside each modal and add to `paddingBottom`. |
+| Leaderboard rank number skips + sticky "You" row inconsistent | When two users share the same EcoScore, the main list correctly applies competition ranking (both show rank 2; rank 3 is skipped). However the sticky "You" row appears to derive its rank independently and shows rank 3 instead of rank 4, and the fourth-place user row may show an inconsistent rank. Root cause: sticky row and main list rows compute display rank from different sources. |
 
 ## 👩🏽‍💻 Author
 

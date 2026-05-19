@@ -309,7 +309,7 @@ export default function AddActivityScreen() {
     const todayStr = toLocalISOString(selectedDate);
     const alreadyLoggedToday = activities.some((a: any) => a.date === todayStr);
     const newStreak = alreadyLoggedToday ? streak : streak + 1;
-    const STREAK_MILESTONES = [3, 7, 14, 30];
+    const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
     const hitMilestone = STREAK_MILESTONES.includes(newStreak) && !alreadyLoggedToday;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

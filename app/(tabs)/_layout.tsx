@@ -13,7 +13,10 @@ import { FontAwesome6 as FA6 } from '@expo/vector-icons';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { LevelUpModal } from '@/components/LevelUpModal';
 import { StreakMilestoneModal } from '@/components/StreakMilestoneModal';
+import { AchievementModal } from '@/components/AchievementModal';
+import type { AchievementInfo } from '@/components/AchievementModal';
 import { playSound } from '@/src/utils/sfx';
+import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function isThisWeek(date: string) {
@@ -41,6 +44,10 @@ export default function TabLayout() {
   const streakMilestonePending = useActivityStore((s) => s.streakMilestonePending);
   const pendingStreakDays      = useActivityStore((s) => s.pendingStreakDays);
   const clearStreakMilestone   = useActivityStore((s) => s.clearStreakMilestone);
+  const achievementPending     = useActivityStore((s) => s.achievementPending);
+  const pendingAchievementId   = useActivityStore((s) => s.pendingAchievementId);
+  const clearAchievement       = useActivityStore((s) => s.clearAchievement);
+  const [pendingAchievement, setPendingAchievement] = useState<AchievementInfo | null>(null);
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
 
   const dynamicTarget = userProfile?.weeklyTarget ?? 500;
@@ -100,6 +107,14 @@ export default function TabLayout() {
       if (dismissTimeout.current) clearTimeout(dismissTimeout.current);
     };
   }, []);
+
+  // Resolve pending achievement id → full AchievementInfo for the modal
+  useEffect(() => {
+    if (achievementPending && pendingAchievementId) {
+      const info = ACHIEVEMENT_MAP[pendingAchievementId] ?? null;
+      setPendingAchievement(info);
+    }
+  }, [achievementPending, pendingAchievementId]);
 
   const weeklyActivityCount = activities.filter(a => a.date && isThisWeek(a.date)).length;
 
@@ -206,6 +221,12 @@ export default function TabLayout() {
         visible={streakMilestonePending}
         streakDays={pendingStreakDays}
         onClose={clearStreakMilestone}
+      />
+
+      <AchievementModal
+        visible={achievementPending}
+        achievement={pendingAchievement}
+        onClose={() => { clearAchievement(); setPendingAchievement(null); }}
       />
     </View>
   );
