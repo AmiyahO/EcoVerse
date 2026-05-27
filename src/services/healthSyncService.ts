@@ -156,9 +156,9 @@ export async function fetchSyncCandidates(
     }
   }
   for (const existing of currentActivities) {
-    // Only count session-based HC imports here (hcId is a session ID, not a pedometer day ID).
-    // Pedometer-based imports (hcId starts with 'steps-') are tracked separately
-    // via alreadyImportedSteps below — counting them here too would double-count.
+    // Only count session-based HC imports (hcId does NOT start with 'steps-').
+    // Pedometer imports are tracked separately via alreadyImportedSteps — adding
+    // them here too would double-count and make deltaSteps go negative.
     const existingHcId = (existing as any).hcId ?? '';
     const isPedometerImport = existingHcId.startsWith('steps-');
     if (existing.category === 'walking' && (existing as any).source === 'health_connect' && !isPedometerImport) {
@@ -215,14 +215,15 @@ export async function fetchSyncCandidates(
 
     const isPartial = totalAlreadyAccountedSteps > 0;
 
-    const syntheticActivity: HCActivity = {
-      id:        isPartial ? `${day.id}-delta-${Date.now()}` : day.id,
-      type:      'walking',
-      startTime: day.startTime,
-      endTime:   day.endTime,
-      steps:     Math.max(0, deltaSteps),
-      distance:  deltaDistance,
-      source:    isPartial ? 'pedometer-delta' : 'pedometer',
+    const syntheticActivity: HCActivity & { originalDayId?: string } = {
+      id:            isPartial ? `${day.id}-delta-${Date.now()}` : day.id,
+      originalDayId: isPartial ? day.id : undefined,
+      type:          'walking',
+      startTime:     day.startTime,
+      endTime:       day.endTime,
+      steps:         Math.max(0, deltaSteps),
+      distance:      deltaDistance,
+      source:        isPartial ? 'pedometer-delta' : 'pedometer',
     };
 
     const activityLike = {
@@ -276,7 +277,9 @@ export async function commitSync(
       category: hca.type,
       date:     toLocalISOString(new Date(hca.startTime)),
       source:   'health_connect',
-      hcId:     hca.id,
+      // For delta pedometer entries, store the original day ID as hcId so future
+      // delta calculations accumulate correctly across multiple partial imports.
+      hcId:     (hca as any).originalDayId ?? hca.id,
       hcSource: hca.source ?? null,
     };
 
