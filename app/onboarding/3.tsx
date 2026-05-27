@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { useEffect, useRef } from 'react';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { FontAwesome6 } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const CATEGORIES = [
   { icon: 'person-walking', color: '#4CAF50', name: 'Walking',     tokens: '1 token / 100 steps' },
@@ -12,12 +13,13 @@ const CATEGORIES = [
   { icon: 'droplet',        color: '#26C6DA', name: 'Water',       tokens: '1 token / 10 L saved' },
 ];
 
+// Must exactly match RANKS in src/utils/levelSystem.ts (MCO icons)
 const RANKS = [
-  { icon: 'seedling', color: '#81C784' },
-  { icon: 'leaf',     color: '#4CAF50' },
-  { icon: 'tree',     color: '#2E7D32' },
-  { icon: 'shield',   color: '#1B5E20' },
-  { icon: 'star',     color: '#26C6DA' },
+  { icon: 'seed',            color: '#A5D6A7', lib: 'MCO' },
+  { icon: 'sprout',          color: '#66BB6A', lib: 'MCO' },
+  { icon: 'tree',            color: '#43A047', lib: 'MCO' },
+  { icon: 'pine-tree',       color: '#2E7D32', lib: 'MCO' },
+  { icon: 'shield-half-full',color: '#00897B', lib: 'MCO' },
 ];
 
 export default function OnboardingStep3() {
@@ -103,7 +105,7 @@ export default function OnboardingStep3() {
         <View style={styles.rankRow}>
           {RANKS.map((r, i) => (
             <View key={i} style={[styles.rankChip, { backgroundColor: r.color + '20' }]}>
-              <FontAwesome6 name={r.icon as any} size={14} color={r.color} />
+              <MaterialCommunityIcons name={r.icon as any} size={14} color={r.color} />
             </View>
           ))}
           <Text style={[styles.rankMore, { color: tokenText }]}>+3 more</Text>

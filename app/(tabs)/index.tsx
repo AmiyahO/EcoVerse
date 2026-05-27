@@ -710,7 +710,7 @@ export default function HomeScreen() {
             </View>
             <View style={[styles.co2Divider, { backgroundColor: colors.surfaceMuted }]} />
             <View style={styles.co2Item}>
-              <ThemedText style={[styles.statLabel, { color: colors.text }]}>vs Last Week</ThemedText>
+              <ThemedText style={[styles.statLabel, { color: colors.text }]} numberOfLines={1}>vs Last Week</ThemedText>
               {comparison.direction === 'neutral' ? (
                 <ThemedText style={[styles.statValue, { color: colors.text, opacity: 0.4 }]}>—</ThemedText>
               ) : (
@@ -857,7 +857,7 @@ const styles = StyleSheet.create({
   card:         { padding: 16, borderRadius: 16, gap: 12 },
   cardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   co2Row:       { flexDirection: 'row', alignItems: 'stretch' },
-  co2Item:      { flex: 1, gap: 4, alignItems: 'center', justifyContent: 'space-between' },
+  co2Item:      { flex: 1, gap: 4, alignItems: 'center', justifyContent: 'space-between', minWidth: 0 },
   co2Divider:   { width: 1, height: 40, marginHorizontal: 8 },
   statLabel:    { fontSize: 12, opacity: 0.55, textAlign: 'center' },
   statValue:    { fontSize: 24, fontWeight: '700', textAlign: 'center' },

@@ -86,20 +86,6 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      {/* Confetti */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={confettiRef}
-          count={70}
-          origin={{ x: SCREEN_W / 2, y: -10 }}
-          autoStart={false}
-          fadeOut
-          explosionSpeed={300}
-          fallSpeed={3000}
-          colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#AB47BC', '#26C6DA', '#ffffff']}
-        />
-      </View>
-
       <View style={styles.overlay}>
         <Animated.View
           style={[
@@ -171,6 +157,20 @@ export function LevelUpModal({ visible, newLevel, totalTokens, onClose }: Props)
             Keep logging to reach Level {newLevel + 1}
           </Text>
         </Animated.View>
+
+        {/* Confetti rendered INSIDE overlay so it sits above the card on Android */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { elevation: 10, zIndex: 10 }]}>
+          <ConfettiCannon
+            ref={confettiRef}
+            count={70}
+            origin={{ x: SCREEN_W / 2, y: -10 }}
+            autoStart={false}
+            fadeOut
+            explosionSpeed={300}
+            fallSpeed={3000}
+            colors={['#66BB6A', '#F9A825', '#42A5F5', '#EF5350', '#AB47BC', '#26C6DA', '#ffffff']}
+          />
+        </View>
       </View>
     </Modal>
   );

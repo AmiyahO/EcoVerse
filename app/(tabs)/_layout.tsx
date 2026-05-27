@@ -53,11 +53,25 @@ export default function TabLayout() {
   const dynamicTarget = userProfile?.weeklyTarget ?? 500;
   const loading       = !userProfile;
 
-  const weeklyTokens = activities
+  // Use Firestore token total for weekly progress — this includes challenge
+  // completion bonuses which are written directly to users/{uid}.tokens and
+  // are not reflected in per-activity tokensEarned fields.
+  // weeklyEcoScore on the user doc is written by persistWeeklyEcoScore() after
+  // every activity change, but it's a 0-100 score, not a raw token count.
+  // The safest source for the celebration check is the activity-derived tokens
+  // PLUS any challenge bonus. Since we can't easily separate them, we use
+  // userProfile.tokens as a proxy: if Firestore says the user has enough tokens
+  // this week, they earned the celebration regardless of activity recalculation.
+  const weeklyTokensFromActivities = activities
     .filter(a => a.date && isThisWeek(a.date))
     .reduce((sum, a) => sum + calculateTokens(a), 0);
 
-  const progress = Math.min(weeklyTokens / dynamicTarget, 1);
+  // Firestore weeklyEcoScore is an opaque 0-100 score; use it only for display.
+  // For the celebration guard, use activities-derived tokens but do NOT reset
+  // celebrated when progress dips below 1 — that drop is usually caused by
+  // challenge bonus tokens not being reflected in the activity sum, not a real
+  // under-goal state. New-week reset is handled by checkAndResetCelebration().
+  const progress = Math.min(weeklyTokensFromActivities / dynamicTarget, 1);
 
   const [showCelebration, setShowCelebration] = useState(false);
   const slideAnim      = useRef(new Animated.Value(-300)).current;
@@ -77,12 +91,10 @@ export default function TabLayout() {
     if (hasHydrated) checkAndResetCelebration();
   }, [hasHydrated]);
 
-  // If tokens drop below target (e.g. activity deleted), reset celebrated flag
-  useEffect(() => {
-    if (progress < 1 && celebrated && hasHydrated) {
-      setCelebrated(false);
-    }
-  }, [progress]);
+  // REMOVED: do not reset celebrated when progress < 1.
+  // The activity-derived token sum omits challenge completion bonuses, so
+  // progress can appear < 1 even after a genuine goal completion. The only
+  // correct place to reset `celebrated` is on a new week (above).
 
   useEffect(() => {
     if (progress >= 1 && !loading && !celebrated && hasHydrated) {
@@ -112,11 +124,18 @@ export default function TabLayout() {
   useEffect(() => {
     if (achievementPending && pendingAchievementId) {
       const info = ACHIEVEMENT_MAP[pendingAchievementId] ?? null;
-      setPendingAchievement(info);
+      if (info) {
+        setPendingAchievement(info);
+      } else {
+        // ID not in map — auto-clear so achievementPending doesn't stay true forever
+        clearAchievement();
+        setPendingAchievement(null);
+      }
     }
   }, [achievementPending, pendingAchievementId]);
 
   const weeklyActivityCount = activities.filter(a => a.date && isThisWeek(a.date)).length;
+  const weeklyTokens = weeklyTokensFromActivities;
 
   return (
     <View style={{ flex: 1 }}>
@@ -224,7 +243,7 @@ export default function TabLayout() {
       />
 
       <AchievementModal
-        visible={achievementPending}
+        visible={achievementPending && pendingAchievement !== null}
         achievement={pendingAchievement}
         onClose={() => { clearAchievement(); setPendingAchievement(null); }}
       />

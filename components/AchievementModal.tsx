@@ -91,20 +91,6 @@ export function AchievementModal({ visible, achievement, onClose }: Props) {
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      {/* Confetti */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ConfettiCannon
-          ref={confettiRef}
-          count={60}
-          origin={{ x: SCREEN_W / 2, y: -10 }}
-          autoStart={false}
-          fadeOut
-          explosionSpeed={280}
-          fallSpeed={3200}
-          colors={[achievement.color, '#F9A825', '#42A5F5', '#EF5350', '#26C6DA', '#ffffff']}
-        />
-      </View>
-
       <View style={styles.overlay}>
         <Animated.View style={[
           styles.card,
@@ -166,6 +152,20 @@ export function AchievementModal({ visible, achievement, onClose }: Props) {
             View all badges in your Achievements
           </Text>
         </Animated.View>
+
+        {/* Confetti rendered INSIDE overlay so it sits above the card on Android */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { elevation: 10, zIndex: 10 }]}>
+          <ConfettiCannon
+            ref={confettiRef}
+            count={60}
+            origin={{ x: SCREEN_W / 2, y: -10 }}
+            autoStart={false}
+            fadeOut
+            explosionSpeed={280}
+            fallSpeed={3200}
+            colors={[achievement.color, '#F9A825', '#42A5F5', '#EF5350', '#26C6DA', '#ffffff']}
+          />
+        </View>
       </View>
     </Modal>
   );

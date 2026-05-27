@@ -30,14 +30,16 @@ const ELECTRICITY_PATTERNS = [
 ];
 
 const WATER_PATTERNS = [
-  // "4800 L", "4800 litres", "4800 liters"
+  // "4800 L", "4800 litres", "4800 liters" — explicit unit (highest confidence)
   /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:litres?|liters?|L\b)/gi,
-  // "m³" cubic metres — convert to litres (1 m³ = 1000 L)
+  // "m³" or "m3" cubic metres — convert to litres (1 m³ = 1000 L)
   /(\d{1,4}(?:[.,]\d{1,3})?)\s*m[³3]/gi,
-  // "consumption: 4800"
-  /(?:consumption|used|usage)[:\s]+(\d{3,6}(?:[.,]\d{1,2})?)/gi,
-  // Standalone 3-6 digit numbers
-  /\b(\d{4,5})\b/g,
+  // "consumption: 4800", "used: 4800", "usage 4800" — keyword context
+  /(?:consumption|used|usage|water|quantity|volume|amount)[:\s]+(\d{2,6}(?:[.,]\d{1,2})?)/gi,
+  // Standalone 3-6 digit numbers — most water bills just print the number
+  // Range: 200–999999 L (loosened lower bound from 4-digit to 3-digit; a
+  // household might save only a few hundred litres in a low-use month)
+  /\b(\d{3,6})\b/g,
 ];
 
 function parseNumber(raw: string): number {
@@ -63,10 +65,10 @@ function extractCandidates(
 
       if (isNaN(value) || seen.has(value)) continue;
 
-      // Range validation
+      // Range validation — keeps out obvious non-readings
       const validRange = type === 'electricity'
         ? value >= 10 && value <= 99999
-        : value >= 100 && value <= 999999;
+        : value >= 200 && value <= 999999;
 
       if (!validRange) continue;
 
