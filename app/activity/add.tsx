@@ -1,30 +1,42 @@
 // activity/add.tsx
+import HealthConnectBanner from '@/components/health-connect-banner';
+import OCRCandidatePicker, { OCRNoResultSheet } from '@/components/ocr-candidate-picker';
 import { ThemedText } from '@/components/themed-text';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/hooks/useAppTheme';
+import { auth, db } from '@/src/firebase/config';
+import { OCRCandidate, scanBillFromCamera } from '@/src/services/billOCR';
+import {
+  BillReading,
+  calculateSaving,
+  getLastBill,
+  saveBillReading,
+} from '@/src/services/billService';
 import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
+import {
+  calculateCarbonSaved,
+  calculateFinalTokens, calculateStreak,
+  calculateTokens,
+  CATEGORY_COLORS,
+  getRegionalBaseline,
+  persistWeeklyEcoScore
+} from '@/src/utils/ecoLogic';
+import { playSound } from '@/src/utils/sfx';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useEffect, useState, useRef } from 'react';
+import { addDoc, collection, doc, increment, updateDoc } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Pressable, StyleSheet, TextInput, View,
-  Alert, ActivityIndicator, ScrollView, Platform,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet, TextInput, View,
 } from 'react-native';
-import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { db, auth } from '@/src/firebase/config';
-import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import {
-  calculateFinalTokens, calculateStreak, calculateCarbonSaved, calculateTokens,
-  BASELINES, CATEGORY_COLORS, persistWeeklyEcoScore, getRegionalBaseline,
-} from '@/src/utils/ecoLogic';
-import {
-  getLastBill, calculateSaving, saveBillReading, BillReading,
-} from '@/src/services/billService';
-import { scanBillFromCamera, OCRCandidate } from '@/src/services/billOCR';
-import OCRCandidatePicker, { OCRNoResultSheet } from '@/components/ocr-candidate-picker';
-import HealthConnectBanner from '@/components/health-connect-banner';
-import { playSound } from '@/src/utils/sfx';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking',     label: 'Walking',     icon: 'person-walking' },
@@ -39,7 +51,7 @@ function isBillCategory(c: ActivityCategory | null): c is BillCategory {
   return c === 'electricity' || c === 'water';
 }
 
-// ── Date helpers (same as edit.tsx — no separate dateUtils needed) ────────────
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
 function toLocalISOString(date: Date): string {
   const y   = date.getFullYear();
@@ -48,7 +60,7 @@ function toLocalISOString(date: Date): string {
   const h   = String(date.getHours()).padStart(2, '0');
   const min = String(date.getMinutes()).padStart(2, '0');
   const s   = String(date.getSeconds()).padStart(2, '0');
-  return `${y}-${mo}-${d}T${h}:${min}:${s}`; // local time, no Z
+  return `${y}-${mo}-${d}T${h}:${min}:${s}`;
 }
 
 function formatDisplayDate(date: Date): string {
@@ -92,8 +104,8 @@ export default function AddActivityScreen() {
   const [loadingBill, setLoadingBill] = useState(false);
   const [saving, setSaving]           = useState(false);
   const [hcAutoFilled, setHcAutoFilled] = useState(false);
+  const [hcId, setHcId]               = useState<string | undefined>(undefined);
   const saveInProgress = useRef(false);
-  const [hcId, setHcId] = useState<string | undefined>(undefined);
 
   // Date state — defaults to today, user can back-date
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -107,6 +119,9 @@ export default function AddActivityScreen() {
 
   const lastFetchedCategory = useRef<string | null>(null);
 
+  // Scroll ref for keyboard avoidance on bill fields
+  const scrollRef = useRef<ScrollView>(null);
+
   const resetInputs = () => {
     setSteps('');
     setDistance('');
@@ -114,11 +129,11 @@ export default function AddActivityScreen() {
     setBillReading('');
     setLastBill(null);
     setHcAutoFilled(false);
+    setHcId(undefined);
     lastFetchedCategory.current = null;
     setOcrCandidates([]);
     setShowPicker(false);
     setShowNoResult(false);
-    setHcId(undefined);
   };
 
   useEffect(() => {
@@ -136,7 +151,6 @@ export default function AddActivityScreen() {
   const onDateChange = (_: DateTimePickerEvent, date?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
     if (date) {
-      // Clamp to today — no future dates
       const today = new Date();
       today.setHours(23, 59, 59, 999);
       setSelectedDate(date > today ? today : date);
@@ -178,8 +192,6 @@ export default function AddActivityScreen() {
     const reading = parseFloat(billReading);
     if (!billReading || isNaN(reading) || reading <= 0) return null;
     const regionalBaseline = getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG');
-    // Always compare against the regional baseline — consistent, ungameable anchor.
-    // Previous reading is shown to the user as informational context only.
     return calculateSaving(category, reading, null, regionalBaseline);
   };
 
@@ -198,7 +210,6 @@ export default function AddActivityScreen() {
           return;
         }
 
-        // Always baseline vs regional average — previous reading shown as info only
         const regionalBaseline = getRegionalBaseline(category, userRegion ?? 'GLOBAL_AVG');
         const { savedAmount, basedOnPrevious } = calculateSaving(
           category, reading, null, regionalBaseline,
@@ -256,7 +267,6 @@ export default function AddActivityScreen() {
       litersSaved,
       billId,
       source: hcAutoFilled ? 'health_connect' : 'manual',
-      // Use the selected date (YYYY-MM-DD) so backdated entries land on the right day
       date: toLocalISOString(selectedDate),
       hcId: hcAutoFilled ? hcId : undefined,
     };
@@ -278,9 +288,6 @@ export default function AddActivityScreen() {
       totalCarbonSaved: increment(carbonSaved),
     });
 
-    // Update leaderboard field — uses all activities including the new one
-    // (Zustand store will reflect it via Firestore onSnapshot shortly, but
-    //  we derive the score locally here to avoid a round-trip delay)
     const updatedActivities = [...activities, { ...newActivityData, id: 'pending' } as any];
     await persistWeeklyEcoScore(
       updatedActivities,
@@ -288,9 +295,6 @@ export default function AddActivityScreen() {
       userRegion,
     );
 
-    // ── Determine if a celebration should fire BEFORE navigating ──
-    // We calculate it here but trigger it AFTER router.back() settles,
-    // so the activity screen is fully mounted when the modal appears.
     let shouldCelebrate = false;
     if (!celebrated) {
       const weeklyTarget = userProfile?.weeklyTarget ?? 500;
@@ -307,10 +311,6 @@ export default function AddActivityScreen() {
       }
     }
 
-    // ── Streak milestone check ────────────────────────────────────────────────
-    // Calculate what the streak will be AFTER this activity is saved.
-    // The store hasn't updated yet so we simulate it by checking if today
-    // would be a new streak day (not already in the current streak).
     const todayStr = toLocalISOString(selectedDate);
     const alreadyLoggedToday = activities.some((a: any) => a.date === todayStr);
     const newStreak = alreadyLoggedToday ? streak : streak + 1;
@@ -320,13 +320,8 @@ export default function AddActivityScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     playSound('activity-save').catch(() => {});
 
-    // Navigate back first — let the screen transition complete (~400ms),
-    // THEN trigger celebrations so they don't fire mid-animation.
     router.back();
-   // setCelebrated is handled by _layout.tsx when it detects progress >= 1
-// Do NOT reset it here — that causes the celebration to re-fire on foreground
     if (hitMilestone) {
-      // Stagger slightly after weekly goal if both fire simultaneously
       setTimeout(() => triggerStreakMilestone(newStreak), shouldCelebrate ? 800 : 420);
     }
   };
@@ -348,7 +343,7 @@ export default function AddActivityScreen() {
     if (data.steps    !== undefined) setSteps(String(data.steps));
     if (data.distance !== undefined) setDistance(String(data.distance));
     if (data.duration !== undefined) setDuration(String(data.duration));
-    if (data.hcId !== undefined) setHcId(data.hcId);
+    if (data.hcId     !== undefined) setHcId(data.hcId);
     setHcAutoFilled(true);
   };
 
@@ -357,11 +352,17 @@ export default function AddActivityScreen() {
   const handleDurationChange = (v: string) => { setDuration(v); if (v !== duration) setHcAutoFilled(false); };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+    >
       <ScrollView
+        ref={scrollRef}
         style={{ flex: 1 }}
         contentContainerStyle={[styles.container, { paddingBottom: Math.max(40, insets.bottom + 24) }]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
 
         {/* ── Category selection ── */}
@@ -407,7 +408,7 @@ export default function AddActivityScreen() {
           </View>
         </View>
 
-        {/* ── Date picker — below category so user picks what first, then when ── */}
+        {/* ── Date picker ── */}
         <View style={styles.section}>
           <ThemedText type="defaultSemiBold" style={{ color: colors.text }}>Date</ThemedText>
           <Pressable
@@ -463,6 +464,8 @@ export default function AddActivityScreen() {
                 placeholder="e.g. 4500"
                 placeholderTextColor={colors.text + '55'}
                 editable={!stepsLocked}
+                returnKeyType="done"
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
                 style={[
                   styles.input,
                   { backgroundColor: colors.surface, color: colors.text },
@@ -486,6 +489,8 @@ export default function AddActivityScreen() {
                 placeholder="e.g. 3.2"
                 placeholderTextColor={colors.text + '55'}
                 editable={!distanceLocked}
+                returnKeyType="done"
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
                 style={[
                   styles.input,
                   { backgroundColor: colors.surface, color: colors.text },
@@ -499,14 +504,14 @@ export default function AddActivityScreen() {
         {/* ── Running ── */}
         {category === 'running' && (
           <>
-            <Input label="Distance (km)"      value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} />
-            <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25"  colors={colors} />
+            <Input label="Distance (km)"      value={distance} setValue={handleDistanceChange} placeholder="e.g. 3.2" colors={colors} scrollRef={scrollRef} />
+            <Input label="Duration (minutes)" value={duration} setValue={handleDurationChange} placeholder="e.g. 25"  colors={colors} scrollRef={scrollRef} />
           </>
         )}
 
         {/* ── Cycling ── */}
         {category === 'cycling' && (
-          <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 5" colors={colors} />
+          <Input label="Distance (km)" value={distance} setValue={handleDistanceChange} placeholder="e.g. 5" colors={colors} scrollRef={scrollRef} />
         )}
 
         {/* ── Bill reading (electricity / water) ── */}
@@ -566,6 +571,8 @@ export default function AddActivityScreen() {
                   keyboardType="numeric"
                   placeholder={category === 'electricity' ? 'e.g. 320' : 'e.g. 4800'}
                   placeholderTextColor={colors.text + '55'}
+                  returnKeyType="done"
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
                   style={[styles.input, styles.inputFlex, { backgroundColor: colors.surface, color: colors.text }]}
                 />
                 <Pressable
@@ -668,15 +675,15 @@ export default function AddActivityScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 function Input({
-  label, value, setValue, placeholder, colors,
+  label, value, setValue, placeholder, colors, scrollRef,
 }: {
   label: string; value: string; setValue: (v: string) => void;
-  placeholder: string; colors: any;
+  placeholder: string; colors: any; scrollRef?: React.RefObject<ScrollView | null>;
 }) {
   return (
     <View style={styles.field}>
@@ -687,6 +694,8 @@ function Input({
         keyboardType="numeric"
         placeholder={placeholder}
         placeholderTextColor={colors.text + '55'}
+        returnKeyType="done"
+        onFocus={() => scrollRef && setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
         style={[styles.input, { backgroundColor: colors.surface, color: colors.text }]}
       />
     </View>
@@ -694,11 +703,10 @@ function Input({
 }
 
 const styles = StyleSheet.create({
-  container:  { padding: 16, gap: 20, paddingBottom: 40 }, // base; overridden inline
+  container:  { padding: 16, gap: 20, paddingBottom: 40 },
   section:    { gap: 10 },
   grid:       { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
 
-  // Date picker button — matches edit.tsx style
   dateBtn: {
     flexDirection: 'row', alignItems: 'center',
     gap: 10, padding: 14, borderRadius: 12, borderWidth: 1.5,
