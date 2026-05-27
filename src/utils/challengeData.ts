@@ -182,7 +182,15 @@ export function getChallengeProgress(ch: Challenge, weekActivities: any[]): numb
 
   switch (ch.goal.metric) {
     case 'steps':
-      return relevant.reduce((s, a) => s + (a.steps ?? 0), 0);
+      // Running activities log distance (km) but no steps field.
+      // Derive steps from distance using the standard 1,282 steps/km rate
+      // (same factor used elsewhere in the codebase) so running correctly
+      // contributes to step-metric challenges like Step Sprint.
+      return relevant.reduce((s, a) => {
+        if (a.steps != null && a.steps > 0) return s + a.steps;
+        if (a.distance != null && a.distance > 0) return s + Math.round(a.distance * 1282);
+        return s;
+      }, 0);
 
     case 'distance':
       return relevant.reduce((s, a) => s + (a.distance ?? (a.steps ? a.steps * 0.00078 : 0)), 0);
