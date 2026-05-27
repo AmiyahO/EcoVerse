@@ -202,7 +202,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statsDivider} />
             <View style={styles.miniStat}>
-              <ThemedText style={styles.miniStatVal}>{totalCO2.toFixed(1)}</ThemedText>
+              <ThemedText style={styles.miniStatVal}>{totalCO2.toFixed(2)}</ThemedText>
               <ThemedText style={styles.miniStatLabel}>kg CO₂ saved</ThemedText>
             </View>
           </View>
@@ -276,7 +276,7 @@ export default function ProfileScreen() {
                   </View>
                   {longestStreak > 0 && (() => {
                     const beaten = streak >= longestStreak;
-                    const pillColor = beaten ? '#FFD166' : colors.tint;
+                    const pillColor = beaten ? '#dca729' : colors.tint;
                     return (
                       <View style={[styles.streakBadge, {
                         backgroundColor: pillColor + '20',

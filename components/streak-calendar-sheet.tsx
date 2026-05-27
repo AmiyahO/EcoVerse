@@ -121,17 +121,17 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
                 </ThemedText>
                 {longestStreak > 0 && (
                   <View style={[styles.longestPill, {
-                    backgroundColor: (streak >= longestStreak ? '#FFD166' : colors.tint) + '20',
+                    backgroundColor: (streak >= longestStreak ? '#dca729' : colors.tint) + '20',
                     borderWidth: 1,
-                    borderColor: (streak >= longestStreak ? '#FFD166' : colors.tint) + '45',
+                    borderColor: (streak >= longestStreak ? '#dca729' : colors.tint) + '45',
                   }]}>
                     <FontAwesome6
                       name="trophy"
                       size={10}
-                      color={streak >= longestStreak ? '#FFD166' : colors.tint}
+                      color={streak >= longestStreak ? '#dca729' : colors.tint}
                     />
                     <ThemedText style={[styles.longestText, {
-                      color: streak >= longestStreak ? '#FFD166' : colors.tint,
+                      color: streak >= longestStreak ? '#dca729' : colors.tint,
                     }]}>
                       {streak >= longestStreak ? `PB ${longestStreak}d` : `Best ${longestStreak}d`}
                     </ThemedText>
