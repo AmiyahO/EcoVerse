@@ -345,16 +345,16 @@ Cumulative CO₂ savings are translated into a relatable real-world comparison d
 | Equivalent | kg CO₂ per unit | Source |
 |------------|----------------|--------|
 | Smartphone charge | 0.008 | IEA / Carbon Trust |
-| Kettle boil | 0.027 | DESNZ 2023 |
+| Kettle boil | 0.020 | DESNZ 2023 |
 | Load of laundry | 0.185 | Carbon Trust |
-| km not driven | 0.192 | DESNZ GHG factors 2023 |
+| km not driven | 0.16725 | DESNZ GHG factors 2023 |
 | Plastic bottle | 0.083 | Franklin Associates |
 | Hour of streaming | 0.036 | IEA 2023 |
-| Hot shower (8 min) | 0.262 | 9kW × 0.475 kg/kWh |
+| Hot shower (8 min) | 0.250 | 9kW × 0.196 kg/kWh |
 | km of flying | 0.255 | ICAO per-passenger-km |
-| Hour of AC | 0.580 | 1.5kW × global grid avg |
-| Incandescent bulb (1 hr) | 0.022 | 60W × 0.475 kg/kWh grid avg |
-| kWh of grid electricity | 0.475 | IEA global average 2023 |
+| Hour of AC | 0.553 | 1.5kW × global grid avg |
+| Incandescent bulb (1 hr) | 0.012 | 60W × 1hr x 0.196 kg/kWh grid avg |
+| kWh of grid electricity | 0.473 | IEA global average 2023 |
 | Tree absorbing CO₂ (1 day) | 0.060 | ~22 kg/year ÷ 365 |
 
 Food and diet equivalents intentionally excluded — EcoVerse does not track food consumption.
