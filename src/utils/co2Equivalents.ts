@@ -6,16 +6,17 @@
 //
 // Sources:
 //  - Smartphone charge:    ~0.008 kg CO₂  (IEA / Carbon Trust, 3.5Wh × grid avg)
-//  - Kettle boil:          ~0.027 kg CO₂  (UK avg, 1.5L, ~0.1 kWh, DESNZ 2023)
+//  - Kettle boil:          ~0.020 kg CO₂  (UK avg, 1.5L, ~0.1 kWh × 0.196 kg/kWh, DESNZ 2025 consumed)
 //  - Load of laundry:      ~0.185 kg CO₂  (60°C wash + tumble dry, Carbon Trust)
-//  - km not driven:         0.192 kg CO₂  (avg petrol car, DESNZ GHG factors 2023)
+//  - km not driven:     0.16725 kg CO₂  (UK fleet-average car, unknown fuel: DESNZ 2025 flat file,
+//                                       Cars (by size) > Average car > Unknown, km, kg CO₂e)
 //  - Plastic bottle:       ~0.083 kg CO₂  (500ml PET production, Franklin Associates)
-//  - Incandescent bulb:     ~0.022 kg CO₂  (60W bulb × 1hr × 0.475 kWh avg grid intensity)
+//  - Incandescent bulb:    ~0.012 kg CO₂  (60W bulb × 1hr × 0.196 kg/kWh UK consumed grid, DESNZ 2025)
 //  - Hour of video stream: ~0.036 kg CO₂  (IEA 2023, global avg data centre + network)
-//  - Hot shower (8 min):   ~0.262 kg CO₂  (avg electric shower 9kW × 0.475 kg/kWh)
+//  - Hot shower (8 min):   ~0.250 kg CO₂  (avg electric shower 9kW × 8min/60 × 0.196 kg/kWh UK grid)
 //  - Flight km (economy):   0.255 kg CO₂  (ICAO per-passenger-km, short-haul avg)
-//  - Hour of AC:           ~0.580 kg CO₂  (avg 1.5kW unit × global grid avg 0.475)
-//  - kWh of grid elec:      ~0.475 kg CO₂  (IEA global average grid intensity 2023)
+//  - Hour of AC:           ~0.553 kg CO₂  (avg 1.5kW unit × global grid avg 0.473 kg/kWh, Ember 2025)
+//  - kWh of grid elec:     ~0.473 kg CO₂  (Ember Global Electricity Review 2025, global avg 2024)
 //  - Tree-day absorption:  ~0.060 kg CO₂  (avg deciduous tree, ~22 kg/year ÷ 365)
 
 export interface CO2Equivalent {
@@ -28,16 +29,16 @@ export interface CO2Equivalent {
 
 const EQUIVALENTS: CO2Equivalent[] = [
   { icon: 'mobile-screen-button', kgPerUnit: 0.008,  singular: 'phone charge',                  plural: 'phone charges',                   template: 'powers {n} {label}' },
-  { icon: 'mug-hot',              kgPerUnit: 0.027,  singular: 'kettle boil',                   plural: 'kettle boils',                    template: 'saves the same as {n} {label}' },
+  { icon: 'mug-hot',              kgPerUnit: 0.020,  singular: 'kettle boil',                   plural: 'kettle boils',                    template: 'saves the same as {n} {label}' },
   { icon: 'shirt',                kgPerUnit: 0.185,  singular: 'laundry load',                  plural: 'laundry loads',                   template: 'like skipping {n} {label}' },
-  { icon: 'car',                  kgPerUnit: 0.192,  singular: 'km of driving avoided',         plural: 'km of driving avoided',           template: '{n} {label}' },
+  { icon: 'car',                  kgPerUnit: 0.16725,  singular: 'km of driving avoided',         plural: 'km of driving avoided',           template: '{n} {label}' },
   { icon: 'bottle-water',         kgPerUnit: 0.083,  singular: 'plastic bottle',                plural: 'plastic bottles',                 template: 'offsets {n} {label}' },
-  { icon: 'lightbulb',            kgPerUnit: 0.022,  singular: 'hour of incandescent lighting',  plural: 'hours of incandescent lighting',   template: 'like leaving {n} {label} on' },
+  { icon: 'lightbulb',            kgPerUnit: 0.012,  singular: 'hour of incandescent lighting',  plural: 'hours of incandescent lighting',   template: 'like leaving {n} {label} on' },
   { icon: 'tv',                   kgPerUnit: 0.036,  singular: 'hour of streaming',             plural: 'hours of streaming',              template: 'offsets {n} {label}' },
-  { icon: 'shower',               kgPerUnit: 0.262,  singular: 'hot shower',                    plural: 'hot showers',                     template: 'like skipping {n} {label}' },
+  { icon: 'shower',               kgPerUnit: 0.235,  singular: 'hot shower',                    plural: 'hot showers',                     template: 'like skipping {n} {label}' },
   { icon: 'plane',                kgPerUnit: 0.255,  singular: 'km of flying',                  plural: 'km of flying',                    template: 'avoids {n} {label}' },
-  { icon: 'temperature-high',     kgPerUnit: 0.580,  singular: 'hour of AC',                    plural: 'hours of AC',                     template: 'like switching off AC for {n} {label}' },
-  { icon: 'bolt',                 kgPerUnit: 0.475,  singular: 'kWh of grid electricity',        plural: 'kWh of grid electricity',          template: 'equals {n} {label} saved' },
+  { icon: 'temperature-high',     kgPerUnit: 0.553,  singular: 'hour of AC',                    plural: 'hours of AC',                     template: 'like switching off AC for {n} {label}' },
+  { icon: 'bolt',                 kgPerUnit: 0.473,  singular: 'kWh of grid electricity',        plural: 'kWh of grid electricity',          template: 'equals {n} {label} saved' },
   { icon: 'tree',                 kgPerUnit: 0.060,  singular: 'tree absorbing CO₂ for a day',  plural: 'trees absorbing CO₂ for a day',   template: 'like {n} {label}' },
 ];
 

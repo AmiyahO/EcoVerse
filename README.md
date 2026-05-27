@@ -9,7 +9,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 ## 🎯 Project Objectives
 
 - Allow users to log eco-friendly activities manually with CO₂ and token calculations, including backdating forgotten entries
-- Import activities from Android Health Connect with duplicate prevention — both exercise sessions and daily pedometer step summaries
+- Import activities from Android Health Connect with duplicate prevention — both exercise sessions and daily pedometer step summaries. Health Connect is pre-installed on Android 14+ (API 34+); users on Android 9–13 may need to install it from the Play Store first.
 - Provide real-time progress tracking across a dashboard, stats, and profile
 - Motivate sustained behaviour change through streaks, weekly goals, a global celebration system, and a leveling system
 - Provide a Community screen with a global leaderboard (ranked by weekly EcoScore) and opt-in weekly challenges with privacy-preserving anonymous display
@@ -110,7 +110,10 @@ app/
 │                        #     expo-camera — all properly implemented, re-check on AppState
 │                        #     'active'), 6: Region selection, 7: All Set (updated highlights)
 │
-├── health-connect-setup.tsx   # HC permission flow with per-app instructions
+├── health-connect-setup.tsx   # HC permission flow. Detects Android API level at runtime:
+│                              #   Android 14+ (API 34+): HC pre-installed, no download prompt.
+│                              #   Android 9–13: conditional Play Store link shown only if needed.
+│                              #   Includes per-app setup instructions for 7 fitness apps.
 ├── health-connect-sync.tsx    # Bulk sync — selectable checklist of exercise sessions +
 │                              #   pedometer days, "Import N activities" button. Four-stage
 │                              #   animated success screen. "Go to Dashboard" routes via
@@ -262,16 +265,46 @@ firebase/
 
 ### CO₂ Savings
 
-| Activity | Factor |
-|----------|--------|
-| Walking | 0.192 kg CO₂ per km |
-| Running | 0.192 kg CO₂ per km |
-| Cycling | 0.186 kg CO₂ per km |
-| Electricity | Regional grid intensity × kWh saved |
-| Water | 0.003 kg CO₂ per litre saved |
+| Activity | Factor | Source |
+|----------|--------|--------|
+| Walking | 0.171 kg CO₂ per km | DESNZ 2025 GHG Conversion Factors |
+| Running | 0.171 kg CO₂ per km | DESNZ 2025 GHG Conversion Factors |
+| Cycling | 0.186 kg CO₂ per km | DESNZ 2025 fleet avg × 1.09 upper-medium proxy |
+| Electricity | Regional grid intensity × kWh saved | See table below |
+| Water | 0.003 kg CO₂ per litre saved | Strutt et al. 2008 (blended estimate) |
 
-**Regional electricity intensity (kg CO₂ per kWh):**
-US 0.386 · UK 0.193 · EU 0.276 · India 0.713 · China 0.581 · Global avg 0.475
+**Regional electricity intensity (kg CO₂ per kWh) — DESNZ 2025 / Ember 2025:**
+
+| Region | kg CO₂/kWh |
+|--------|------------|
+| US | 0.380 |
+| UK | 0.207 |
+| EU | 0.213 |
+| India | 0.700 |
+| China | 0.560 |
+| Global avg | 0.473 |
+
+**Regional electricity baselines (kWh/month per household):**
+
+| Region | kWh/month | Source |
+|--------|-----------|--------|
+| US | 899 | US EIA Electric Power Monthly 2022 |
+| UK | 288 | DESNZ / UK Government data Dec 2024 |
+| EU | 285 | Eurostat 2023 (1,545 kWh/capita × 2.3 HH) |
+| India | 97 | NSS Household Consumption Expenditure Survey 2022–23 |
+| China | 247 | NBS 2022 (987 kWh/capita × 3.0 HH ÷ 12) |
+| Global avg | 292 | IEA/WEC ~3,500 kWh/HH/year |
+
+**Regional water baselines (litres/month per household):**
+
+| Region | L/month | Derivation |
+|--------|---------|------------|
+| US | 23,250 | EPA/AWWA: 310 L/person/day × 2.5 persons × 30 |
+| UK | 10,080 | Defra/CCoW 2023–24: 140 L/person/day × 2.4 persons × 30 |
+| EU | 9,936 | WHO/Eurostat: 144 L/person/day × 2.3 persons × 30 |
+| India | 9,000 | Blended urban/rural: ~100 L/person/day × 3.0 persons × 30 |
+| China | 13,500 | Urban China: ~150 L/person/day × 3.0 persons × 30 |
+| Global avg | 15,000 | WHO: ~167 L/person/day × 3.0 persons × 30 |
 
 ### EcoScore
 
@@ -512,6 +545,13 @@ Accessible via the third tab. Two sections via segmented control:
 ## 💚 Health Connect Integration
 
 EcoVerse integrates with Android Health Connect to import steps, distance, and exercise sessions from third-party fitness apps.
+
+**Why Health Connect instead of direct per-app APIs?**  
+Direct integration with individual app APIs (Strava OAuth, Samsung Health SDK, Garmin Connect API, etc.) would require separate auth flows for each service, limit coverage to explicitly supported apps, and miss users relying on the OS pedometer. Health Connect provides a single permission grant covering all installed fitness apps simultaneously, keeps all data on-device, and requires no API keys or per-service credentials.
+
+**Pre-installation status:**
+- **Android 14+ (API 34+):** Health Connect is pre-installed as a system component. No download required.
+- **Android 9–13 (API 28–33):** Health Connect may need to be installed from the Play Store. `health-connect-setup.tsx` detects `Platform.Version` at runtime and only shows the Play Store prompt on older Android versions.
 
 ### Permission Flow
 - `expo-health-connect` config plugin adds required intent filter to the manifest during prebuild

@@ -134,7 +134,7 @@ export default function OnboardingStep5() {
       faIcon: 'heart-pulse',
       color: '#66BB6A',
       name: 'Health & Activity',
-      desc: 'Auto-sync steps and workouts from Google Fit, Samsung Health, Strava and more. No manual entry needed.',
+      desc: 'Auto-sync steps and workouts from Google Fit, Samsung Health, Strava and more. Health Connect is built into Android 14+ — no extra download needed on most devices.',
       granted:  hcGranted,
       loading:  hcLoading,
       onGrant:  isAndroid ? handleGrantHealth : undefined,

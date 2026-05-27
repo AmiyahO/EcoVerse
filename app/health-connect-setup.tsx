@@ -20,6 +20,7 @@ import {
   Animated,
   Image,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -119,15 +120,22 @@ const SUPPORTED_APPS = [
 const HC_PLAY_STORE = 'https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata';
 const HC_PACKAGE    = 'com.google.android.apps.healthdata';
 
+// Android SDK version — used to tailor step 1 copy
+const ANDROID_SDK = Platform.OS === 'android' ? (Platform.Version as number) : 0;
+// Android 14 = API 34. Health Connect is pre-installed from API 34 onwards.
+const HC_PREINSTALLED = ANDROID_SDK >= 34;
+
 // ── Setup steps ──────────────────────────────────────────────────────────────
 const SETUP_STEPS = [
   {
     num: '1',
     icon: <Image source={require('@/assets/images/health-connect.png')} style={{ width: 20, height: 20 }} />,
     color: '#4CAF50',
-    title: 'Install Health Connect',
-    desc: 'Health Connect is Google\'s health data hub. On Android 14+ it\'s built in. On older devices, install it from the Play Store.',
-    action: 'Install / Open',
+    title: HC_PREINSTALLED ? 'Health Connect is ready' : 'Install Health Connect',
+    desc: HC_PREINSTALLED
+      ? 'Your device runs Android 14 or later, so Health Connect is already built in — no download needed.'
+      : 'Health Connect is pre-installed on Android 14+ devices. On your device (Android 9–13) you may need to install it from the Play Store if it isn\'t already present.',
+    action: HC_PREINSTALLED ? null : 'Install / Open',
   },
   {
     num: '2',
@@ -179,16 +187,18 @@ export default function HealthConnectSetupScreen() {
 
     if (status === 'granted') {
       Alert.alert(
-        'Connected!',
+        'Connected',
         'EcoVerse can now read your activity data from Health Connect. Your steps and workouts will auto-fill when you log activities.',
         [{ text: 'Great!', onPress: () => router.back() }]
       );
     } else if (status === 'unavailable') {
       Alert.alert(
         'Health Connect not found',
-        'Please install Health Connect from the Play Store first.',
+        HC_PREINSTALLED
+          ? 'Health Connect should be available on your device. Try opening it from your app drawer, or check for pending system updates.'
+          : 'Health Connect needs to be installed before granting access. Install it from the Play Store — it\'s a free Google app.',
         [
-          { text: 'Install', onPress: () => Linking.openURL(HC_PLAY_STORE) },
+          { text: HC_PREINSTALLED ? 'Open settings' : 'Install from Play Store', onPress: () => Linking.openURL(HC_PLAY_STORE) },
           { text: 'Cancel', style: 'cancel' },
         ]
       );
@@ -243,7 +253,7 @@ export default function HealthConnectSetupScreen() {
           <ThemedText style={[styles.heroDesc, { color: colors.text }]}>
             {isGranted
               ? 'Your steps, runs, and rides are automatically available when you log activities. No manual entry needed.'
-              : 'Connect Health Connect to automatically pull your steps, runs, and rides from Google Fit, Samsung Health, Strava, and more.'}
+              : 'Health Connect is a free, on-device hub built into Android 14+. It lets EcoVerse read your steps, runs, and rides from Google Fit, Samsung Health, Strava, and more — with one permission grant, no extra app needed on most devices.'}
           </ThemedText>
           {isGranted && (
             <Pressable
