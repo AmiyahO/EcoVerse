@@ -93,6 +93,7 @@ export default function AddActivityScreen() {
   const [saving, setSaving]           = useState(false);
   const [hcAutoFilled, setHcAutoFilled] = useState(false);
   const saveInProgress = useRef(false);
+  const [hcId, setHcId] = useState<string | undefined>(undefined);
 
   // Date state — defaults to today, user can back-date
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -117,6 +118,7 @@ export default function AddActivityScreen() {
     setOcrCandidates([]);
     setShowPicker(false);
     setShowNoResult(false);
+    setHcId(undefined);
   };
 
   useEffect(() => {
@@ -256,6 +258,7 @@ export default function AddActivityScreen() {
       source: hcAutoFilled ? 'health_connect' : 'manual',
       // Use the selected date (YYYY-MM-DD) so backdated entries land on the right day
       date: toLocalISOString(selectedDate),
+      hcId: hcAutoFilled ? hcId : undefined,
     };
 
     const tokensEarned = calculateFinalTokens(rawData as any, streak);
@@ -341,10 +344,11 @@ export default function AddActivityScreen() {
 
   const preview = isBillCategory(category) ? previewSaving() : null;
 
-  const handleHCAutoFill = (data: { steps?: number; distance?: number; duration?: number }) => {
+  const handleHCAutoFill = (data: { steps?: number; distance?: number; duration?: number; hcId?: string }) => {
     if (data.steps    !== undefined) setSteps(String(data.steps));
     if (data.distance !== undefined) setDistance(String(data.distance));
     if (data.duration !== undefined) setDuration(String(data.duration));
+    if (data.hcId !== undefined) setHcId(data.hcId);
     setHcAutoFilled(true);
   };
 

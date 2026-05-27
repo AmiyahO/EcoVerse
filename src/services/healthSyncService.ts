@@ -83,18 +83,12 @@ async function updateSyncState(newIds: string[]) {
   if (!uid) return;
   await setDoc(syncDocRef(uid), {
     lastSyncedAt: new Date().toISOString(),
-    importedIds:  newIds,          // full array — Firestore overwrites
-  }, { merge: false });            // replace entirely so array stays clean
+    importedIds:  newIds,
+  }, { merge: false });
 }
 
 // ── Date helpers ────────────────────────────────────────────────────────
 
-/**
- * Convert any Date to a LOCAL ISO string with no trailing Z.
- * JS parses "2026-03-01T14:32:00" as local time, not UTC.
- * HC startTime comes in as UTC ("...Z") — new Date() converts it to local,
- * then this function formats it without Z so Firestore stores local time.
- */
 function toLocalISOString(date: Date): string {
   const y   = date.getFullYear();
   const mo  = String(date.getMonth() + 1).padStart(2, '0');
@@ -102,10 +96,9 @@ function toLocalISOString(date: Date): string {
   const h   = String(date.getHours()).padStart(2, '0');
   const min = String(date.getMinutes()).padStart(2, '0');
   const s   = String(date.getSeconds()).padStart(2, '0');
-  return `${y}-${mo}-${d}T${h}:${min}:${s}`; // local time, no Z
+  return `${y}-${mo}-${d}T${h}:${min}:${s}`;
 }
 
-/** Extract YYYY-MM-DD from any ISO string using LOCAL date, not UTC */
 function localDateKey(iso: string): string {
   const d = new Date(iso);
   const y = d.getFullYear();
@@ -119,16 +112,14 @@ function localDateKey(iso: string): string {
 /**
  * Returns sessions from Health Connect that:
  *   1. Are newer than lastSyncedAt (or last 30 days if never synced)
- *   2. Haven't already been imported (not in importedIds)
+ *   2. Haven't already been imported (not in importedIds), OR are pedometer
+ *      days where there are meaningfully MORE steps since last import
  *   3. Don't overlap with manually-logged activities (within ±2h, same type)
  *
  * Merges two sources:
  *   A. ExerciseSession records — from Strava, Samsung Health, Google Fit etc.
- *      Saved with hcSource field (original app package name) so details.tsx
- *      can display "via Strava" rather than the generic "Health Connect".
- *   B. Daily step summaries — all Steps records written to HC by any app,
- *      aggregated per local calendar day. Suppressed for any date that has a
- *      HC walking session (new or previously imported) to prevent double-counting.
+ *   B. Daily step summaries — aggregated per local calendar day.
+ *      For pedometer days already imported, offers the DELTA if > threshold.
  */
 export async function fetchSyncCandidates(
   currentActivities: Activity[],
@@ -136,13 +127,12 @@ export async function fetchSyncCandidates(
 ): Promise<{ sessions: SyncSession[]; syncState: SyncState }> {
   const syncState = await getSyncState();
 
-  // How far back to look — since last sync, capped at 30 days
   const daysBack = syncState.lastSyncedAt
     ? Math.min(
         30,
         Math.ceil(
           (Date.now() - new Date(syncState.lastSyncedAt).getTime()) / 86400000
-        ) + 1 // +1 buffer day
+        ) + 1
       )
     : 30;
 
@@ -152,11 +142,8 @@ export async function fetchSyncCandidates(
   // ── A. Exercise sessions ──────────────────────────────────────────────────
   const hcActivities = await fetchRecentActivities(daysBack);
 
-  // Filter out already-imported sessions
   const newActivities = hcActivities.filter(a => !importedSet.has(a.id));
 
-  // Also filter out sessions that overlap with manually-logged activities
-  // (within 2 hours of the same type on the same day)
   const filteredSessions = newActivities.filter(hca => {
     const hcDate = new Date(hca.startTime);
     return !currentActivities.some(existing => {
@@ -167,18 +154,7 @@ export async function fetchSyncCandidates(
     });
   });
 
-  // Build a map of date → total steps already accounted for by HC walking sessions.
-  //
-  // Problem: Samsung Health logs a morning walk as an ExerciseSession (e.g. 4 000 steps).
-  // The user imports it. Later in the day they walk more. The daily pedometer total is now
-  // e.g. 7 000 steps — which INCLUDES the 4 000 from the already-imported session.
-  // Old behaviour: suppress the pedometer day entirely → afternoon steps are lost.
-  // New behaviour: offer (pedometerTotal − sessionSteps) as a separate entry so only
-  //                genuinely new steps are imported.  Suppressed entirely when delta ≤ 200.
-  //
-  // Include BOTH:
-  //   a) new unimported walking sessions from this sync pass (filteredSessions)
-  //   b) previously-imported HC walking activities already in Firestore
+  // Build a map of date → total steps already accounted for by HC walking sessions
   const sessionStepsByDate = new Map<string, number>();
   for (const hca of filteredSessions) {
     if (hca.type === 'walking') {
@@ -192,7 +168,7 @@ export async function fetchSyncCandidates(
       sessionStepsByDate.set(dk, (sessionStepsByDate.get(dk) ?? 0) + (existing.steps ?? 0));
     }
   }
- 
+
   const sessionCandidates: SyncSession[] = filteredSessions.map(hca => {
     const activityLike = {
       category: hca.type,
@@ -210,30 +186,13 @@ export async function fetchSyncCandidates(
   });
 
   // ── B. Daily step summaries ───────────────────────────────────────────────
-  // fetchDailyStepSummaries() reads ALL Steps records written to HC by any app —
-  // Samsung Health's background step counter, Google Fit, the phone's built-in
-  // OS pedometer, etc. — and aggregates them per local calendar day.
-  //
-  // Important caveats:
-  //   1. A fitness app's HC step count may be lower than its own UI shows because
-  //      each app applies its own sensor-fusion algorithm on top of raw HC records.
-  //      Samsung Health's own algorithm (visible in-app) is typically more accurate
-  //      than the raw Steps records it writes to HC. This is a platform limitation,
-  //      not a bug in EcoVerse.
-  //   2. Days where a HC walking ExerciseSession is already present (new or
-  //      previously imported) are suppressed to avoid double-counting.
   const pedometerDays = await fetchDailyStepSummaries(daysBack);
 
   const pedometerCandidates: SyncSession[] = [];
-
-   const STEP_NOISE_THRESHOLD = 200; // ignore deltas smaller than this to avoid double-counting minor pedometer discrepancies
+  const STEP_NOISE_THRESHOLD = 200;
 
   for (const day of pedometerDays) {
-    // Already imported (pedometer IDs are "steps-YYYY-MM-DD")
-    if (importedSet.has(day.id)) continue;
-
     // Any manual walking entry on this date suppresses the pedometer day entirely
-    // (user already logged it themselves — no partial delta needed)
     const manualExists = currentActivities.some(
       a => a.category === 'walking' &&
            (a as any).source !== 'health_connect' &&
@@ -241,24 +200,67 @@ export async function fetchSyncCandidates(
     );
     if (manualExists) continue;
 
-     // Calculate how many of today's pedometer steps are already accounted for
-    // by imported or newly-fetched HC walking sessions.
+    // Calculate how many steps are already accounted for by imported or
+    // newly-fetched HC walking sessions on this date.
     const alreadyAccountedSteps = sessionStepsByDate.get(day.date) ?? 0;
+
+    // ── NEW: handle pedometer days that were previously imported via add screen
+    // or sync screen — check if there are more steps now than when last imported.
+    if (importedSet.has(day.id)) {
+      // Find the previously-imported activity with this hcId
+      const previouslyImported = currentActivities.find(
+        a => (a as any).hcId === day.id
+      );
+      const alreadyImportedSteps = previouslyImported?.steps ?? 0;
+      const deltaFromLastImport = day.steps - alreadyImportedSteps - alreadyAccountedSteps;
+
+      // Only re-offer if meaningfully more steps have been recorded
+      if (deltaFromLastImport <= STEP_NOISE_THRESHOLD) continue;
+
+      // Offer just the new steps since last import
+      const deltaDistance = day.distance > 0
+        ? day.distance * (deltaFromLastImport / day.steps)
+        : undefined;
+
+      const syntheticActivity: HCActivity = {
+        id:        `${day.id}-delta-${Date.now()}`, // unique so it doesn't collide in importedIds
+        type:      'walking',
+        startTime: day.startTime,
+        endTime:   day.endTime,
+        steps:     Math.max(0, deltaFromLastImport),
+        distance:  deltaDistance,
+        source:    'pedometer-delta',
+      };
+
+      const activityLike = {
+        category: 'walking' as const,
+        steps:    Math.max(0, deltaFromLastImport),
+        distance: deltaDistance,
+        date:     day.startTime,
+      };
+
+      pedometerCandidates.push({
+        hcActivity:      syntheticActivity,
+        estimatedTokens: calculateFinalTokens(activityLike as any, streak),
+        estimatedCarbon: calculateCarbonSaved(activityLike as any, userRegion),
+        selected:        true,
+        isPedometerDay:  true,
+      });
+
+      continue;
+    }
+
+    // ── Not yet imported — standard flow ─────────────────────────────────────
     const deltaSteps = day.steps - alreadyAccountedSteps;
- 
-    // If delta is below noise threshold, nothing new to import
+
     if (alreadyAccountedSteps > 0 && deltaSteps <= STEP_NOISE_THRESHOLD) continue;
- 
-    // Compute proportional distance for the delta steps
+
     const deltaDistance = alreadyAccountedSteps > 0 && day.distance > 0
       ? day.distance * (deltaSteps / day.steps)
       : (day.distance > 0 ? day.distance : undefined);
- 
+
     const effectiveSteps = alreadyAccountedSteps > 0 ? Math.max(0, deltaSteps) : day.steps;
 
-    // Convert HCDailySteps → HCActivity so the sync screen renders it
-    // identically to a session card with zero screen changes needed.
-    // Label shows "Additional steps" when it's a delta after a session.
     const syntheticActivity: HCActivity = {
       id:        day.id,
       type:      'walking',
@@ -297,11 +299,6 @@ export async function fetchSyncCandidates(
 
 // ── Commit selected sessions ─────────────────────────────────────────────────
 
-/**
- * Writes all selected sessions to Firestore as activities.
- * Uses a Firestore batch for atomicity — either all succeed or none do.
- * Updates user token/carbon totals and sync state in the same operation.
- */
 export async function commitSync(
   sessions: SyncSession[],
   userRegion: string,
@@ -328,9 +325,7 @@ export async function commitSync(
       category:  hca.type,
       date: toLocalISOString(new Date(hca.startTime)),
       source:    'health_connect',
-      hcId:      hca.id,           // stored so future syncs can detect duplicates
-      // Preserve the originating app package name so details.tsx can show
-      // "via Strava", "via Samsung Health" etc. instead of generic "Health Connect"
+      hcId:      hca.id,
       hcSource:  hca.source ?? null,
     };
 
@@ -347,10 +342,13 @@ export async function commitSync(
     const activityRef = doc(collection(db, 'users', uid, 'activities'));
     batch.set(activityRef, activityData);
 
-    newImportedIds.push(hca.id);
+    // Only add to importedIds if not already present (delta re-imports use
+    // a unique timestamped ID so they don't overwrite the original entry)
+    if (!newImportedIds.includes(hca.id)) {
+      newImportedIds.push(hca.id);
+    }
   }
 
-  // Update user totals
   const userRef = doc(db, 'users', uid);
   batch.update(userRef, {
     tokens:           increment(totalTokens),
@@ -358,8 +356,6 @@ export async function commitSync(
   });
 
   await batch.commit();
-
-  // Update sync state (separate write — not critical to be atomic with activities)
   await updateSyncState(newImportedIds);
 
   return {

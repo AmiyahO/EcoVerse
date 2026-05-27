@@ -347,7 +347,7 @@ export default function SettingsScreen() {
   };
 
   const handleFeedback = () => {
-    Linking.openURL(FEEDBACK_FORM_URL).catch(() => {
+    Linking.openURL('mailto:ecoverse.dev.team@gmail.com?subject=EcoVerse%20Feedback').catch(() => {
       Alert.alert('Could not open feedback form', 'Please try again later.');
     });
   };

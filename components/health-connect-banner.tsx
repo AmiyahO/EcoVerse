@@ -35,6 +35,7 @@ interface HealthConnectBannerProps {
     steps?: number;
     distance?: number;
     duration?: number;
+    hcId?: string; // ID of the Health Connect data used for auto-fill, for traceability and de-duplication
   }) => void;
 }
 
@@ -201,8 +202,10 @@ export default function HealthConnectBanner({
         </View>
 
         <Pressable
-          onPress={() => onAutoFill({ steps: todaySteps.steps, distance: todaySteps.distance || undefined })}
-          style={[styles.importBtn, { backgroundColor: colors.tint }]}
+          onPress={() => {
+            const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+            onAutoFill({ steps: todaySteps.steps, distance: todaySteps.distance || undefined, hcId: `steps-${dateKey}` });
+          }}          style={[styles.importBtn, { backgroundColor: colors.tint }]}
         >
           <FontAwesome6 name="download" size={13} color="#fff" />
           <ThemedText style={styles.importBtnText}>Use {dateLabel.toLowerCase()}'s data</ThemedText>
@@ -242,6 +245,7 @@ export default function HealthConnectBanner({
                 steps:    session.steps,
                 distance: session.distance,
                 duration: session.duration,
+                hcId: session.id,
               })}
               style={[
                 styles.sessionRow,
