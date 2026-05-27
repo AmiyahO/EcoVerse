@@ -680,8 +680,13 @@ export default function AchievementsScreen() {
   const { level } = getLevelInfo(totalTokens);
   const rank       = getRankInfo(level);
 
+  // A milestone is unlocked if EITHER the live check passes (e.g. current streak
+  // meets the threshold) OR it was previously earned and persisted in
+  // unlockedAchievementIds (so badges stay earned even after a streak breaks).
   const unlockedMilestoneIds = new Set(
-    MILESTONES.filter(m => m.check(stats)).map(m => m.id)
+    MILESTONES
+      .filter(m => m.check(stats) || unlockedAchievementIds.includes(m.id))
+      .map(m => m.id)
   );
 
   // ── Achievement unlock detection ─────────────────────────────────────────

@@ -13,6 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth } from '@/src/firebase/config';
 import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
+import { deleteBillForActivity } from '@/src/services/billService';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -279,6 +280,10 @@ export default function ActivityScreen() {
     useActivityStore.getState().removeActivity(item.id);
     if (uid) {
       await deleteDoc(doc(db, 'users', uid, 'activities', item.id));
+      // Clean up linked bill reading so getLastBill() doesn't return stale data
+      if (item.billId) {
+        deleteBillForActivity(item.billId).catch(() => {});
+      }
       await updateDoc(doc(db, 'users', uid), {
         tokens:           increment(-tokens),
         totalCarbonSaved: increment(-carbon),

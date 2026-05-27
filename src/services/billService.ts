@@ -73,6 +73,23 @@ export function calculateSaving(
   }
 }
 
+/**
+ * Soft-deletes the bill record linked to an activity.
+ * Called from activity.tsx when the user deletes an electricity/water activity
+ * that has a billId, so getLastBill() no longer returns the stale reading.
+ */
+export async function deleteBillForActivity(billId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !billId) return;
+  try {
+    const { doc, updateDoc } = await import('firebase/firestore');
+    const billRef = doc(db, 'users', uid, 'bills', billId);
+    await updateDoc(billRef, { deleted: true });
+  } catch (e) {
+    console.error('deleteBillForActivity error:', e);
+  }
+}
+
 export async function saveBillReading(
   type: BillType,
   reading: number,

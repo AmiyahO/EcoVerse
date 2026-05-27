@@ -36,8 +36,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const FEEDBACK_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfXsyxr3Ol3ZNFZ8s9E5C4WGzeNKSXp2GwGqmoPoWRcvaxdtQ/viewform?usp=publish-editor';
-
 const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
   { key: 'US',         label: 'United States',  flag: '🇺🇸' },
   { key: 'UK',         label: 'United Kingdom', flag: '🇬🇧' },
