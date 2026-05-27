@@ -6,12 +6,12 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { REGIONAL_INTENSITY } from '@/src/utils/ecoLogic';
 
 const REGIONS = [
-  { id: 'US',         label: 'United States',  flag: '🇺🇸', hint: 'Mixed coal & gas  ·  0.386 kg CO₂/kWh' },
-  { id: 'UK',         label: 'United Kingdom', flag: '🇬🇧', hint: 'Growing renewables  ·  0.193 kg CO₂/kWh' },
-  { id: 'EU',         label: 'European Union', flag: '🇪🇺', hint: 'Varied across states  ·  0.276 kg CO₂/kWh' },
-  { id: 'INDIA',      label: 'India',          flag: '🇮🇳', hint: 'Predominantly coal  ·  0.713 kg CO₂/kWh' },
-  { id: 'CHINA',      label: 'China',          flag: '🇨🇳', hint: 'High coal dependency  ·  0.581 kg CO₂/kWh' },
-  { id: 'GLOBAL_AVG', label: 'Other / Global', flag: '🌐', hint: 'Global average  ·  0.475 kg CO₂/kWh' },
+  { id: 'US',         label: 'United States',  flag: '🇺🇸', hint: 'Mixed coal & gas  · ' + REGIONAL_INTENSITY.US + ' kg CO₂/kWh' },
+  { id: 'UK',         label: 'United Kingdom', flag: '🇬🇧', hint: 'Growing renewables  · ' + REGIONAL_INTENSITY.UK + ' kg CO₂/kWh' },
+  { id: 'EU',         label: 'European Union', flag: '🇪🇺', hint: 'Varied across states  · ' + REGIONAL_INTENSITY.EU + ' kg CO₂/kWh' },
+  { id: 'INDIA',      label: 'India',          flag: '🇮🇳', hint: 'Predominantly coal  · ' + REGIONAL_INTENSITY.INDIA + ' kg CO₂/kWh' },
+  { id: 'CHINA',      label: 'China',          flag: '🇨🇳', hint: 'High coal dependency  · ' + REGIONAL_INTENSITY.CHINA + ' kg CO₂/kWh' },
+  { id: 'GLOBAL_AVG', label: 'Other / Global', flag: '🌐', hint: 'Global average  · ' + REGIONAL_INTENSITY.GLOBAL_AVG + ' kg CO₂/kWh' },
 ];
 
 export default function OnboardingStep6({ region, setRegion }: { region: string; setRegion: (r: string) => void }) {
@@ -47,7 +47,7 @@ export default function OnboardingStep6({ region, setRegion }: { region: string;
         <Text style={[styles.eyebrow, { color: headTextColor }]}>YOUR REGION</Text>
         <Text style={[styles.headline, { color: headline }]}>Where are{'\n'}you based?</Text>
         <Text style={[styles.subhead, { color: subhead }]}>
-          Each country has a different electricity grid intensity — this makes your CO₂ calculations accurate for your region.
+          Each country has a different electricity grid intensity. This makes your CO₂ calculations accurate for your region.
         </Text>
       </Animated.View>
 
@@ -98,8 +98,8 @@ const styles = StyleSheet.create({
   regionRow:    { flexDirection: 'row', alignItems: 'center', gap: 14, borderWidth: 1, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 12 },
   regionFlag:   { fontSize: 24 },
   regionTextCol:{ flex: 1 },
-  regionLabel:  { fontSize: 15, fontWeight: '600' },
-  regionHint:   { fontSize: 11, marginTop: 1 },
+  regionLabel:  { fontSize: 15, fontWeight: '700' },
+  regionHint:   { fontSize: 11, marginTop: 1, fontWeight: '500' },
   radioEmpty:   { width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   footnote:     { textAlign: 'center', fontSize: 12 },
 });

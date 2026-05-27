@@ -7,7 +7,7 @@ import { useActivityStore } from '@/src/store/activityStore';
 import { calculateStreak, calculateTokens } from '@/src/utils/ecoLogic';
 import { getLevelInfo, getRankInfo } from '@/src/utils/levelSystem';
 import { router } from 'expo-router';
-import { FontAwesome6, MaterialCommunityIcons } from '@expo/vector-icons';
+import { FontAwesome6, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState, useRef } from 'react';
 import { auth } from '@/src/firebase/config';
@@ -349,8 +349,8 @@ export default function ProfileScreen() {
           </View>
 
           {progress >= 1 ? (
-            <ThemedText style={[styles.goalCompleteLabel, { color: colors.tint }]}>
-              🎉 Goal reached this week!
+            <ThemedText style={[styles.goalCompleteLabel, { color: colors.tint }]}> 
+            Goal reached this week! <MaterialIcons name="celebration" size={14} color={colors.tint} /> 
             </ThemedText>
           ) : (
             <ThemedText style={[styles.goalRemainingLabel, { color: colors.text }]}>
