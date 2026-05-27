@@ -1,16 +1,7 @@
 // src/services/healthSyncService.ts
-// Manages the "Sync now" Health Connect flow.
-//
-// Responsibilities:
-//   - Store/retrieve lastSyncedAt in Firestore (persists across devices)
-//   - Fetch HC sessions + daily pedometer summaries since last sync
-//   - Deduplicate against already-imported IDs and existing activities
-//   - Batch-write selected activities to Firestore
-//   - Update user tokens/carbon totals atomically
-
 import {
-  collection, addDoc, doc, updateDoc, getDoc,
-  setDoc, increment, writeBatch, serverTimestamp,
+  collection, doc, updateDoc, getDoc,
+  setDoc, increment, writeBatch,
 } from 'firebase/firestore';
 import { db, auth } from '@/src/firebase/config';
 import {
@@ -31,13 +22,9 @@ import { Activity } from '@/src/store/activityStore';
 
 export interface SyncSession {
   hcActivity: HCActivity;
-  /** Tokens this activity will earn (estimated at current streak) */
   estimatedTokens: number;
-  /** kg CO₂ saved */
   estimatedCarbon: number;
-  /** Whether to include in the sync — toggled by user on review screen */
   selected: boolean;
-  /** True when this came from daily pedometer aggregation, not a session */
   isPedometerDay?: boolean;
 }
 
@@ -48,8 +35,8 @@ export interface SyncResult {
 }
 
 export interface SyncState {
-  lastSyncedAt: string | null;   // ISO string
-  importedIds: string[];         // HC session IDs + pedometer day IDs already imported
+  lastSyncedAt: string | null;
+  importedIds: string[];
 }
 
 // ── Firestore path helpers ───────────────────────────────────────────────────
@@ -63,7 +50,6 @@ function syncDocRef(uid: string) {
 export async function getSyncState(): Promise<SyncState> {
   const uid = auth.currentUser?.uid;
   if (!uid) return { lastSyncedAt: null, importedIds: [] };
-
   try {
     const snap = await getDoc(syncDocRef(uid));
     if (!snap.exists()) return { lastSyncedAt: null, importedIds: [] };
@@ -87,7 +73,28 @@ async function updateSyncState(newIds: string[]) {
   }, { merge: false });
 }
 
-// ── Date helpers ────────────────────────────────────────────────────────
+/**
+ * Called from add.tsx after saving an HC-sourced activity.
+ * Adds the hcId to meta/healthSync.importedIds so the sync screen
+ * treats it as already imported and only offers deltas.
+ */
+export async function registerAddScreenImport(hcId: string): Promise<void> {
+  const uid = auth.currentUser?.uid;
+  if (!uid || !hcId) return;
+  try {
+    const state = await getSyncState();
+    if (!state.importedIds.includes(hcId)) {
+      await setDoc(syncDocRef(uid), {
+        lastSyncedAt: state.lastSyncedAt ?? new Date().toISOString(),
+        importedIds:  [...state.importedIds, hcId],
+      }, { merge: false });
+    }
+  } catch (e) {
+    console.error('registerAddScreenImport error:', e);
+  }
+}
+
+// ── Date helpers ─────────────────────────────────────────────────────────────
 
 function toLocalISOString(date: Date): string {
   const y   = date.getFullYear();
@@ -101,26 +108,11 @@ function toLocalISOString(date: Date): string {
 
 function localDateKey(iso: string): string {
   const d = new Date(iso);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 // ── Fetch sessions ready to sync ─────────────────────────────────────────────
 
-/**
- * Returns sessions from Health Connect that:
- *   1. Are newer than lastSyncedAt (or last 30 days if never synced)
- *   2. Haven't already been imported (not in importedIds), OR are pedometer
- *      days where there are meaningfully MORE steps since last import
- *   3. Don't overlap with manually-logged activities (within ±2h, same type)
- *
- * Merges two sources:
- *   A. ExerciseSession records — from Strava, Samsung Health, Google Fit etc.
- *   B. Daily step summaries — aggregated per local calendar day.
- *      For pedometer days already imported, offers the DELTA if > threshold.
- */
 export async function fetchSyncCandidates(
   currentActivities: Activity[],
   userRegion: string,
@@ -128,33 +120,34 @@ export async function fetchSyncCandidates(
   const syncState = await getSyncState();
 
   const daysBack = syncState.lastSyncedAt
-    ? Math.min(
-        30,
-        Math.ceil(
-          (Date.now() - new Date(syncState.lastSyncedAt).getTime()) / 86400000
-        ) + 1
-      )
+    ? Math.min(30, Math.ceil((Date.now() - new Date(syncState.lastSyncedAt).getTime()) / 86400000) + 1)
     : 30;
 
+  // importedSet = IDs from meta/healthSync UNION hcId values on existing activities.
+  // This means activities imported via the add screen are also treated as imported,
+  // even though add.tsx doesn't always update meta/healthSync in time.
   const importedSet = new Set(syncState.importedIds);
+  for (const a of currentActivities) {
+    const id = (a as any).hcId;
+    if (id) importedSet.add(id);
+  }
+
   const streak = calculateStreak(currentActivities);
 
   // ── A. Exercise sessions ──────────────────────────────────────────────────
   const hcActivities = await fetchRecentActivities(daysBack);
-
   const newActivities = hcActivities.filter(a => !importedSet.has(a.id));
 
   const filteredSessions = newActivities.filter(hca => {
     const hcDate = new Date(hca.startTime);
     return !currentActivities.some(existing => {
       if (existing.category !== hca.type) return false;
-      const existDate = new Date(existing.date);
-      const diffHours = Math.abs(existDate.getTime() - hcDate.getTime()) / 3600000;
+      const diffHours = Math.abs(new Date(existing.date).getTime() - hcDate.getTime()) / 3600000;
       return diffHours < 2;
     });
   });
 
-  // Build a map of date → total steps already accounted for by HC walking sessions
+  // Map date → session steps already accounted for (new + previously imported)
   const sessionStepsByDate = new Map<string, number>();
   for (const hca of filteredSessions) {
     if (hca.type === 'walking') {
@@ -163,20 +156,19 @@ export async function fetchSyncCandidates(
     }
   }
   for (const existing of currentActivities) {
-    if (existing.category === 'walking' && (existing as any).source === 'health_connect') {
+    // Only count session-based HC imports here (hcId is a session ID, not a pedometer day ID).
+    // Pedometer-based imports (hcId starts with 'steps-') are tracked separately
+    // via alreadyImportedSteps below — counting them here too would double-count.
+    const existingHcId = (existing as any).hcId ?? '';
+    const isPedometerImport = existingHcId.startsWith('steps-');
+    if (existing.category === 'walking' && (existing as any).source === 'health_connect' && !isPedometerImport) {
       const dk = localDateKey(existing.date);
       sessionStepsByDate.set(dk, (sessionStepsByDate.get(dk) ?? 0) + (existing.steps ?? 0));
     }
   }
 
   const sessionCandidates: SyncSession[] = filteredSessions.map(hca => {
-    const activityLike = {
-      category: hca.type,
-      steps:    hca.steps,
-      distance: hca.distance,
-      duration: hca.duration,
-      date:     hca.startTime,
-    };
+    const activityLike = { category: hca.type, steps: hca.steps, distance: hca.distance, duration: hca.duration, date: hca.startTime };
     return {
       hcActivity:      hca,
       estimatedTokens: calculateFinalTokens(activityLike as any, streak),
@@ -187,12 +179,11 @@ export async function fetchSyncCandidates(
 
   // ── B. Daily step summaries ───────────────────────────────────────────────
   const pedometerDays = await fetchDailyStepSummaries(daysBack);
-
   const pedometerCandidates: SyncSession[] = [];
   const STEP_NOISE_THRESHOLD = 200;
 
   for (const day of pedometerDays) {
-    // Any manual walking entry on this date suppresses the pedometer day entirely
+    // Manual walking on this date always suppresses the pedometer entry
     const manualExists = currentActivities.some(
       a => a.category === 'walking' &&
            (a as any).source !== 'health_connect' &&
@@ -200,80 +191,43 @@ export async function fetchSyncCandidates(
     );
     if (manualExists) continue;
 
-    // Calculate how many steps are already accounted for by imported or
-    // newly-fetched HC walking sessions on this date.
-    const alreadyAccountedSteps = sessionStepsByDate.get(day.date) ?? 0;
+    // Steps already accounted for by HC sessions (new + previously imported)
+    const alreadyAccountedBySession = sessionStepsByDate.get(day.date) ?? 0;
 
-    // ── NEW: handle pedometer days that were previously imported via add screen
-    // or sync screen — check if there are more steps now than when last imported.
-    if (importedSet.has(day.id)) {
-      // Find the previously-imported activity with this hcId
-      const previouslyImported = currentActivities.find(
-        a => (a as any).hcId === day.id
-      );
-      const alreadyImportedSteps = previouslyImported?.steps ?? 0;
-      const deltaFromLastImport = day.steps - alreadyImportedSteps - alreadyAccountedSteps;
+    // Steps already imported for this pedometer day (via add screen or sync screen)
+    // Find ALL HC walking activities on this date that used this pedometer hcId
+    const previouslyImportedActivities = currentActivities.filter(
+      a => a.category === 'walking' && (a as any).hcId === day.id
+    );
+    const alreadyImportedSteps = previouslyImportedActivities.reduce(
+      (sum, a) => sum + (a.steps ?? 0), 0
+    );
 
-      // Only re-offer if meaningfully more steps have been recorded
-      if (deltaFromLastImport <= STEP_NOISE_THRESHOLD) continue;
+    const totalAlreadyAccountedSteps = alreadyAccountedBySession + alreadyImportedSteps;
+    const deltaSteps = day.steps - totalAlreadyAccountedSteps;
 
-      // Offer just the new steps since last import
-      const deltaDistance = day.distance > 0
-        ? day.distance * (deltaFromLastImport / day.steps)
-        : undefined;
+    // Nothing new to offer
+    if (deltaSteps <= STEP_NOISE_THRESHOLD) continue;
 
-      const syntheticActivity: HCActivity = {
-        id:        `${day.id}-delta-${Date.now()}`, // unique so it doesn't collide in importedIds
-        type:      'walking',
-        startTime: day.startTime,
-        endTime:   day.endTime,
-        steps:     Math.max(0, deltaFromLastImport),
-        distance:  deltaDistance,
-        source:    'pedometer-delta',
-      };
-
-      const activityLike = {
-        category: 'walking' as const,
-        steps:    Math.max(0, deltaFromLastImport),
-        distance: deltaDistance,
-        date:     day.startTime,
-      };
-
-      pedometerCandidates.push({
-        hcActivity:      syntheticActivity,
-        estimatedTokens: calculateFinalTokens(activityLike as any, streak),
-        estimatedCarbon: calculateCarbonSaved(activityLike as any, userRegion),
-        selected:        true,
-        isPedometerDay:  true,
-      });
-
-      continue;
-    }
-
-    // ── Not yet imported — standard flow ─────────────────────────────────────
-    const deltaSteps = day.steps - alreadyAccountedSteps;
-
-    if (alreadyAccountedSteps > 0 && deltaSteps <= STEP_NOISE_THRESHOLD) continue;
-
-    const deltaDistance = alreadyAccountedSteps > 0 && day.distance > 0
+    const deltaDistance = day.distance > 0 && day.steps > 0
       ? day.distance * (deltaSteps / day.steps)
-      : (day.distance > 0 ? day.distance : undefined);
+      : undefined;
 
-    const effectiveSteps = alreadyAccountedSteps > 0 ? Math.max(0, deltaSteps) : day.steps;
+    const isPartial = totalAlreadyAccountedSteps > 0;
 
     const syntheticActivity: HCActivity = {
-      id:        day.id,
+      id:        isPartial ? `${day.id}-delta-${Date.now()}` : day.id,
       type:      'walking',
       startTime: day.startTime,
       endTime:   day.endTime,
-      steps:     effectiveSteps,
+      steps:     Math.max(0, deltaSteps),
       distance:  deltaDistance,
-      source:    alreadyAccountedSteps > 0 ? 'pedometer-delta' : 'pedometer',
+      source:    isPartial ? 'pedometer-delta' : 'pedometer',
     };
 
     const activityLike = {
       category: 'walking' as const,
-      steps:    effectiveSteps,
+      steps:    Math.max(0, deltaSteps),
       distance: deltaDistance,
       date:     day.startTime,
     };
@@ -287,11 +241,8 @@ export async function fetchSyncCandidates(
     });
   }
 
-  // ── Merge and sort newest first ───────────────────────────────────────────
   const sessions = [...sessionCandidates, ...pedometerCandidates].sort(
-    (a, b) =>
-      new Date(b.hcActivity.startTime).getTime() -
-      new Date(a.hcActivity.startTime).getTime()
+    (a, b) => new Date(b.hcActivity.startTime).getTime() - new Date(a.hcActivity.startTime).getTime()
   );
 
   return { sessions, syncState };
@@ -322,11 +273,11 @@ export async function commitSync(
     const hca = session.hcActivity;
 
     const activityData: Record<string, any> = {
-      category:  hca.type,
-      date: toLocalISOString(new Date(hca.startTime)),
-      source:    'health_connect',
-      hcId:      hca.id,
-      hcSource:  hca.source ?? null,
+      category: hca.type,
+      date:     toLocalISOString(new Date(hca.startTime)),
+      source:   'health_connect',
+      hcId:     hca.id,
+      hcSource: hca.source ?? null,
     };
 
     if (hca.steps    !== undefined) activityData.steps    = hca.steps;
@@ -335,15 +286,12 @@ export async function commitSync(
 
     const tokens = calculateFinalTokens(activityData as any, streak);
     const carbon = calculateCarbonSaved(activityData as any, userRegion);
-
     totalTokens += tokens;
     totalCarbon += carbon;
 
     const activityRef = doc(collection(db, 'users', uid, 'activities'));
     batch.set(activityRef, activityData);
 
-    // Only add to importedIds if not already present (delta re-imports use
-    // a unique timestamped ID so they don't overwrite the original entry)
     if (!newImportedIds.includes(hca.id)) {
       newImportedIds.push(hca.id);
     }
@@ -372,12 +320,8 @@ export function formatSyncDate(isoString: string | null): string {
   const d = new Date(isoString);
   const now = new Date();
   const diffMin = Math.floor((now.getTime() - d.getTime()) / 60000);
-
-  if (diffMin < 1)   return 'Just now';
-  if (diffMin < 60)  return `${diffMin}m ago`;
-  if (diffMin < 1440) {
-    const h = Math.floor(diffMin / 60);
-    return `${h}h ago`;
-  }
+  if (diffMin < 1)    return 'Just now';
+  if (diffMin < 60)   return `${diffMin}m ago`;
+  if (diffMin < 1440) return `${Math.floor(diffMin / 60)}h ago`;
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

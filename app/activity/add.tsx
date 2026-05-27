@@ -21,6 +21,7 @@ import {
   persistWeeklyEcoScore
 } from '@/src/utils/ecoLogic';
 import { playSound } from '@/src/utils/sfx';
+import { registerAddScreenImport } from '@/src/services/healthSyncService';
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as Haptics from 'expo-haptics';
@@ -288,6 +289,12 @@ export default function AddActivityScreen() {
       totalCarbonSaved: increment(carbonSaved),
     });
 
+    // Register HC imports into meta/healthSync so the sync screen treats
+    // this as already imported and only offers a delta if steps increase later
+    if (hcAutoFilled && hcId) {
+      registerAddScreenImport(hcId).catch(() => {});
+    }
+
     const updatedActivities = [...activities, { ...newActivityData, id: 'pending' } as any];
     await persistWeeklyEcoScore(
       updatedActivities,
@@ -340,10 +347,41 @@ export default function AddActivityScreen() {
   const preview = isBillCategory(category) ? previewSaving() : null;
 
   const handleHCAutoFill = (data: { steps?: number; distance?: number; duration?: number; hcId?: string }) => {
-    if (data.steps    !== undefined) setSteps(String(data.steps));
-    if (data.distance !== undefined) setDistance(String(data.distance));
-    if (data.duration !== undefined) setDuration(String(data.duration));
-    if (data.hcId     !== undefined) setHcId(data.hcId);
+    let effectiveSteps    = data.steps;
+    let effectiveDistance = data.distance;
+
+    // If this hcId has already been imported, compute the delta so the user
+    // doesn't double-count steps. Find all existing activities with this hcId.
+    if (data.hcId && data.steps !== undefined) {
+      const alreadyImported = activities.filter(
+        (a: any) => a.hcId === data.hcId && a.category === 'walking'
+      );
+      const alreadyImportedSteps = alreadyImported.reduce(
+        (sum: number, a: any) => sum + (a.steps ?? 0), 0
+      );
+      const delta = data.steps - alreadyImportedSteps;
+
+      if (alreadyImportedSteps > 0) {
+        if (delta <= 200) {
+          // Nothing new — don't fill, show alert
+          Alert.alert(
+            'Already imported',
+            `You have already logged these steps (${alreadyImportedSteps.toLocaleString()} steps imported). Walk more to import additional steps.`
+          );
+          return;
+        }
+        // Fill with delta only
+        effectiveSteps = delta;
+        effectiveDistance = data.distance
+          ? Math.round((data.distance * (delta / data.steps)) * 100) / 100
+          : undefined;
+      }
+    }
+
+    if (effectiveSteps    !== undefined) setSteps(String(effectiveSteps));
+    if (effectiveDistance !== undefined) setDistance(String(effectiveDistance));
+    if (data.duration     !== undefined) setDuration(String(data.duration));
+    if (data.hcId         !== undefined) setHcId(data.hcId);
     setHcAutoFilled(true);
   };
 
