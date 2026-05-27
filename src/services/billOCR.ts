@@ -30,8 +30,11 @@ const ELECTRICITY_PATTERNS = [
 ];
 
 const WATER_PATTERNS = [
-  // "4800 L", "4800 litres", "4800 liters" — explicit unit (highest confidence)
+  // "4800 L", "4800 litres", "4800 liters" — explicit litre unit (highest confidence)
   /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:litres?|liters?|L\b)/gi,
+  // "4.8 kL", "4.8 kl", "4800 kL" — kilolitres (common on Australian/NZ/ZA bills)
+  // Converted to litres: value × 1000
+  /(\d{1,4}(?:[.,]\d{1,3})?)\s*k[Ll]\b/g,
   // "m³" or "m3" cubic metres — convert to litres (1 m³ = 1000 L)
   /(\d{1,4}(?:[.,]\d{1,3})?)\s*m[³3]/gi,
   // "consumption: 4800", "used: 4800", "usage 4800" — keyword context
@@ -72,15 +75,22 @@ function extractCandidates(
 
       if (!validRange) continue;
 
-      // m³ → litres conversion
-      const finalValue = (type === 'water' && raw.includes('m')) ? value * 1000 : value;
+      // Unit conversions: m³ → L (×1000), kL → L (×1000)
+      const rawLower = raw.toLowerCase();
+      const needsX1000 = type === 'water' && (
+        rawLower.includes('m³') || rawLower.includes('m3') ||
+        /\d\s*kl\b/i.test(raw)
+      );
+      const finalValue = needsX1000 ? value * 1000 : value;
       if (seen.has(finalValue)) continue;
       seen.add(finalValue);
 
-      // Confidence based on which pattern matched
+      // Confidence based on which pattern matched:
+      // 0 = explicit L unit (high), 1 = explicit kL unit (high),
+      // 2 = m³ (medium), 3 = keyword context (medium), 4 = standalone (low)
       const confidence: OCRCandidate['confidence'] =
-        patternIndex === 0 ? 'high' :
-        patternIndex === 1 ? 'medium' : 'low';
+        patternIndex <= 1 ? 'high' :
+        patternIndex <= 3 ? 'medium' : 'low';
 
       candidates.push({ value: finalValue, raw, confidence });
     }

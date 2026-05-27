@@ -117,6 +117,11 @@ export default function RootLayout() {
   const readyFlags = useRef({ userDoc: false, activities: false });
 
   const freshLogin = useRef(false);
+  // Tracks whether a user was already signed in when the auth listener fired.
+  // Used to distinguish cold-boot auth resolution (user stays logged in across
+  // app restarts) from a genuine new sign-in. setCelebrated(false) should only
+  // fire on a new sign-in, not on every cold boot.
+  const wasAuthenticated = useRef(false);
   // ── Prevents double-navigation: once _layout routes somewhere, it won't
   //    re-route until auth state actually changes again (e.g. a new sign-in).
   //    Without this, router.replace('/login') in settings AND the onAuthStateChanged
@@ -169,11 +174,15 @@ export default function RootLayout() {
         setUser(currentUser);
         freshLogin.current = true;
 
-        // Reset the weekly goal celebration flag on every new login session.
-        // Without this, the persisted `celebrated: true` from the previous
-        // session causes the banner to re-fire when the user signs back in
-        // and the progress check runs before the activities have loaded.
-        useActivityStore.getState().setCelebrated(false);
+        // Only clear the weekly goal celebration flag when the user is
+        // genuinely signing in for a new session (i.e. they were not already
+        // authenticated). On a cold boot the auth listener fires again for the
+        // same user — clearing celebrated here causes the banner to re-fire
+        // every time the app is reopened if the goal was already hit this week.
+        if (!wasAuthenticated.current) {
+          useActivityStore.getState().setCelebrated(false);
+        }
+        wasAuthenticated.current = true;
 
         unsubscribeDoc = onSnapshot(
           doc(db, 'users', currentUser.uid),
@@ -282,6 +291,8 @@ export default function RootLayout() {
         setHasFinishedOnboarding(null);
         setUserDocReady(true);
         setActivitiesReady(true);
+        // User signed out — reset so the next sign-in clears celebrated correctly
+        wasAuthenticated.current = false;
       }
     });
 

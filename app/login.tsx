@@ -144,7 +144,7 @@ export default function LoginScreen() {
         error.code === 'auth/invalid-email'           ? 'Please enter a valid email address.' :
         error.code === 'auth/email-already-in-use'    ? 'An account already exists with this email. Try signing in instead.' :
         error.code === 'auth/weak-password'           ? 'Password must be at least 6 characters.' :
-        error.code === 'auth/password-does-not-meet-requirements' ? 'Password must be at least 6 characters, combining uppercase/lowercase letters, numbers, and symbols.' :
+        error.code === 'auth/password-does-not-meet-requirements' ? 'Password must include uppercase and lowercase letters and at least one number (min. 6 characters).' :
         error.code === 'auth/too-many-requests'       ? 'Too many attempts. Please wait a moment and try again.' :
         error.code === 'auth/network-request-failed'  ? 'No internet connection. Check your network and try again.' :
         error.code === 'auth/user-disabled'           ? 'This account has been disabled. Please contact support.' :
