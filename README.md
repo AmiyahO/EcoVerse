@@ -267,22 +267,22 @@ firebase/
 
 | Activity | Factor | Source |
 |----------|--------|--------|
-| Walking | 0.171 kg CO₂ per km | DESNZ 2025 GHG Conversion Factors |
-| Running | 0.171 kg CO₂ per km | DESNZ 2025 GHG Conversion Factors |
-| Cycling | 0.186 kg CO₂ per km | DESNZ 2025 fleet avg × 1.09 upper-medium proxy |
+| Walking | 0.16725 kg CO₂ per km | DESNZ 2025 flat file: Average car > Unknown fuel > km |
+| Running | 0.16725 kg CO₂ per km | DESNZ 2025 flat file: Average car > Unknown fuel > km |
+| Cycling | 0.173 kg CO₂ per km | DESNZ 2025 flat file: Medium car > Unknown fuel > km |
 | Electricity | Regional grid intensity × kWh saved | See table below |
-| Water | 0.003 kg CO₂ per litre saved | Strutt et al. 2008 (blended estimate) |
+| Water | 0.004 kg CO₂ per litre saved | Blended estimate: Griffiths-Sattenspiel & Wilson (2009), Danfoss (2021) |
 
 **Regional electricity intensity (kg CO₂ per kWh) — DESNZ 2025 / Ember 2025:**
 
-| Region | kg CO₂/kWh |
-|--------|------------|
-| US | 0.380 |
-| UK | 0.207 |
-| EU | 0.213 |
-| India | 0.700 |
-| China | 0.560 |
-| Global avg | 0.473 |
+| Region | kg CO₂/kWh | Source |
+|--------|------------|--------|
+| US | 0.384 | Ember Global Electricity Review 2025, p.89 |
+| UK | 0.196 | DESNZ 2025 flat file: consumed (generated 0.177 + T&D 0.019) |
+| EU | 0.213 | Ember Global Electricity Review 2025, p.95 |
+| India | 0.708 | Ember Global Electricity Review 2025, p.100 |
+| China | 0.560 | Ember Global Electricity Review 2025, p.89 |
+| Global avg | 0.473 | Ember Global Electricity Review 2025, p.58 |
 
 **Regional electricity baselines (kWh/month per household):**
 
@@ -297,13 +297,13 @@ firebase/
 
 **Regional water baselines (litres/month per household):**
 
-| Region | L/month | Derivation |
-|--------|---------|------------|
-| US | 23,250 | EPA/AWWA: 310 L/person/day × 2.5 persons × 30 |
-| UK | 10,080 | Defra/CCoW 2023–24: 140 L/person/day × 2.4 persons × 30 |
-| EU | 9,936 | WHO/Eurostat: 144 L/person/day × 2.3 persons × 30 |
-| India | 9,000 | Blended urban/rural: ~100 L/person/day × 3.0 persons × 30 |
-| China | 13,500 | Urban China: ~150 L/person/day × 3.0 persons × 30 |
+| Region | L/month | Source & Derivation |
+|--------|---------|---------------------|
+| US | 23,250 | US EPA WaterSense: 82 gal (310 L)/person/day × 2.5 persons × 30 |
+| UK | 10,440 | Water UK/DiscoverWater (CCW data): 145 L/person/day × 2.4 persons × 30 |
+| EU | 9,000 | European Environment Agency: ~130 L/person/day × 2.3 persons × 30 |
+| India | 13,680 | CPHEEO: urban 135 L/day, rural 75 L/day → blended 114 L/day × 4.0 persons × 30 |
+| China | 14,850 | China MoHURD/CEIC 2023: 188.8 L/person/day × 2.62 persons × 30 |
 | Global avg | 15,000 | WHO: ~167 L/person/day × 3.0 persons × 30 |
 
 ### EcoScore
