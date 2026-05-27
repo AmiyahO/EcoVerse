@@ -9,9 +9,9 @@
     "backgroundColor": "#0B0F0C",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-light2.png",
+      "image": "./assets/images/splash-light.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B0F0C",
+      "backgroundColor": "#FFFFFF",
       "dark": {
         "image": "./assets/images/splash-dark.png",
         "backgroundColor": "#000000"
