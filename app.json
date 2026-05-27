@@ -3,13 +3,13 @@
     "name": "EcoVerse",
     "slug": "ecoverse",
     "owner": "amirahy",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "scheme": "ecoverse",
     "backgroundColor": "#0B0F0C",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-light.png",
+      "image": "./assets/images/splash-light2.png",
       "resizeMode": "contain",
       "backgroundColor": "#0B0F0C",
       "dark": {
