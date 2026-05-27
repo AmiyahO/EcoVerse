@@ -32,17 +32,19 @@ const ELECTRICITY_PATTERNS = [
 const WATER_PATTERNS = [
   // "4800 L", "4800 litres", "4800 liters" — explicit litre unit (highest confidence)
   /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:litres?|liters?|L\b)/gi,
-  // "4.8 kL", "4.8 kl", "4800 kL" — kilolitres (common on Australian/NZ/ZA bills)
+  // "4.8 kL", "4.8 kl", "4800 kL" — kilolitres adjacent to number
   // Converted to litres: value × 1000
   /(\d{1,4}(?:[.,]\d{1,3})?)\s*k[Ll]\b/g,
+  // "77 kilolitres", "4.8 kiloliters" — word form (e.g. "Total water used was 77 kilolitres")
+  /(\d{1,4}(?:[.,]\d{1,3})?)\s*kilolitr(?:es?|ers?)/gi,
   // "m³" or "m3" cubic metres — convert to litres (1 m³ = 1000 L)
   /(\d{1,4}(?:[.,]\d{1,3})?)\s*m[³3]/gi,
   // "consumption: 4800", "used: 4800", "usage 4800" — keyword context
-  /(?:consumption|used|usage|water|quantity|volume|amount)[:\s]+(\d{2,6}(?:[.,]\d{1,2})?)/gi,
-  // Standalone 3-6 digit numbers — most water bills just print the number
-  // Range: 200–999999 L (loosened lower bound from 4-digit to 3-digit; a
-  // household might save only a few hundred litres in a low-use month)
-  /\b(\d{3,6})\b/g,
+  /(?:consumption|used|usage|water|quantity|volume|amount)[:\s]+(\d{1,6}(?:[.,]\d{1,2})?)/gi,
+  // Standalone 2-6 digit numbers — catches bare table values like "77" (kL) or "4800" (L).
+  // Lower bound 10 so small kL readings (e.g. 77 kL = 77,000 L) aren't filtered out
+  // before the kL multiplier can be applied. Range check happens after conversion.
+  /\b(\d{2,6})\b/g,
 ];
 
 function parseNumber(raw: string): number {
@@ -68,29 +70,30 @@ function extractCandidates(
 
       if (isNaN(value) || seen.has(value)) continue;
 
-      // Range validation — keeps out obvious non-readings
-      const validRange = type === 'electricity'
-        ? value >= 10 && value <= 99999
-        : value >= 200 && value <= 999999;
-
-      if (!validRange) continue;
-
-      // Unit conversions: m³ → L (×1000), kL → L (×1000)
+      // Unit conversions: m³ → L (×1000), kL → L (×1000), kilolitres → L (×1000)
       const rawLower = raw.toLowerCase();
       const needsX1000 = type === 'water' && (
         rawLower.includes('m³') || rawLower.includes('m3') ||
-        /\d\s*kl\b/i.test(raw)
+        /\d\s*kl\b/i.test(raw) ||
+        rawLower.includes('kilolitr')
       );
       const finalValue = needsX1000 ? value * 1000 : value;
+
+      // Range validation — applied AFTER conversion so 77 kL → 77,000 L passes
+      const validRange = type === 'electricity'
+        ? finalValue >= 10 && finalValue <= 99999
+        : finalValue >= 200 && finalValue <= 999999;
+
+      if (!validRange) continue;
       if (seen.has(finalValue)) continue;
       seen.add(finalValue);
 
       // Confidence based on which pattern matched:
-      // 0 = explicit L unit (high), 1 = explicit kL unit (high),
-      // 2 = m³ (medium), 3 = keyword context (medium), 4 = standalone (low)
+      // 0 = explicit L (high), 1 = kL adjacent (high), 2 = kilolitres word (high),
+      // 3 = m³ (medium), 4 = keyword context (medium), 5 = standalone (low)
       const confidence: OCRCandidate['confidence'] =
-        patternIndex <= 1 ? 'high' :
-        patternIndex <= 3 ? 'medium' : 'low';
+        patternIndex <= 2 ? 'high' :
+        patternIndex <= 4 ? 'medium' : 'low';
 
       candidates.push({ value: finalValue, raw, confidence });
     }

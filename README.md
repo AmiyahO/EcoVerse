@@ -609,7 +609,12 @@ Two data sources merged:
 ## 📷 OCR Bill Scanning
 
 - Camera capture via Expo Camera
-- OCR extracts kWh and L readings from utility bills
+- OCR extracts kWh and L readings from utility bills via Google ML Kit (on-device, no API cost)
+- Supported water units: **L / litres / liters** (explicit), **kL / kilolitres** (converted × 1000 — common on Australian, NZ, and South African bills), **m³** (converted × 1000), keyword context (consumption/usage/water/volume), and standalone numbers
+- Range validation applied **after** unit conversion so small kL values (e.g. 77 kL → 77,000 L) pass the 200 L floor
+- Confidence: explicit unit matches (L, kL, kilolitres) = high; m³ and keyword context = medium; standalone numbers = low
+- Limitation: bare table cell values (e.g. "77" under a "Consumption (kL)" column header) cannot be reliably converted without the prose sentence; bills that include a "Total water used was N kilolitres" sentence are reliably caught
+- Gallons not handled (US/imperial ambiguity); users on gallon-denominated bills should use manual entry
 - `ocr-candidate-picker.tsx` presents multiple candidates with confidence scores when ambiguous
 - Selected value auto-populates the input field
 
@@ -617,12 +622,16 @@ Two data sources merged:
 
 ## 🎮 Gamification System
 
+### Challenge Completion Rewards
+
+Challenge completion rewards (tokens and achievement badges) are **non-reversible** once earned. Deleting contributing activities after a challenge completion does not reverse the bonus tokens or remove the badge. This mirrors common gamification practice — achievements represent a historical record, not a current-state reflection. The weekly goal display derives token counts from activities only (excludes challenge bonuses), which is a known minor discrepancy documented in the thesis.
+
 ### Weekly Goal & Celebration
 - Slide-in banner + confetti fires on any tab when goal is reached (via `(tabs)/_layout.tsx`)
 - Keyed to `celebratedWeek` (Sunday date string), auto-resets each week
 - Re-fires if user raises their target above current count
 - Confetti `ConfettiCannon` gated on `showCelebration` state — not always mounted (prevents visible origin artifact when idle). Count reduced 120 → 60; fired 150ms after banner animation starts to decouple from spring animation
-- `setCelebrated(false)` reset on every new auth session (`onAuthStateChanged`) to prevent re-fire after sign-out/sign-in
+- `setCelebrated(false)` is **not** called in `onAuthStateChanged` — Firebase fires this callback on every cold boot (app restart), not just new sign-ins; calling it there caused the banner to re-fire every time the app was reopened. New-week resets are handled exclusively by `checkAndResetCelebration()` in `(tabs)/_layout.tsx`, which compares the stored week key to the current week and only resets when they differ
 
 ### Haptic Feedback
 - Save activity (`add.tsx`): `Haptics.notificationAsync(Success)` before `router.back()`
@@ -782,7 +791,7 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Calendar day numbers missing on current-month reopening | `overflow: 'hidden'` + `borderWidth` on `dayCircle` (View with `borderRadius: 999`) causes Android to clip child text into the border region when no explicit `backgroundColor` is set | Replaced single `dayCircle` View with two absolute-positioned layers: `dayRing` (border only) and `dayFill` (background only); `ThemedText` is a direct child of `dayCell` — never inside an `overflow:hidden` container |
 | HC banner shows today's steps even when a past date is selected | `fetchTodaySteps()` always queries today regardless of the date picker value | `fetchStepsForDate(selectedDate)` added; banner re-fetches on `selectedDate` change; walking sessions filtered to selected date for past days |
 | Confetti artifact visible at bottom of screen | `ConfettiCannon` always mounted outside conditional — renders visible origin element when idle | Gated cannon on `showCelebration` — only mounted during celebration |
-| Weekly goal celebration re-fires after sign-out + sign-in | `celebrated: true` persisted from previous session; progress check fires before activities load | `setCelebrated(false)` called in `onAuthStateChanged` on every new sign-in |
+| Weekly goal celebration re-fires on every cold boot | Firebase `onAuthStateChanged` fires on every cold boot (app restart), not just new sign-ins; `setCelebrated(false)` in the auth listener cleared the persisted flag on every restart | Removed `setCelebrated(false)` from `onAuthStateChanged` entirely; `checkAndResetCelebration()` handles new-week resets via stored week key comparison |
 | Profile photo missing after email re-login | `photoURL` race: snapshot could arrive before server value | Resolution order: Firestore → `currentUser.photoURL` → existing Zustand value → null |
 | Leaderboard shows deleted users | Leaderboard doc not deleted with user account | `handleDeleteAccount` now deletes both `users/{uid}` and `leaderboard/{uid}` in `Promise.all` |
 | Leaderboard stale after activity deletion | `persistWeeklyEcoScore()` not called after `deleteDoc` in `activity.tsx` `handleDelete` or `details.tsx` `confirmDelete` | `persistWeeklyEcoScore()` added to both delete handlers, filtering out the deleted activity before computing the new score |
@@ -831,6 +840,12 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | `streak-calendar-sheet.tsx` summary row invisible in dark mode | `colors.surfaceMuted + '80'` is string concatenation producing invalid hex | Replaced with explicit `rgba(255,255,255,0.08)` dark / `rgba(27,67,50,0.07)` light |
 | Health Connect setup ✅ emoji in alert title | `Alert.alert('✅ Connected!')` — emoji renders inconsistently across Android OEMs | Removed emoji: `Alert.alert('Connected!')` |
 | Challenge privacy note misleading | "Only completions are visible to others" — completions are not visible either | Corrected to "Challenge progress and completions are private — only you can see them" |
+| Confetti renders behind level-up and achievement modals | `ConfettiCannon` mounted as sibling of overlay `View`; Android `elevation` z-ordering places it behind the card | Moved `ConfettiCannon` inside overlay `View`, after card, with `elevation: 10` and `zIndex: 10` |
+| Achievement screen dark overlay / touch blocked | `achievementPending` stuck at `true` when `pendingAchievementId` not in `ACHIEVEMENT_MAP`; `Modal` open with null content blocks all touch | Auto-clear `achievementPending` in `(tabs)/_layout.tsx` when ID not in map; guard `visible` prop to require `pendingAchievement !== null` |
+| Onboarding step 3 rank chips use wrong icon set | `3.tsx` RANKS array used FA6 icons (`seedling`, `leaf`, `shield`, `star`); leveling screen uses MCO (`seed`, `sprout`, `tree`, `pine-tree`, `shield-half-full`) | Updated `3.tsx` to import `MaterialCommunityIcons`; icon names match `levelSystem.ts` RANKS exactly |
+| Dashboard CO₂ card shows "vs Last" (truncated) | `co2Item` flex container squeezed the label; no `numberOfLines` guard | Added `numberOfLines={1}` to label, `minWidth: 0` to `co2Item` style |
+| Water OCR misses kL / kilolitre readings | No kL-adjacent or kilolitres word-form pattern; range check ran before unit conversion so 77 kL (raw value 77) failed the 200 L floor | Added kL and `kilolitr(?:es?|ers?)` patterns; moved range validation after conversion; confidence 0–2 = high |
+| Login screen shows wrong password requirement message | Message mentioned symbols after "Require special character" was unchecked in Firebase Console | Updated `auth/password-does-not-meet-requirements` mapping to reflect actual policy (uppercase + lowercase + number, min 6 chars) |
 
 ---
 
