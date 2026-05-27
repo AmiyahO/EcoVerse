@@ -93,7 +93,9 @@ export default function AddActivityScreen() {
   const userProfile   = useActivityStore(s => s.userProfile);
   const setCelebrated = useActivityStore(s => s.setCelebrated);
   const celebrated    = useActivityStore(s => s.celebrated);
-  const triggerStreakMilestone = useActivityStore(s => s.triggerStreakMilestone);
+  const triggerStreakMilestone  = useActivityStore(s => s.triggerStreakMilestone);
+  const markStreakMilestoneSeen  = useActivityStore(s => s.markStreakMilestoneSeen);
+  const shownStreakMilestones    = useActivityStore(s => s.shownStreakMilestones);
   const streak        = calculateStreak(activities);
 
   const [category, setCategory]       = useState<ActivityCategory | null>(null);
@@ -318,17 +320,26 @@ export default function AddActivityScreen() {
       }
     }
 
-    const todayStr = toLocalISOString(selectedDate);
-    const alreadyLoggedToday = activities.some((a: any) => a.date === todayStr);
+    // Use date prefix (YYYY-MM-DD) not full ISO string — avoids false negatives
+    // when multiple activities are logged on the same day at different times.
+    const selectedDateKey = toLocalISOString(selectedDate).slice(0, 10);
+    const alreadyLoggedToday = activities.some(
+      (a: any) => a.date?.slice(0, 10) === selectedDateKey
+    );
     const newStreak = alreadyLoggedToday ? streak : streak + 1;
     const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
-    const hitMilestone = STREAK_MILESTONES.includes(newStreak) && !alreadyLoggedToday;
+    // Only fire if: hits a milestone number, is a new streak day, and hasn't
+    // been shown before (persisted so it survives app restarts).
+    const hitMilestone = STREAK_MILESTONES.includes(newStreak)
+      && !alreadyLoggedToday
+      && !shownStreakMilestones.includes(newStreak);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     playSound('activity-save').catch(() => {});
 
     router.back();
     if (hitMilestone) {
+      markStreakMilestoneSeen(newStreak);
       setTimeout(() => triggerStreakMilestone(newStreak), shouldCelebrate ? 800 : 420);
     }
   };

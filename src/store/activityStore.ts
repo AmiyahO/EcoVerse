@@ -88,6 +88,8 @@ type ActivityState = {
   clearAchievement:         () => void;
   unlockedAchievementIds:   string[];
   markAchievementSeen:      (id: string) => void;
+  shownStreakMilestones:     number[];
+  markStreakMilestoneSeen:   (days: number) => void;
   setEcoScoreSnapshots:     (snapshots: EcoScoreSnapshot[]) => void;
 };
 
@@ -107,6 +109,7 @@ export const useActivityStore = create<ActivityState>()(
       achievementPending:     false,
       pendingAchievementId:   '',
       unlockedAchievementIds: [],
+      shownStreakMilestones:  [],
       _profileLoaded: false,
       ecoScoreSnapshots: [],
 
@@ -189,6 +192,12 @@ export const useActivityStore = create<ActivityState>()(
 
       triggerAchievement:  (id) => set({ achievementPending: true, pendingAchievementId: id }),
       clearAchievement:    ()   => set({ achievementPending: false, pendingAchievementId: '' }),
+      markStreakMilestoneSeen: (days) => set(state => ({
+        shownStreakMilestones: state.shownStreakMilestones.includes(days)
+          ? state.shownStreakMilestones
+          : [...state.shownStreakMilestones, days],
+      })),
+
       markAchievementSeen: (id) => set(state => ({
         unlockedAchievementIds: state.unlockedAchievementIds.includes(id)
           ? state.unlockedAchievementIds
@@ -202,9 +211,10 @@ export const useActivityStore = create<ActivityState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist celebration state — everything else rehydrates from Firestore
       partialize: state => ({
-        celebrated:            state.celebrated,
-        celebratedWeek:        state.celebratedWeek,
+        celebrated:             state.celebrated,
+        celebratedWeek:         state.celebratedWeek,
         unlockedAchievementIds: state.unlockedAchievementIds,
+        shownStreakMilestones:  state.shownStreakMilestones,
       }),
       onRehydrateStorage: () => state => {
         state?.setHasHydrated();

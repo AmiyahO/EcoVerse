@@ -42,7 +42,9 @@ export default function HealthConnectSyncScreen() {
   const isDark = scheme === 'dark';
   const activities             = useActivityStore(s => s.activities);
   const userRegion             = useActivityStore(s => s.userRegion);
-  const triggerStreakMilestone = useActivityStore(s => s.triggerStreakMilestone);
+  const triggerStreakMilestone  = useActivityStore(s => s.triggerStreakMilestone);
+  const markStreakMilestoneSeen  = useActivityStore(s => s.markStreakMilestoneSeen);
+  const shownStreakMilestones    = useActivityStore(s => s.shownStreakMilestones);
 
   const [loading,     setLoading]     = useState(true);
   const [syncing,     setSyncing]     = useState(false);
@@ -107,8 +109,11 @@ export default function HealthConnectSyncScreen() {
       const newStreak = calculateStreak(freshActivities);
       const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
       const oldStreak = calculateStreak(activities); // pre-import streak
-      const hitMilestone = STREAK_MILESTONES.includes(newStreak) && newStreak > oldStreak;
+      const hitMilestone = STREAK_MILESTONES.includes(newStreak)
+        && newStreak > oldStreak
+        && !shownStreakMilestones.includes(newStreak);
       if (hitMilestone) {
+        markStreakMilestoneSeen(newStreak);
         setTimeout(() => triggerStreakMilestone(newStreak), 1200);
       }
 
