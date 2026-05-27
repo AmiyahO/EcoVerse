@@ -14,4 +14,4 @@ export async function recalculateTokens() {
 }
 
 // This utility can be used to recalculate tokens and carbon saved for all activities, e.g. after fixing a bug in the calculation logic. It iterates through all logged activities, recalculates their tokens and carbon savings, and updates the user's total in Firestore.
-// import { recalculateTokens } from '@/src/utils/recalculateTokens'; in _layout.tsx and call recalculateTokens() once to perform the recalculation. in preload with audio
+// import { recalculateTokens } from '@/src/utils/recalculateTokens'; in app/_layout.tsx and call recalculateTokens() once to perform the recalculation. in preload with audio
