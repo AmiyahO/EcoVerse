@@ -151,7 +151,10 @@ src/
 │   │                    #   totalCarbonSaved), celebration, levelUpPending,
 │   │                    #   pendingLevel, streakMilestonePending, pendingStreakDays,
 │   │                    #   _hasHydrated, _profileLoaded,
-│   │                    #   ecoScoreSnapshots (weekly history, loaded from Firestore).
+│   │                    #   ecoScoreSnapshots (weekly history, loaded from Firestore),
+│   │                    #   shownStreakMilestones (persisted — prevents re-firing
+│   │                    #   streak modal after streak rebuilt to same milestone),
+│   │                    #   unlockedAchievementIds (persisted — keeps badges earned).
 │   │                    #   Activity type includes co2Saved? and tokensEarned? fields.
 │   │                    #   duplicateActivity() creates a dated copy and returns
 │   │                    #   it for Firestore persistence by the caller
@@ -167,7 +170,16 @@ src/
 │   ├── healthSyncService.ts  # Bulk sync — merges sessions + pedometer days, commitSync
 │   │                         #   (stores local date string, not UTC, to fix display time bug).
 │   │                         #   Calls persistWeeklyEcoScore() after commit so leaderboard
-│   │                         #   reflects HC imports immediately
+│   │                         #   reflects HC imports immediately.
+│   │                         #   registerAddScreenImport(hcId) — writes hcId to
+│   │                         #   meta/healthSync.importedIds after add-screen HC save
+│   │                         #   so sync screen treats it as already imported.
+│   │                         #   importedSet built from importedIds UNION hcId values
+│   │                         #   on existing activities — catches add-screen imports
+│   │                         #   even if registerAddScreenImport hasn't run yet.
+│   │                         #   Delta entries carry originalDayId so commitSync
+│   │                         #   writes the correct pedometer day ID as hcId on the
+│   │                         #   Firestore activity, enabling cumulative delta tracking.
 │   ├── notificationService.ts # Local push notifications — configureNotificationHandler(),
 │   │                          #   requestNotifPermission(), getNotifPermStatus(),
 │   │                          #   applyNotifSettings() (schedules/reschedules all repeating
@@ -186,6 +198,9 @@ src/
    │                         #   Previous reading displayed as informational context only.
    │                         #   Prevents gaming via month-on-month comparison and anchors
    │                         #   savings to a stable, meaningful reference.
+   │                         #   deleteBillForActivity(billId) — soft-deletes linked bill
+   │                         #   record so getLastBill() does not return stale data after
+   │                         #   an electricity or water activity is deleted.
    └── notificationService.ts # (see Notifications section) + sendMissedChallengeNotification()
                               #   fires on first app open of new week if prior week had
                               #   joined-but-incomplete challenges.
@@ -219,6 +234,9 @@ components/
 │                             #   specific date via fetchStepsForDate(); not always today.
 │                             #   useEffect re-runs on both category and selectedDate change.
 │                             #   Header shows 'May 8 from Health Connect' for past dates.
+│                             #   onAutoFill includes hcId param (steps-YYYY-MM-DD for
+│                             #   pedometer, session.id for exercise sessions) for
+│                             #   deduplication in add.tsx handleHCAutoFill.
 ├── LevelUpModal.tsx          # Level-up celebration modal — animated rank icon
 │                             #   (MaterialCommunityIcons), floating icon in rounded tile,
 │                             #   pulsing glow, confetti (count 70, optimised), haptic on
@@ -799,6 +817,16 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Streak milestone modal shows wrong day / 7-day never fires on HC import | `triggerStreakMilestone()` only called in `add.tsx` manual log path; HC bulk import bypassed it. `STREAK_MILESTONES` in `add.tsx` also missing 60 and 100 | Added streak check in `health-connect-sync.tsx` after `commitSync()`; extended threshold array to `[3, 7, 14, 30, 60, 100]` |
 | Achievement screen freeze on first visit | `unlockedAchievementIds` empty on first visit → every earned milestone looked new → `triggerAchievement()` set `achievementPending: true` → modal overlay rendered with null content, blocking all touch | First-visit seeding: silently marks all currently-unlocked milestones without firing modal; modal only fires for achievements earned after seeding |
 | Missed challenge notification fires on every community screen refresh | `sendMissedChallengeNotification()` inside `fetchChallengeState()` with no session guard; called on mount, `currentUid` change, and every pull-to-refresh | Added `missedNotifFiredRef = useRef(false)` guard; notification fires at most once per app session |
+| HC sync screen shows "all caught up" after add-screen import | Pedometer HC activities counted in both `sessionStepsByDate` and `alreadyImportedSteps` — double-count made deltaSteps negative | `sessionStepsByDate` now excludes activities where `hcId` starts with `steps-` (pedometer imports); only session-based imports counted |
+| HC sync screen re-offers already-imported steps after add-screen import | Add-screen HC saves wrote `hcId` to Firestore activity but not to `meta/healthSync.importedIds`; sync screen built `importedSet` from `importedIds` only | `importedSet` extended with `hcId` values from `currentActivities`; `registerAddScreenImport()` added to write `hcId` to `meta/healthSync` after add-screen save |
+| HC sync delta re-offered on every sync after sync-screen import | Delta `syntheticActivity.id` was timestamped (e.g. `steps-2026-05-27-delta-1748...`); written as `hcId` on Firestore activity; future `alreadyImportedSteps` filter on `hcId === day.id` never matched | `syntheticActivity` carries `originalDayId` for delta entries; `commitSync` writes `hcId: originalDayId ?? hca.id` |
+| Add-screen HC banner allows re-import of same steps | No check against already-logged activities with matching `hcId` before filling form | `handleHCAutoFill` queries `activities` for matching `hcId`; blocks if delta ≤ 200 steps; fills with delta only if delta > 200 |
+| Keyboard obscures input fields on add activity screen | No `KeyboardAvoidingView` or scroll-to-focused-field logic | Wrapped in `KeyboardAvoidingView`; `onFocus` scrolls `ScrollView` to end after 300 ms delay |
+| Streak milestone modal fires twice on same day | `alreadyLoggedToday` compared full ISO timestamps; different times on same day never matched | Date comparison changed to `slice(0, 10)` prefix (YYYY-MM-DD only) |
+| Streak milestone modal re-fires after streak rebuilt to same threshold | No persistent record of shown milestones | `shownStreakMilestones: number[]` added to store, persisted to AsyncStorage; `markStreakMilestoneSeen()` called before `triggerStreakMilestone()` in both `add.tsx` and `health-connect-sync.tsx` |
+| Streak milestone badges revert to grey after streak breaks | `unlockedMilestoneIds` computed from `m.check(stats)` (live streak) only | Extended to `m.check(stats) \|\| unlockedAchievementIds.includes(m.id)` |
+| Last bill reading shown after deleting all electricity/water activities | `activity.tsx` `handleDelete` did not clean up linked bill record | `deleteBillForActivity(item.billId)` called in `activity.tsx` `handleDelete` when `billId` present |
+| Firebase rejects `+` symbol in password on sign-up | Firebase password policy had "Require special character" with internal allowlist that excludes `+` | Unchecked "Require special character" in Firebase Console; policy now requires uppercase + lowercase + number only |
 | Gemini API 400 / 404 errors | Model name `gemini-2.5-flash-preview-05-20` invalid; `maxOutputTokens: 8192` exceeded free tier; `responseMimeType: "application/json"` unsupported on preview models | Model → `gemini-2.5-flash`; `maxOutputTokens` stays at `8192`; only `responseMimeType` removed; error body logging added |
 | `streak-calendar-sheet.tsx` summary row invisible in dark mode | `colors.surfaceMuted + '80'` is string concatenation producing invalid hex | Replaced with explicit `rgba(255,255,255,0.08)` dark / `rgba(27,67,50,0.07)` light |
 | Health Connect setup ✅ emoji in alert title | `Alert.alert('✅ Connected!')` — emoji renders inconsistently across Android OEMs | Removed emoji: `Alert.alert('Connected!')` |
