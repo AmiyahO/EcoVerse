@@ -84,9 +84,6 @@ app/
 │   │                    #   WeeklyCO2Chart: transparent View responder overlay for instant
 │   │                    #     bar tap (no Victory Native pan gesture). Index from locationX
 │   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
-│   ├── achievements.tsx # Achievements — milestone badge grid with progress fill,
-│   │                    #   category milestones, streak and token rewards, completed
-│   │                    #   challenge records, and celebration animations.
 │   └── profile.tsx      # Profile — gradient hero (3-stat hero: Tokens | Activities | CO₂),
 │                        #   streak badge with dynamic Best-Nd pill (tint when beatable,
 │                        #   gold #FFD166 when matched/beaten), level badge (tappable →
@@ -127,6 +124,9 @@ app/
 │                        #   all 8 tier cards with staggered entrance animations and live
 │                        #   fill bars, quadratic formula info card.
 │                        #   Accessed from profile.tsx rank pill (router.push('/leveling'))
+├── achievements.tsx     # Achievements — milestone badge grid with progress fill,
+│                        #   category milestones, streak and token rewards, completed
+│                        #   challenge records, and celebration animations.
 ├── future-vision.tsx    # Static "What's Next" screen — 4 vision cards (EcoToken
 │                        #   Marketplace, Friend Accountability, Municipal Integration,
 │                        #   Predictive AI Coach), each with Planned badge + bullet points.
