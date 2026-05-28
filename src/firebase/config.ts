@@ -11,7 +11,7 @@ const firebaseConfig = {
   projectId: "ecoverse-321bd",
   storageBucket: "ecoverse-321bd.firebasestorage.app",
   messagingSenderId: "29515161391",
-  appId: "1:29515161391:web:1499dde456cb6c31decbda"               // 🔹 Replace with Firebase app ID
+  appId: "1:29515161391:web:1499dde456cb6c31decbda"
 };
 
 // initialize firebase app

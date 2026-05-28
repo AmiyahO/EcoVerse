@@ -3,7 +3,7 @@
 // Leveling system for EcoVerse.
 // Lifetime tokens act as XP.  Formula: to reach level L you need 500 * L² tokens.
 // Level 1 starts at 0.  This gives easy early gains and naturally steeper
-// requirements at higher levels — consistent with Gemini doc's quadratic scaling.
+// requirements at higher levels — quadratic scaling.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface LevelInfo {

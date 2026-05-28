@@ -14,7 +14,7 @@ export interface AISuggestion {
   body: string;
 }
 
-// Maps FA6 icon name → colour, using your existing CATEGORY_COLORS where possible
+// Maps FA6 icon name → colour, using existing CATEGORY_COLORS where possible
 export const ICON_COLOR_MAP: Record<string, string> = {
   'person-walking': CATEGORY_COLORS.walking,     // green
   'person-running': CATEGORY_COLORS.running,     // orange-red
@@ -233,7 +233,8 @@ async function getCachedTips(): Promise<AISuggestion[] | null> {
 }
 
 // ── Placeholder tips ─────────────────────────────────────────────────────────
-// Data-aware, eco-impact framed — feel like "AI-lite" not error messages
+// Data-aware, eco-impact framed tips that can be shown when there's no API key, on first use, or during cooldowns 
+// Better than a generic "set up AI" message and still personalised to their activity patterns.
 function getPlaceholderTips(s: ActivitySummary): AISuggestion[] {
   const tips: AISuggestion[] = [];
 

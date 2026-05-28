@@ -1,3 +1,5 @@
+// This screen displays the Privacy Policy content in a WebView. The content is loaded from a local HTML string defined in `termsOfServiceHtml.ts`. 
+// The screen also includes a back button to navigate back to the previous screen. Any links within the content that start with "mailto:" or "http" will be opened in the device's default browser or email client.
 import { ActivityIndicator, Linking, View, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';

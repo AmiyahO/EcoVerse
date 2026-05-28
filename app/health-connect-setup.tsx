@@ -2,7 +2,6 @@
 // Dedicated setup screen that guides users through enabling Health Connect.
 // Shows app-specific instructions for Google Fit, Samsung Health, Strava etc.
 // Accessible from the add activity screen banner and from onboarding.
-
 import { ThemedText } from '@/components/themed-text';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import {
@@ -396,7 +395,7 @@ export default function HealthConnectSetupScreen() {
 
       </Animated.ScrollView>
 
-      {/* Bottom CTA */}
+      {/* Grant Health Connect access */}
       {!isGranted && (
         <View style={[styles.bottomCTA, { backgroundColor: colors.background, borderTopColor: colors.surfaceMuted }]}>
           <Pressable

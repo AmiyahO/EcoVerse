@@ -4,10 +4,7 @@
 //   1. not_asked  → "Connect Health Connect" CTA
 //   2. granted    → shows steps/sessions for the SELECTED DATE to import
 //   3. unavailable → hidden (not Android or HC not installed)
-
-import {
-  View, Text, StyleSheet, Pressable, ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { router } from 'expo-router';
 import { Ionicons, FontAwesome6 } from '@expo/vector-icons';

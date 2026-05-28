@@ -206,7 +206,7 @@ export async function fetchSyncCandidates(
     const totalAlreadyAccountedSteps = alreadyAccountedBySession + alreadyImportedSteps;
     const deltaSteps = day.steps - totalAlreadyAccountedSteps;
 
-    // Nothing new to offer
+    // Nothing new to offer if the delta is zero or negative (negative can happen if user deletes HC sessions that were previously imported, or if they log manual walking that exceeds the pedometer total)
     if (deltaSteps <= STEP_NOISE_THRESHOLD) continue;
 
     const deltaDistance = day.distance > 0 && day.steps > 0

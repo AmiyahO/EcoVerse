@@ -1,5 +1,8 @@
 // src/services/billService.ts
-// Manages bill readings in Firestore and calculates savings vs previous reading.
+// Manages bill readings in Firestore and calculates savings vs previous reading or regional baseline.
+// Bills are stored in a subcollection under each user document, with fields for type (electricity/water), reading, saved amount, date, and month. 
+// When a new bill is saved, the service calculates the savings compared to the previous reading (if available) or a regional baseline, and stores that info as well. 
+// It also provides a function to soft-delete bills linked to activities when those activities are deleted.
 import { db, auth } from '@/src/firebase/config';
 import {
   collection, addDoc, query, where,

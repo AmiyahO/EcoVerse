@@ -1,8 +1,8 @@
 // src/utils/dateUtils.ts
 // Shared date helpers — always use LOCAL time, never UTC midnight.
-// Import these instead of writing inline date comparisons.
 
-// ── Reusable utility — add to a shared dateUtils.ts ─────────────────────────
+// ── Reusable date utilities  ─────────────────────────
+// Check if a given date string (e.g. activity date) is today or this week, for filtering activities on the dashboard. Also helper functions to get local midnight and end of day for setting goal deadlines, etc.
 export function isToday(dateStr: string): boolean {
   const d = new Date(dateStr);
   const n = new Date();

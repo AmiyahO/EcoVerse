@@ -1,5 +1,6 @@
 // src/utils/achievementMap.ts
-// Auto-generated map of milestone ID → display info for AchievementModal.
+// Auto-generated map of milestone ID → display info for AchievementModal rendering.  
+// This keeps all achievement metadata in one place and makes it easy to look up icons, titles etc when rendering the user's achievements list or the milestone progress modal.
 // Keep in sync with MILESTONES array in app/achievements.tsx.
 import type { AchievementInfo } from '@/components/AchievementModal';
 

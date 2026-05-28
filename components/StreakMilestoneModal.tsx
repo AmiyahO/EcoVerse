@@ -13,7 +13,7 @@ const { width: SCREEN_W } = Dimensions.get('window');
 
 interface Props {
   visible: boolean;
-  streakDays: number;  // 3 or 7 (or any future milestone)
+  streakDays: number;  // Number of consecutive days in the current streak (e.g. 3 for a 3-day streak)
   onClose: () => void;
 }
 

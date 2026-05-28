@@ -1,6 +1,5 @@
 // components/ocr-candidate-picker.tsx
 // Shows the numbers ML Kit found in the bill photo and lets the user pick the right one.
-
 import { View, Pressable, StyleSheet, Modal } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { FontAwesome6 } from '@expo/vector-icons';

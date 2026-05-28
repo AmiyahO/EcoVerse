@@ -879,7 +879,6 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 - [x] Gemini API key moved out of codebase — stored as EAS environment variable (`eas env:create`); old exposed key revoked
 - [x] Replace `FEEDBACK_FORM_URL` in `settings.tsx` with actual Google Form / Typeform link
 - [ ] Test on 360dp-wide emulator (Pixel 3a size) — tested on Samsung Galaxy A55 5G; Pixel 3a emulator not run due to memory constraints (documented as limitation in thesis)
-- [ ] Remove remaining debug `console.warn` statements in `aiSuggestions.ts`
 - [ ] Play Store listing — icon, screenshots, description, Privacy Policy URL
 - [ ] © 2026 Amirah Yahaya. All rights reserved. to About section in Settings
 

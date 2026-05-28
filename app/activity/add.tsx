@@ -82,8 +82,6 @@ function formatDisplayDate(date: Date): string {
   });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function AddActivityScreen() {
   const { colors, scheme } = useAppTheme();
   const insets = useSafeAreaInsets();

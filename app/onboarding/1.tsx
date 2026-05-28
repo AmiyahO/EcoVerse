@@ -44,7 +44,7 @@ export default function OnboardingStep1() {
         <Text style={[styles.tagline, { color: mottoColor }]}>TRACK YOUR IMPACT</Text>
       </Animated.View>
 
-      {/* Copy */}
+      {/* Text content */}
       <Animated.View style={[styles.copy, { opacity: fade, transform: [{ translateY: slideY }] }]}>
         <Text style={[styles.headlineText, { color: headline }]}>
           Your planet.{'\n'}Your choices.{'\n'}Your impact.

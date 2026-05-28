@@ -200,7 +200,7 @@ export async function fetchStepsForDate(
 
     // Same deduplication as fetchDailyStepSummaries:
     // bucket by dataOrigin, take max across origins to prevent
-    // Samsung Health + Google Fit both writing the same steps
+    // Samsung Health + Google Fit both writing the same steps and causing duplicates.
     const stepsByOrigin: Record<string, number> = {};
     for (const r of stepsResult.records as any[]) {
       const origin = r.metadata?.dataOrigin ?? 'unknown';
@@ -446,6 +446,7 @@ export function formatSource(origin?: string): string {
   if (origin.includes('com.garmin.android.apps.connectmobile'))                  return 'Garmin';
   if (origin.includes('com.polar.flow'))                   return 'Polar';
   if (origin.includes('com.fitbit.FitbitMobile'))                  return 'Fitbit';
+  if (origin.includes('com.xiaomi.wearable'))                  return 'Mi Fitness';
   // Fallback: capitalize last segment of package name
   const parts = origin.split('.');
   const last  = parts[parts.length - 1];

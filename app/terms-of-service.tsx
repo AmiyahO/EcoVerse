@@ -1,3 +1,4 @@
+// This screen displays the Terms of Service content in a WebView. It also handles link clicks to open them in the device's default browser or email client.
 import { ActivityIndicator, Linking, View, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';

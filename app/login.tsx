@@ -347,7 +347,7 @@ export default function LoginScreen() {
               )
             )}
 
-            {/* Primary CTA */}
+            {/* Sign in / create account */}
             <Pressable
               style={[styles.primaryBtn, { backgroundColor: colors.tint, opacity: loading ? 0.7 : 1 }]}
               onPress={handleEmailAuth}
@@ -366,7 +366,7 @@ export default function LoginScreen() {
               <View style={[styles.dividerLine, { backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#E5E5E5' }]} />
             </View>
 
-            {/* Google — PNG icon, no SVG to avoid duplicate registration error */}
+            {/* Google sign-in */}
             <Pressable
               style={[styles.googleBtn, {
                 backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#FAFAFA',
@@ -375,7 +375,6 @@ export default function LoginScreen() {
               onPress={handleGoogleSignIn}
               disabled={loading}
             >
-              {/* Place google-icon.png in assets/images/ */}
               <Image
                 source={require('@/assets/images/google-icon.png')}
                 style={styles.googleIcon}

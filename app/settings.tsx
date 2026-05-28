@@ -295,7 +295,7 @@ export default function SettingsScreen() {
                 ]);
               } catch { /* best-effort */ }
 
-              // ✅ Navigation is handled entirely by onAuthStateChanged in _layout.tsx
+              // Navigation is handled entirely by onAuthStateChanged in _layout.tsx
 
             } catch (e: any) {
               // Auth deletion failed — user is still signed in. Show error only.

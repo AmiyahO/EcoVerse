@@ -1,3 +1,6 @@
+// This Cloud Function rotates the weekly and monthly challenges every Sunday at 00:01 Cyprus time.  
+// It uses a controlled randomization approach to ensure a balanced mix of challenge difficulties each week, while also guaranteeing that at least one carbon-impact challenge appears weekly.  
+// Monthly challenges are added on the first Sunday of each calendar month.  The function runs with a single instance to control costs, and it performs all database updates in a single atomic batch for consistency.
 import { setGlobalOptions } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
