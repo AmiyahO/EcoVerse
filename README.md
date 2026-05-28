@@ -13,6 +13,7 @@ Developed as a **Final Year Project (FYP)** using **React Native** and **Expo**.
 - Provide real-time progress tracking across a dashboard, stats, and profile
 - Motivate sustained behaviour change through streaks, weekly goals, a global celebration system, and a leveling system
 - Provide a Community screen with a global leaderboard (ranked by weekly EcoScore) and opt-in weekly challenges with privacy-preserving anonymous display
+- Celebrate progress through an Achievements screen with milestone badges, streak goals, token tiers, and category-specific activity rewards
 - Offer AI-powered personalised eco-tips powered by Google Gemini (food/diet suggestions excluded)
 - Enable bill scanning (OCR) to auto-populate electricity and water usage from utility bills
 - Translate cumulative CO₂ savings into relatable real-world equivalents
@@ -83,6 +84,9 @@ app/
 │   │                    #   WeeklyCO2Chart: transparent View responder overlay for instant
 │   │                    #     bar tap (no Victory Native pan gesture). Index from locationX
 │   │                    #     + slot geometry. Dot pip on selected bar. No chartPressState.
+│   ├── achievements.tsx # Achievements — milestone badge grid with progress fill,
+│   │                    #   category milestones, streak and token rewards, completed
+│   │                    #   challenge records, and celebration animations.
 │   └── profile.tsx      # Profile — gradient hero (3-stat hero: Tokens | Activities | CO₂),
 │                        #   streak badge with dynamic Best-Nd pill (tint when beatable,
 │                        #   gold #FFD166 when matched/beaten), level badge (tappable →
@@ -133,6 +137,8 @@ app/
 │                        #   request, daily reminder toggle + time picker, weekly recap,
 │                        #   missed-day nudge, streak-at-risk alert), Terms of Service,
 │                        #   Privacy Policy, feedback link
+├── terms-of-service.tsx # Terms of Service modal content screen
+├── privacy-policy.tsx   # Privacy Policy modal content screen
 ├── edit-profile.tsx     # Edit name, weekly target, avatar
 └── _layout.tsx          # Root layout — auth state, Firestore listeners, freshLogin ref,
                          #   weekly EcoScore snapshot writer + loader. readyFlags ref
@@ -192,24 +198,23 @@ src/
 │   │                         #   System prompt explicitly excludes food/diet/food waste tips;
 │   │                         #   focuses on energy, water, transport, laundry, standby power,
 │   │                         #   thermostat, and packaging. Fallback pool: 7 data-aware tips.
+│   ├── clearAICache.ts       # Clears cached Gemini suggestions and regenerates on next request.
 │   ├── billOCR.ts            # Camera capture + OCR for electricity and water bills
 │   ├── billService.ts        # Bill data extraction. calculateSaving() always compares against
-   │                         #   the regional baseline (getRegionalBaseline()) — never bill-to-bill.
-   │                         #   Previous reading displayed as informational context only.
-   │                         #   Prevents gaming via month-on-month comparison and anchors
-   │                         #   savings to a stable, meaningful reference.
-   │                         #   deleteBillForActivity(billId) — soft-deletes linked bill
-   │                         #   record so getLastBill() does not return stale data after
-   │                         #   an electricity or water activity is deleted.
-   └── notificationService.ts # (see Notifications section) + sendMissedChallengeNotification()
-                              #   fires on first app open of new week if prior week had
-                              #   joined-but-incomplete challenges.
+│                             #   the regional baseline (getRegionalBaseline()) — never bill-to-bill.
+│                             #   Previous reading displayed as informational context only.
+│                             #   Prevents gaming via month-on-month comparison and anchors
+│                             #   savings to a stable, meaningful reference.
+│                             #   deleteBillForActivity(billId) — soft-deletes linked bill
+│                             #   record so getLastBill() does not return stale data after
+│                             #   an electricity or water activity is deleted.
 │
 ├── content/
 │   ├── termsOfService.ts     # Terms of Service text (shown in-app modal)
 │   └── privacyPolicy.ts      # Privacy Policy text (shown in-app modal)
 │
 └── utils/
+    ├── achievementMap.ts     # Mapping from milestone IDs to display metadata for achievement modals.
     ├── ecoLogic.ts           # CO₂ calculations, token formulas, EcoScore (capped at 100),
     │                         #   streak logic, CATEGORY_COLORS, week/month range helpers.
     │                         #   calculateEcoScore() exported for reuse by dashboard +
@@ -224,6 +229,8 @@ src/
     │                         #   from activity document (written by add.tsx at save time).
     │                         #   getCurrentWeekId() uses Sunday-based local date key.
     ├── co2Equivalents.ts     # Real-world CO₂ equivalent lookup and formatter
+    ├── recalculateTokens.ts  # Final token calculation helpers, streak multiplier, and rate mapping.
+    ├── sfx.ts                # Preloads and plays Expo audio feedback sounds.
     └── dateUtils.ts          # isToday, isThisWeek, localMidnightToday, localEndOfDay,
                               #   toLocalISOString (UTC→local for Health Connect dates)
 
@@ -237,6 +244,7 @@ components/
 │                             #   onAutoFill includes hcId param (steps-YYYY-MM-DD for
 │                             #   pedometer, session.id for exercise sessions) for
 │                             #   deduplication in add.tsx handleHCAutoFill.
+├── AchievementModal.tsx      # Achievement earned modal with badge preview and progress summary.
 ├── LevelUpModal.tsx          # Level-up celebration modal — animated rank icon
 │                             #   (MaterialCommunityIcons), floating icon in rounded tile,
 │                             #   pulsing glow, confetti (count 70, optimised), haptic on
@@ -248,18 +256,28 @@ components/
 │                             #   triggerStreakMilestone(days) + clearStreakMilestone().
 ├── streak-calendar-sheet.tsx # Bottom sheet streak calendar. longestStreak prop
 │                             # displays "Best Nd" pill in header. Day circles use
-│                             # two absolute-positioned layers (dayRing + dayFill) with
-│                             # no overflow:hidden — avoids Android text-clip bug where
-│                             # borderWidth + overflow:hidden clips child text
-└── ocr-candidate-picker.tsx  # OCR result picker for bill scanning
+│                             #   two absolute-positioned layers (dayRing + dayFill) with
+│                             #   no overflow:hidden — avoids Android text-clip bug where
+│                             #   borderWidth + overflow:hidden clips child text
+├── external-link.tsx         # External link row used for privacy/terms/external URLs.
+├── haptic-tab.tsx            # Custom tab item with haptic feedback support.
+├── hello-wave.tsx            # Animated greeting badge used in dashboard/profile headers.
+├── parallax-scroll-view.tsx  # Parallax scroll wrapper for long pages.
+├── themed-text.tsx           # Theme-aware text wrapper for consistent colour styling.
+├── themed-view.tsx           # Theme-aware view wrapper for background and surface colours.
+├── ocr-candidate-picker.tsx  # OCR result picker for bill scanning
+└── ui/                       # Shared UI primitives and smaller helper components.
 
 constants/
 └── theme.ts             # Light/dark colour tokens
 
 hooks/
+├── use-color-scheme.ts
+├── use-color-scheme.web.ts
+├── use-theme-color.ts
 └── useAppTheme.ts       # Resolves system/light/dark scheme from themeStore
 
-firebase/
+src/firebase/
 └── config.ts            # Firebase setup
 ```
 
