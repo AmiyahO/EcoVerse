@@ -618,7 +618,11 @@ export default function CommunityScreen() {
     fetchLeaderboard();
     fetchChallengeState();
     fetchChallengesForWeek().then(challenges => { setLiveChallenges(challenges); setLoadingChallenges(false); });
-  }, [currentUid, fetchLeaderboard, fetchChallengeState]);
+    // Prefetch lifetime in background so it's ready when the user taps the tab.
+    // fetchLifetimeLeaderboard sets loadingLifetime=true only for a moment —
+    // by the time the user navigates there it'll already be resolved.
+    fetchLifetimeLeaderboard();
+  }, [currentUid, fetchLeaderboard, fetchChallengeState, fetchLifetimeLeaderboard]);
 
   // Refresh leaderboard every time the user navigates to this tab,
   // so score updates from add.tsx are reflected without a manual pull-to-refresh.
@@ -771,7 +775,7 @@ export default function CommunityScreen() {
  
   const indicatorTranslate = tabAnim.interpolate({
     inputRange:  [0, 1, 2],
-    outputRange: [1, TAB_W + 1, TAB_W * 2 + 1],
+    outputRange: [0, TAB_W, TAB_W * 2],
   });
 
   const displayFor = (entry: LeaderboardEntry) => {
@@ -1163,44 +1167,6 @@ export default function CommunityScreen() {
       {/* ── Lifetime Leaderboard ── */}
       {activeTab === 'lifetime' && (
         <View style={{ flex: 1 }}>
-          {/* Metric toggle */}
-          <View style={[styles.lifetimeToggle, { backgroundColor: colors.surface }]}>
-            <TouchableOpacity
-              style={[
-                styles.lifetimeToggleBtn,
-                lifetimeMetric === 'co2' && { backgroundColor: colors.tint },
-              ]}
-              onPress={() => setLifetimeMetric('co2')}
-              activeOpacity={0.8}
-            >
-              <FontAwesome6 name="cloud" size={11}
-                color={lifetimeMetric === 'co2' ? '#fff' : colors.text} />
-              <Text style={[
-                styles.lifetimeToggleText,
-                { color: lifetimeMetric === 'co2' ? '#fff' : colors.text },
-              ]}>
-                CO₂ Saved
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.lifetimeToggleBtn,
-                lifetimeMetric === 'tokens' && { backgroundColor: colors.tint },
-              ]}
-              onPress={() => setLifetimeMetric('tokens')}
-              activeOpacity={0.8}
-            >
-              <FontAwesome6 name="leaf" size={11}
-                color={lifetimeMetric === 'tokens' ? '#fff' : colors.text} />
-              <Text style={[
-                styles.lifetimeToggleText,
-                { color: lifetimeMetric === 'tokens' ? '#fff' : colors.text },
-              ]}>
-                EcoTokens
-              </Text>
-            </TouchableOpacity>
-          </View>
- 
           {loadingLifetime ? (
             <View style={styles.centered}>
               <ActivityIndicator color={colors.tint} size="large" />
@@ -1216,6 +1182,64 @@ export default function CommunityScreen() {
               }
               ListHeaderComponent={
                 <>
+                  {/* ── Inline header toggle ── */}
+                  <View style={styles.lifetimeHeader}>
+                    <View style={[styles.lifetimeToggle, { backgroundColor: colors.surfaceMuted }]}>
+                      <TouchableOpacity
+                        style={[
+                          styles.lifetimeToggleBtn,
+                          lifetimeMetric === 'co2' && {
+                            backgroundColor: isDark ? colors.surface : '#ffffff',
+                            borderColor: isDark ? 'transparent' : 'rgba(0,0,0,0.08)',
+                            borderWidth: isDark ? 0 : 0.5,
+                            // Matches the elevation/shadow of the main segment indicator
+                            elevation: 2,
+                          },
+                        ]}
+                        onPress={() => setLifetimeMetric('co2')}
+                        activeOpacity={0.8}
+                      >
+                        <FontAwesome6
+                          name="cloud"
+                          size={10}
+                          color={lifetimeMetric === 'co2' ? colors.tint : colors.text + '88'}
+                        />
+                        <Text style={[
+                          styles.lifetimeToggleText,
+                          { color: lifetimeMetric === 'co2' ? colors.tint : colors.text + '88' },
+                        ]}>
+                          CO₂
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.lifetimeToggleBtn,
+                          lifetimeMetric === 'tokens' && {
+                            backgroundColor: isDark ? colors.surface : '#ffffff',
+                            borderColor: isDark ? 'transparent' : 'rgba(0,0,0,0.08)',
+                            borderWidth: isDark ? 0 : 0.5,
+                            elevation: 2,
+                          },
+                        ]}
+                        onPress={() => setLifetimeMetric('tokens')}
+                        activeOpacity={0.8}
+                      >
+                        <FontAwesome6
+                          name="leaf"
+                          size={10}
+                          color={lifetimeMetric === 'tokens' ? colors.tint : colors.text + '88'}
+                        />
+                        <Text style={[
+                          styles.lifetimeToggleText,
+                          { color: lifetimeMetric === 'tokens' ? colors.tint : colors.text + '88' },
+                        ]}>
+                          Tokens
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+ 
+                  {/* Podium */}
                   {lifetimeBoard.length >= 1 && (
                     <LifetimePodium
                       entries={lifetimeBoard.filter(e => e.rank <= 3)}
@@ -1299,7 +1323,11 @@ export default function CommunityScreen() {
                 </View>
                 <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>You</Text>
                 <View style={[styles.scoreBadge, { backgroundColor: colors.tint + '18', borderColor: colors.tint + '40' }]}>
-                  <FontAwesome6 name={lifetimeMetric === 'co2' ? 'cloud' : 'leaf'} size={10} color={colors.tint} />
+                  <FontAwesome6
+                    name={lifetimeMetric === 'co2' ? 'cloud' : 'leaf'}
+                    size={10}
+                    color={colors.tint}
+                  />
                   <Text style={[styles.scoreVal, { color: colors.tint }]}>{value}</Text>
                 </View>
               </View>
@@ -1369,7 +1397,7 @@ const styles = StyleSheet.create({
 
   // Segment
   segmentTrack:      { flexDirection: 'row', marginHorizontal: 20, borderRadius: 14, padding: 4, marginBottom: 12, position: 'relative' },
-  segmentIndicator:  { position: 'absolute', top: 4, left: 4, width: '50%', bottom: 4, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+  segmentIndicator:  { position: 'absolute', top: 4, left: 4, bottom: 4, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
   segmentBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, zIndex: 1 },
   segmentLabel:      { fontSize: 13, fontWeight: '700' },
 
@@ -1446,26 +1474,30 @@ const styles = StyleSheet.create({
   emptySub:         { fontSize: 14, textAlign: 'center', paddingHorizontal: 40, opacity: 0.6, lineHeight: 20 },
 
   // Lifetime tab
-  lifetimeToggle: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 10,
-    marginTop: 2,
-    borderRadius: 12,
-    padding: 4,
-    gap: 4,
-  },
-  lifetimeToggleBtn: {
-    flex: 1,
+  lifetimeHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    borderRadius: 9,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4,
+    marginBottom: 12,
+    marginTop: 2,
+  },
+  lifetimeToggle: {
+    flexDirection: 'row',
+    borderRadius: 999,
+    padding: 2,
+    gap: 2,
+  },
+  lifetimeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   lifetimeToggleText: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
