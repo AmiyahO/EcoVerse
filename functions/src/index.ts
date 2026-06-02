@@ -1,13 +1,12 @@
 // functions/src/index.ts
 //
-// Contains two scheduled Cloud Functions:
+// Contains three Cloud Functions:
 //
-//   1. rotateChallenges — every Sunday 00:01 Cyprus time
+//   1. rotateChallenges        — scheduled, every Sunday 00:01 Cyprus time
 //      Rotates weekly/monthly challenges with controlled difficulty mix.
 //
-//   2. weeklyLeaderboardReset — every Sunday 00:05 UTC
+//   2. weeklyLeaderboardReset  — scheduled, every Sunday 00:05 UTC
 //      Awards EcoTokens to top 3, records wins, resets all weeklyEcoScore fields.
-
 import { setGlobalOptions } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
@@ -62,7 +61,6 @@ function getSundayDateString(date: Date): string {
   return `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}`;
 }
 
-// Returns "YYYY-MM-DD" for the Sunday that just ended (UTC)
 function lastSundayKeyUTC(): string {
   const now = new Date();
   const sunday = new Date(now);
@@ -72,11 +70,6 @@ function lastSundayKeyUTC(): string {
 }
 
 // ── 1. Challenge rotation ─────────────────────────────────────────────────────
-//
-// Runs every Sunday at 00:01 Cyprus time.
-// Guaranteed weekly mix: 2 easy + 2 medium + 1 hard/epic + 1 CO₂ = 6 challenges.
-// Monthly challenges appended on the first Sunday of each calendar month.
-
 export const rotateChallenges = onSchedule(
   { schedule: '1 0 * * 0', timeZone: 'Europe/Nicosia' },
   async () => {
@@ -104,10 +97,7 @@ export const rotateChallenges = onSchedule(
     const pickedCo2    = randomPick(co2Pool, Math.min(1, co2Pool.length));
 
     const picked: ChallengeTemplate[] = [
-      ...pickedEasy,
-      ...pickedMedium,
-      ...pickedHard,
-      ...pickedCo2,
+      ...pickedEasy, ...pickedMedium, ...pickedHard, ...pickedCo2,
     ];
 
     if (picked.length === 0) {
@@ -149,24 +139,10 @@ export const rotateChallenges = onSchedule(
 );
 
 // ── 2. Weekly leaderboard reset + top 3 rewards ───────────────────────────────
-//
-// Runs every Sunday at 00:05 UTC (4 mins after rotateChallenges, safe gap).
-// Awards EcoTokens to top 3 users by weeklyEcoScore, records wins in
-// users/{uid}/weeklyWins/{weekId}, then resets all weeklyEcoScore fields to 0.
-// Does NOT touch totalCarbonSaved or tokens (lifetime fields).
-
-const TOP3_REWARDS: Record<number, number> = {
-  1: 100,
-  2: 50,
-  3: 25,
-};
+const TOP3_REWARDS: Record<number, number> = { 1: 100, 2: 50, 3: 25 };
 
 export const weeklyLeaderboardReset = onSchedule(
-  {
-    schedule: '5 0 * * 0',
-    timeZone: 'UTC',
-    timeoutSeconds: 120,
-  },
+  { schedule: '5 0 * * 0', timeZone: 'UTC', timeoutSeconds: 120 },
   async () => {
     const weekId = lastSundayKeyUTC();
     console.log(`[weeklyReset] Starting reset for week ${weekId}`);

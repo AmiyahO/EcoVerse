@@ -31,6 +31,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   ActivityIndicator,
+  AppState,
   Animated,
   Dimensions,
   FlatList,
@@ -144,9 +145,10 @@ function Podium({
  
   // Build display order: rank-2 left, ALL rank-1 centre, rank-3 right.
   // Using rank value (not array position) means ties are handled correctly.
-  const rank1 = entries.filter(e => e.rank === 1);
-  const rank2 = entries.filter(e => e.rank === 2);
-  const rank3 = entries.filter(e => e.rank === 3);
+  // Cap rank1 ties at 2 — more than that makes the podium overflow
+  const rank1 = entries.filter(e => e.rank === 1).slice(0, 2);
+  const rank2 = entries.filter(e => e.rank === 2).slice(0, 1);
+  const rank3 = entries.filter(e => e.rank === 3).slice(0, 1);
  
   // Podium visual order: [2nd, 1st(s), 3rd]
   const order = [...rank2, ...rank1, ...rank3];
@@ -321,9 +323,10 @@ function LifetimePodium({
 }) {
   if (entries.length < 1) return null;
  
-  const rank1 = entries.filter(e => e.rank === 1);
-  const rank2 = entries.filter(e => e.rank === 2);
-  const rank3 = entries.filter(e => e.rank === 3);
+  // Cap rank1 ties at 2 — more than that makes the podium overflow
+  const rank1 = entries.filter(e => e.rank === 1).slice(0, 2);
+  const rank2 = entries.filter(e => e.rank === 2).slice(0, 1);
+  const rank3 = entries.filter(e => e.rank === 3).slice(0, 1);
   const order = [...rank2, ...rank1, ...rank3];
   const heights: Record<number, number> = { 1: 96, 2: 72, 3: 56 };
  
@@ -452,15 +455,22 @@ export default function CommunityScreen() {
       // the previous entry (not the temp sequential rank in rawEntries).
       const entries: LeaderboardEntry[] = [];
       for (let i = 0; i < rawEntries.length; i++) {
+        const score = rawEntries[i].weeklyEcoScore;
         if (i === 0) {
-          entries.push({ ...rawEntries[i], rank: 1 });
+          // Score 0 users get positional rank but are not "ranked" for podium purposes
+          entries.push({ ...rawEntries[i], rank: score > 0 ? 1 : i + 1 });
         } else {
           const prevScore = rawEntries[i - 1].weeklyEcoScore;
           const prevRank  = entries[i - 1].rank;
-          entries.push({
-            ...rawEntries[i],
-            rank: rawEntries[i].weeklyEcoScore === prevScore ? prevRank : i + 1,
-          });
+          if (score <= 0) {
+            // All zero-score users just get sequential ranks — no ties at 0
+            entries.push({ ...rawEntries[i], rank: i + 1 });
+          } else {
+            entries.push({
+              ...rawEntries[i],
+              rank: score === prevScore ? prevRank : i + 1,
+            });
+          }
         }
       }
       setLeaderboard(entries);
@@ -484,6 +494,7 @@ export default function CommunityScreen() {
     } finally {
       setLoadingLB(false);
       setRefreshing(false);
+      lastFetchRef.current = Date.now();
     }
   }, [currentUid]);
 
@@ -631,6 +642,30 @@ export default function CommunityScreen() {
       if (currentUid) fetchLeaderboard();
     }, [currentUid, fetchLeaderboard])
   );
+
+  // Refetch leaderboard when app returns to foreground, but only if it's been
+  // more than 5 minutes since the last fetch. This covers the case where the
+  // app is left open across Sunday midnight — the weekly reset will have run
+  // server-side but useFocusEffect won't fire if Community tab was already active.
+  const lastFetchRef = useRef<number>(0);
+  const REFETCH_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+ 
+  useEffect(() => {
+    if (!currentUid) return;
+ 
+    const subscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') {
+        const now = Date.now();
+        if (now - lastFetchRef.current > REFETCH_THRESHOLD_MS) {
+          lastFetchRef.current = now;
+          fetchLeaderboard();
+          if (activeTab === 'lifetime') fetchLifetimeLeaderboard();
+        }
+      }
+    });
+ 
+    return () => subscription.remove();
+  }, [currentUid, activeTab, fetchLeaderboard, fetchLifetimeLeaderboard]);
 
   useEffect(() => {
     if (activeTab === 'lifetime' && currentUid) {
