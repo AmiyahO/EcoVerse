@@ -208,6 +208,10 @@ export default function HealthConnectSyncScreen() {
         allActs,
         userProfile?.weeklyTarget ?? 500,
         userRegion,
+        {
+          totalCarbonSaved: userProfile?.totalCarbonSaved ?? 0,
+          tokens:           userProfile?.tokens ?? 0,
+        },
       );
 
       // Animate success screen in stages

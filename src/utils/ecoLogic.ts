@@ -328,27 +328,36 @@ export async function persistWeeklyEcoScore(
   activities: Activity[],
   weeklyTarget: number,
   userRegion: string = 'GLOBAL_AVG',
+  lifetimeStats?: { totalCarbonSaved: number; tokens: number },
 ): Promise<void> {
   const uid = auth.currentUser?.uid;
   if (!uid) return;
   try {
     const score = calculateEcoScore(activities, weeklyTarget, userRegion);
     const user  = auth.currentUser;
-
+ 
     // Write score to user doc (source of truth)
     await updateDoc(doc(db, 'users', uid), {
       weeklyEcoScore:          score,
       weeklyEcoScoreUpdatedAt: new Date().toISOString(),
     });
-
-    // Mirror public fields to /leaderboard for cross-user queries
-    // setDoc with merge so showOnLeaderboard (written by settings) is preserved
+ 
+    // Mirror public fields to /leaderboard for cross-user queries.
+    // setDoc with merge so showOnLeaderboard (written by settings) is preserved.
+    // Lifetime fields are included when provided so the lifetime leaderboard
+    // query can run directly against this collection without touching /users.
     const { setDoc } = await import('firebase/firestore');
     await setDoc(doc(db, 'leaderboard', uid), {
       weeklyEcoScore: score,
       displayName:    user?.displayName ?? null,
-      photoURL:       user?.photoURL ?? null,
+      photoURL:       user?.photoURL    ?? null,
       updatedAt:      new Date().toISOString(),
+      // Only write lifetime fields if caller supplies them — avoids overwriting
+      // with undefined when called from older paths that don't have profile data
+      ...(lifetimeStats !== undefined && {
+        totalCarbonSaved: lifetimeStats.totalCarbonSaved,
+        tokens:           lifetimeStats.tokens,
+      }),
     }, { merge: true });
   } catch (e) {
     // Non-critical — leaderboard will show stale value until next save

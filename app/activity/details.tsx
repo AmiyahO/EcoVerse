@@ -73,6 +73,10 @@ export default function ActivityDetailsScreen() {
                 remainingActivities,
                 store.userProfile?.weeklyTarget ?? 500,
                 store.userRegion ?? 'GLOBAL_AVG',
+                {
+                  totalCarbonSaved: (store.userProfile?.totalCarbonSaved ?? 0) - carbon,
+                  tokens:           (store.userProfile?.tokens ?? 0) - tokens,
+                },
               ).catch(() => {});
 
               // Now safe to remove locally and navigate

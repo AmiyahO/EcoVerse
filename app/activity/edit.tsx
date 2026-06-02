@@ -136,6 +136,10 @@ export default function EditActivityScreen() {
         updatedActivities,
         userProfile?.weeklyTarget ?? 500,
         userRegion,
+        {
+          totalCarbonSaved: (userProfile?.totalCarbonSaved ?? 0) + (newCarbon - oldCarbon),
+          tokens:           (userProfile?.tokens ?? 0) + (newTokens - oldTokens),
+        },
       );
 
       updateActivity(activity.id, updatedData);

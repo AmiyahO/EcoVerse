@@ -73,6 +73,17 @@ interface LeaderboardEntry {
   rank: number;
 }
 
+interface LifetimeEntry {
+  uid:              string;
+  displayName:      string | null;
+  photoURL:         string | null;
+  totalCarbonSaved: number;
+  tokens:           number;
+  showOnLeaderboard: boolean;
+  isCurrentUser:    boolean;
+  rank:             number;
+}
+
 // ── Medals ────────────────────────────────────────────────────────────────────
 const MEDAL: Record<number, { color: string; bg: string; icon: string; label: string }> = {
   1: { color: '#B8860B', bg: '#FFF8DC', icon: 'trophy',  label: '1st' },
@@ -297,6 +308,71 @@ const modalStyles = StyleSheet.create({
   btnText:       { color: '#fff', fontSize: 15, fontWeight: '800' },
 });
 
+function LifetimePodium({
+  entries,
+  displayFor,
+  metric,
+  colors: c,
+}: {
+  entries: LifetimeEntry[];
+  displayFor: (e: LifetimeEntry) => string;
+  metric: 'co2' | 'tokens';
+  colors: any;
+}) {
+  if (entries.length < 1) return null;
+ 
+  const rank1 = entries.filter(e => e.rank === 1);
+  const rank2 = entries.filter(e => e.rank === 2);
+  const rank3 = entries.filter(e => e.rank === 3);
+  const order = [...rank2, ...rank1, ...rank3];
+  const heights: Record<number, number> = { 1: 96, 2: 72, 3: 56 };
+ 
+  return (
+    <View style={[podiumStyles.wrapper, { backgroundColor: c.surface }]}>
+      {order.map(entry => {
+        const medal   = MEDAL[entry.rank] ?? MEDAL[3];
+        const isCenter = entry.rank === 1;
+        const blockH  = heights[entry.rank] ?? 56;
+        const value   = metric === 'co2'
+          ? `${entry.totalCarbonSaved.toFixed(1)} kg`
+          : `${entry.tokens.toLocaleString()}`;
+ 
+        return (
+          <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
+            <View style={[
+              podiumStyles.avatarRing,
+              { borderColor: medal.color, width: isCenter ? 60 : 48, height: isCenter ? 60 : 48, borderRadius: isCenter ? 30 : 24 },
+            ]}>
+              {entry.photoURL && entry.showOnLeaderboard
+                ? <AvatarImage uri={entry.photoURL} size={isCenter ? 54 : 42} radius={isCenter ? 27 : 21} fallbackSize={isCenter ? 22 : 18} fallbackColor={medal.color} />
+                : <View style={[podiumStyles.avatarFallback, { backgroundColor: medal.color + '25', width: isCenter ? 54 : 42, height: isCenter ? 54 : 42, borderRadius: isCenter ? 27 : 21 }]}>
+                    <FontAwesome6 name="seedling" size={isCenter ? 22 : 18} color={medal.color} />
+                  </View>
+              }
+            </View>
+            <View style={[podiumStyles.medalPill, { backgroundColor: medal.bg }]}>
+              <FontAwesome6 name={medal.icon} size={10} color={medal.color} solid />
+              <Text style={[podiumStyles.medalLabel, { color: medal.color }]}>{medal.label}</Text>
+            </View>
+            <Text style={[podiumStyles.podiumName, { color: c.text, fontSize: isCenter ? 13 : 11 }]} numberOfLines={1}>
+              {displayFor(entry)}
+            </Text>
+            <Text style={[podiumStyles.podiumScore, { color: medal.color, fontSize: isCenter ? 15 : 12 }]}>
+              {value}
+            </Text>
+            <LinearGradient
+              colors={[medal.color + 'CC', medal.color + '66']}
+              style={[podiumStyles.block, { height: blockH, borderTopLeftRadius: 8, borderTopRightRadius: 8 }]}
+            >
+              <Text style={podiumStyles.blockRankNum}>{entry.rank}</Text>
+            </LinearGradient>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function CommunityScreen() {
   const { colors, scheme } = useAppTheme();
@@ -305,11 +381,15 @@ export default function CommunityScreen() {
   const auth = getAuth();
   const currentUid = auth.currentUser?.uid ?? '';
 
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'challenges'>('leaderboard');
-  const [leaderboard, setLeaderboard]     = useState<LeaderboardEntry[]>([]);
-  const [myEntry, setMyEntry]             = useState<LeaderboardEntry | null>(null);
-  const [loadingLB, setLoadingLB]         = useState(true);
-  const [refreshing, setRefreshing]       = useState(false);
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'challenges' | 'lifetime'>('leaderboard');
+  const [leaderboard, setLeaderboard]         = useState<LeaderboardEntry[]>([]);
+  const [myEntry, setMyEntry]                 = useState<LeaderboardEntry | null>(null);
+  const [loadingLB, setLoadingLB]             = useState(true);
+  const [refreshing, setRefreshing]           = useState(false);
+  const [lifetimeBoard, setLifetimeBoard]     = useState<LifetimeEntry[]>([]);
+  const [lifetimeMetric, setLifetimeMetric]   = useState<'co2' | 'tokens'>('co2');
+  const [loadingLifetime, setLoadingLifetime] = useState(false);
+  const [myLifetimeEntry, setMyLifetimeEntry] = useState<LifetimeEntry | null>(null);
   const missedNotifFiredRef = useRef(false); // guard: fire at most once per session
 
   const [liveChallenges, setLiveChallenges] = useState<Challenge[]>([]);
@@ -407,6 +487,85 @@ export default function CommunityScreen() {
     }
   }, [currentUid]);
 
+  const fetchLifetimeLeaderboard = useCallback(async () => {
+    if (!auth.currentUser) return;
+    setLoadingLifetime(true);
+    try {
+      const metric = lifetimeMetric === 'co2' ? 'totalCarbonSaved' : 'tokens';
+      const q = query(
+        collection(db, 'leaderboard'),
+        orderBy(metric, 'desc'),
+        limit(50),
+      );
+      const snap = await getDocs(q);
+      if (!auth.currentUser) return;
+ 
+      const raw: LifetimeEntry[] = snap.docs.map(d => {
+        const data    = d.data();
+        const optedIn = data.showOnLeaderboard === true;
+        return {
+          uid:              d.id,
+          displayName:      optedIn ? (data.displayName ?? null) : null,
+          photoURL:         optedIn ? (data.photoURL ?? null)    : null,
+          totalCarbonSaved: data.totalCarbonSaved ?? 0,
+          tokens:           data.tokens           ?? 0,
+          showOnLeaderboard: optedIn,
+          isCurrentUser:    d.id === currentUid,
+          rank:             0, // assigned below
+        };
+      });
+ 
+      // Assign tied ranks using the same pattern as the weekly leaderboard
+      const sorted: LifetimeEntry[] = [];
+      for (let i = 0; i < raw.length; i++) {
+        const value = lifetimeMetric === 'co2' ? raw[i].totalCarbonSaved : raw[i].tokens;
+        if (i === 0) {
+          sorted.push({ ...raw[i], rank: 1 });
+        } else {
+          const prevValue = lifetimeMetric === 'co2'
+            ? raw[i - 1].totalCarbonSaved
+            : raw[i - 1].tokens;
+          sorted.push({
+            ...raw[i],
+            rank: value === prevValue ? sorted[i - 1].rank : i + 1,
+          });
+        }
+      }
+ 
+      setLifetimeBoard(sorted);
+      const me = sorted.find(e => e.isCurrentUser);
+      if (me) {
+        setMyLifetimeEntry(me);
+      } else if (currentUid) {
+        const myDoc = await getDoc(doc(db, 'leaderboard', currentUid));
+        if (myDoc.exists()) {
+          const d       = myDoc.data();
+          const optedIn = d.showOnLeaderboard === true;
+          const myValue = lifetimeMetric === 'co2'
+            ? (d.totalCarbonSaved ?? 0)
+            : (d.tokens ?? 0);
+          const usersAbove = sorted.filter(e =>
+            (lifetimeMetric === 'co2' ? e.totalCarbonSaved : e.tokens) > myValue
+          ).length;
+          setMyLifetimeEntry({
+            uid:              currentUid,
+            displayName:      optedIn ? (d.displayName ?? null) : null,
+            photoURL:         optedIn ? (d.photoURL ?? null)    : null,
+            totalCarbonSaved: d.totalCarbonSaved ?? 0,
+            tokens:           d.tokens           ?? 0,
+            showOnLeaderboard: optedIn,
+            isCurrentUser:    true,
+            rank:             usersAbove + 1,
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Lifetime leaderboard fetch error:', e);
+    } finally {
+      setLoadingLifetime(false);
+    }
+  }, [currentUid, lifetimeMetric]);
+
   const fetchChallengeState = useCallback(async () => {
     if (!currentUid) return;
     try {
@@ -468,6 +627,12 @@ export default function CommunityScreen() {
       if (currentUid) fetchLeaderboard();
     }, [currentUid, fetchLeaderboard])
   );
+
+  useEffect(() => {
+    if (activeTab === 'lifetime' && currentUid) {
+      fetchLifetimeLeaderboard();
+    }
+  }, [activeTab, lifetimeMetric, currentUid]);
 
   useEffect(() => {
     if (!joinedIds.length) return;
@@ -583,18 +748,39 @@ export default function CommunityScreen() {
     setRefreshing(true);
     fetchLeaderboard();
     fetchChallengeState();
-    fetchChallengesForWeek().then(challenges => { setLiveChallenges(challenges); setLoadingChallenges(false); });
+    fetchChallengesForWeek().then(challenges => {
+      setLiveChallenges(challenges);
+      setLoadingChallenges(false);
+    });
+    if (activeTab === 'lifetime') fetchLifetimeLeaderboard();
   };
 
-  const switchTab = (tab: 'leaderboard' | 'challenges') => {
+  const TAB_LIST = ['leaderboard', 'challenges', 'lifetime'] as const;
+  const TAB_W = (SCREEN_W - 40 - 8) / 3; // track width ÷ 3 tabs
+ 
+  const switchTab = (tab: typeof TAB_LIST[number]) => {
     setActiveTab(tab);
-    Animated.spring(tabAnim, { toValue: tab === 'leaderboard' ? 0 : 1, useNativeDriver: true, tension: 80, friction: 10 }).start();
-    Animated.timing(slideAnim, { toValue: tab === 'leaderboard' ? 0 : 1, duration: 220, useNativeDriver: true }).start();
+    const idx = TAB_LIST.indexOf(tab);
+    Animated.spring(tabAnim, {
+      toValue: idx,
+      useNativeDriver: true,
+      tension: 80,
+      friction: 10,
+    }).start();
   };
-
-  const indicatorTranslate = tabAnim.interpolate({ inputRange: [0, 1], outputRange: [1, (SCREEN_W - 40) / 2 - 4] });
+ 
+  const indicatorTranslate = tabAnim.interpolate({
+    inputRange:  [0, 1, 2],
+    outputRange: [1, TAB_W + 1, TAB_W * 2 + 1],
+  });
 
   const displayFor = (entry: LeaderboardEntry) => {
+    if (entry.isCurrentUser) return userProfile?.displayName ? `${userProfile.displayName} (You)` : 'You';
+    if (entry.showOnLeaderboard && entry.displayName) return entry.displayName;
+    return generateAlias(entry.uid);
+  };
+
+  const displayLifetimeFor = (entry: LifetimeEntry) => {
     if (entry.isCurrentUser) return userProfile?.displayName ? `${userProfile.displayName} (You)` : 'You';
     if (entry.showOnLeaderboard && entry.displayName) return entry.displayName;
     return generateAlias(entry.uid);
@@ -824,12 +1010,13 @@ export default function CommunityScreen() {
         </View>
       </View>
 
-      {/* Segmented control */}
-      <View style={[styles.segmentTrack, { backgroundColor: colors.surfaceMuted }]}>        
+      {/* ── Segmented control (3 tabs) ── */}
+      <View style={[styles.segmentTrack, { backgroundColor: colors.surfaceMuted }]}>
         <Animated.View
           style={[
             styles.segmentIndicator,
             {
+              width: TAB_W,
               backgroundColor: isDark ? colors.surface : '#ffffff',
               transform: [{ translateX: indicatorTranslate }],
               shadowColor: isDark ? '#000' : '#ffffff',
@@ -838,12 +1025,18 @@ export default function CommunityScreen() {
               shadowOffset: { width: 0, height: 0 },
               borderWidth: isDark ? 0 : 0.5,
               borderColor: isDark ? 'transparent' : 'rgba(0,0,0,0.08)',
-              elevation: isDark ? 2 : 2,
+              elevation: 2,
             },
           ]}
         />
-        {(['leaderboard', 'challenges'] as const).map(tab => {
+        {TAB_LIST.map(tab => {
           const active = activeTab === tab;
+          const icon   = tab === 'leaderboard' ? 'ranking-star'
+                       : tab === 'challenges'  ? 'bolt'
+                       : 'earth-americas';
+          const label  = tab === 'leaderboard' ? 'Weekly'
+                       : tab === 'challenges'  ? 'Challenges'
+                       : 'Lifetime';
           return (
             <TouchableOpacity
               key={tab}
@@ -851,21 +1044,16 @@ export default function CommunityScreen() {
               onPress={() => switchTab(tab)}
               activeOpacity={0.8}
             >
-              <FontAwesome6
-                name={tab === 'leaderboard' ? 'ranking-star' : 'bolt'}
-                size={12}
-                color={active ? colors.tint : colors.text}
-                solid
-              />
+              <FontAwesome6 name={icon} size={12} color={active ? colors.tint : colors.text} solid />
               <Text style={[styles.segmentLabel, { color: active ? colors.tint : colors.text }]}>
-                {tab === 'leaderboard' ? 'Leaderboard' : 'Challenges'}
+                {label}
               </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* ── Leaderboard ──────────────────────────────────────────────────────── */}
+      {/* ── Weekly Leaderboard ──────────────────────────────────────────────────────── */}
       {activeTab === 'leaderboard' && (
         <View style={{ flex: 1 }}>
           {loadingLB ? (
@@ -970,6 +1158,154 @@ export default function CommunityScreen() {
             </Text>
           </View>
         </ScrollView>
+      )}
+
+      {/* ── Lifetime Leaderboard ── */}
+      {activeTab === 'lifetime' && (
+        <View style={{ flex: 1 }}>
+          {/* Metric toggle */}
+          <View style={[styles.lifetimeToggle, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              style={[
+                styles.lifetimeToggleBtn,
+                lifetimeMetric === 'co2' && { backgroundColor: colors.tint },
+              ]}
+              onPress={() => setLifetimeMetric('co2')}
+              activeOpacity={0.8}
+            >
+              <FontAwesome6 name="cloud" size={11}
+                color={lifetimeMetric === 'co2' ? '#fff' : colors.text} />
+              <Text style={[
+                styles.lifetimeToggleText,
+                { color: lifetimeMetric === 'co2' ? '#fff' : colors.text },
+              ]}>
+                CO₂ Saved
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.lifetimeToggleBtn,
+                lifetimeMetric === 'tokens' && { backgroundColor: colors.tint },
+              ]}
+              onPress={() => setLifetimeMetric('tokens')}
+              activeOpacity={0.8}
+            >
+              <FontAwesome6 name="leaf" size={11}
+                color={lifetimeMetric === 'tokens' ? '#fff' : colors.text} />
+              <Text style={[
+                styles.lifetimeToggleText,
+                { color: lifetimeMetric === 'tokens' ? '#fff' : colors.text },
+              ]}>
+                EcoTokens
+              </Text>
+            </TouchableOpacity>
+          </View>
+ 
+          {loadingLifetime ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.tint} size="large" />
+            </View>
+          ) : (
+            <FlatList
+              data={lifetimeBoard}
+              keyExtractor={item => item.uid}
+              contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tint} />
+              }
+              ListHeaderComponent={
+                <>
+                  {lifetimeBoard.length >= 1 && (
+                    <LifetimePodium
+                      entries={lifetimeBoard.filter(e => e.rank <= 3)}
+                      displayFor={displayLifetimeFor}
+                      metric={lifetimeMetric}
+                      colors={colors}
+                    />
+                  )}
+                  {lifetimeBoard.some(e => e.rank > 3) && (
+                    <Text style={[styles.sectionNote, { color: colors.text }]}>
+                      Ranks 4 – {Math.min(lifetimeBoard.length, 50)}
+                    </Text>
+                  )}
+                </>
+              }
+              renderItem={({ item }) => {
+                if (item.rank <= 3) return null;
+                const value   = lifetimeMetric === 'co2'
+                  ? `${item.totalCarbonSaved.toFixed(1)} kg`
+                  : `${item.tokens.toLocaleString()} tokens`;
+                const isMe    = item.isCurrentUser;
+                const nameStr = displayLifetimeFor(item);
+                return (
+                  <View style={[
+                    styles.row,
+                    { backgroundColor: isMe ? colors.tint + '14' : colors.surfaceMuted },
+                    isMe && { borderWidth: 1.5, borderColor: colors.tint + '50' },
+                  ]}>
+                    <Text style={[styles.rankNum, { color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.3)' }]}>
+                      {item.rank}
+                    </Text>
+                    {item.photoURL && item.showOnLeaderboard
+                      ? <AvatarImage uri={item.photoURL} size={38} radius={19} fallbackSize={16} fallbackColor={colors.text + '88'} />
+                      : <View style={[styles.avatarFallback, { backgroundColor: colors.surfaceMuted }]}>
+                          <FontAwesome6 name="seedling" size={16} color={colors.text + '88'} />
+                        </View>
+                    }
+                    <Text
+                      style={[styles.rowName, { color: isMe ? colors.tint : colors.text }, isMe && { fontWeight: '700' }]}
+                      numberOfLines={1}
+                    >
+                      {nameStr}
+                    </Text>
+                    <View style={[styles.scoreBadge, { backgroundColor: colors.tint + '18', borderColor: colors.tint + '40' }]}>
+                      <FontAwesome6
+                        name={lifetimeMetric === 'co2' ? 'cloud' : 'leaf'}
+                        size={10}
+                        color={colors.tint}
+                      />
+                      <Text style={[styles.scoreVal, { color: colors.tint }]}>{value}</Text>
+                    </View>
+                  </View>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.centered}>
+                  <FontAwesome6 name="earth-americas" size={32} color="#4CAF50" style={{ marginBottom: 12, opacity: 0.5 }} />
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>No lifetime data yet</Text>
+                  <Text style={[styles.emptySub, { color: colors.text }]}>
+                    Log activities to appear on the lifetime board
+                  </Text>
+                </View>
+              }
+            />
+          )}
+ 
+          {/* Sticky "You" bar */}
+          {myLifetimeEntry && (() => {
+            const value = lifetimeMetric === 'co2'
+              ? `${myLifetimeEntry.totalCarbonSaved.toFixed(1)} kg CO₂`
+              : `${myLifetimeEntry.tokens.toLocaleString()} tokens`;
+            return (
+              <View style={[
+                styles.stickyMe,
+                { backgroundColor: isDark ? colors.surface : '#fff', borderTopColor: colors.tint + '30', borderTopWidth: 1 },
+              ]}>
+                <View style={[styles.stickyLeft, { backgroundColor: colors.tint + '15', borderColor: colors.tint + '40' }]}>
+                  <Text style={[styles.stickyRank, { color: colors.tint }]}>
+                    #{myLifetimeEntry.rank > 50 ? '50+' : myLifetimeEntry.rank}
+                  </Text>
+                </View>
+                <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>You</Text>
+                <View style={[styles.scoreBadge, { backgroundColor: colors.tint + '18', borderColor: colors.tint + '40' }]}>
+                  <FontAwesome6 name={lifetimeMetric === 'co2' ? 'cloud' : 'leaf'} size={10} color={colors.tint} />
+                  <Text style={[styles.scoreVal, { color: colors.tint }]}>{value}</Text>
+                </View>
+              </View>
+            );
+          })()}
+        </View>
       )}
 
       {/* ── Challenge complete modal ── */}
@@ -1108,4 +1444,28 @@ const styles = StyleSheet.create({
   centered:         { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, paddingTop: 60 },
   emptyTitle:       { fontSize: 18, fontWeight: '700' },
   emptySub:         { fontSize: 14, textAlign: 'center', paddingHorizontal: 40, opacity: 0.6, lineHeight: 20 },
+
+  // Lifetime tab
+  lifetimeToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    marginTop: 2,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  lifetimeToggleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  lifetimeToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
 });

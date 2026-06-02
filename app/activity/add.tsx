@@ -304,6 +304,10 @@ export default function AddActivityScreen() {
       updatedActivities,
       userProfile?.weeklyTarget ?? 500,
       userRegion,
+      {
+        totalCarbonSaved: (userProfile?.totalCarbonSaved ?? 0) + carbonSaved,
+        tokens:           (userProfile?.tokens ?? 0) + tokensEarned,
+      },
     );
 
     let shouldCelebrate = false;
