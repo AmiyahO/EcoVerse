@@ -6,7 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
 import { auth, db } from '@/src/firebase/config';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, collection, query, orderBy, setDoc, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy, setDoc, getDocs, getDoc, updateDoc } from 'firebase/firestore';
 import { useAppTheme } from '@/hooks/useAppTheme';
 import { useActivityStore } from '@/src/store/activityStore';
 import * as SystemUI from 'expo-system-ui';
@@ -18,6 +18,7 @@ import {
 configureNotificationHandler();
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { preloadSounds } from '@/src/utils/sfx';
+import { WeeklyWinModal } from '@/components/WeeklyWinModal';
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
@@ -126,6 +127,13 @@ export default function RootLayout() {
 
   const loading = !authResolved || (!!user && (!userDocReady || !activitiesReady) && !freshLogin.current);
 
+  const [weeklyWin, setWeeklyWin] = useState<{
+    rank: number;
+    score: number;
+    tokens: number;
+  } | null>(null);
+  const winChecked = useRef(false); // guard: only check once per session
+
   const { setActivities, clearActivities, setUserRegion, setUserProfile, setEcoScoreSnapshots } = useActivityStore();
   const checkAndResetCelebration = useActivityStore(s => s.checkAndResetCelebration);
   const initialLoadDone = useRef(false);
@@ -221,6 +229,49 @@ export default function RootLayout() {
 
               readyFlags.current.userDoc = true;
               maybeWriteSnapshot(currentUser.uid);
+
+              // ── Weekly win check ────────────────────────────────────────
+              // Runs once per session after the user doc loads.
+              // Looks for an unseen win doc in weeklyWins for last week.
+              if (!winChecked.current) {
+                winChecked.current = true;
+                (async () => {
+                  try {
+                    // Compute last week's Sunday key (YYYY-MM-DD)
+                    const now = new Date();
+                    const lastSunday = new Date(now);
+                    lastSunday.setDate(now.getDate() - now.getDay() - 7);
+                    lastSunday.setHours(0, 0, 0, 0);
+                    const pad = (n: number) => String(n).padStart(2, '0');
+                    const weekId = `${lastSunday.getFullYear()}-${pad(lastSunday.getMonth() + 1)}-${pad(lastSunday.getDate())}`;
+ 
+                    const winRef = doc(
+                      db, 'users', currentUser.uid, 'weeklyWins', weekId
+                    );
+                    const winSnap = await getDoc(winRef);
+ 
+                    if (winSnap.exists()) {
+                      const winData = winSnap.data();
+                      // Only show if not already seen
+                      if (!winData.seen) {
+                        // Mark seen immediately so it never re-fires
+                        await updateDoc(winRef, { seen: true });
+                        // Small delay so the app finishes routing to tabs first
+                        setTimeout(() => {
+                          setWeeklyWin({
+                            rank:   winData.rank   ?? 1,
+                            score:  winData.score  ?? 0,
+                            tokens: winData.tokensEarned ?? 0,
+                          });
+                        }, 1800);
+                      }
+                    }
+                  } catch (e) {
+                    // Non-critical — silently ignore
+                    console.warn('Weekly win check failed:', e);
+                  }
+                })();
+              }
             }
             setUserDocReady(true);
           },
@@ -384,6 +435,14 @@ export default function RootLayout() {
         </Stack>
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+
+      <WeeklyWinModal
+          visible={weeklyWin !== null}
+          rank={weeklyWin?.rank ?? 1}
+          score={weeklyWin?.score ?? 0}
+          tokens={weeklyWin?.tokens ?? 0}
+          onClose={() => setWeeklyWin(null)}
+        />
     </ThemeProvider>
   );
 }
