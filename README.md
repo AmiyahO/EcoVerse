@@ -200,7 +200,7 @@ src/
 │   │                         #   thermostat, and packaging. Fallback pool: 7 data-aware tips.
 │   ├── clearAICache.ts       # Clears cached Gemini suggestions and regenerates on next request.
 │   ├── billOCR.ts            # Camera capture + OCR for electricity and water bills
-│   ├── billService.ts        # Bill data extraction. calculateSaving() always compares against
+│   └── billService.ts        # Bill data extraction. calculateSaving() always compares against
 │                             #   the regional baseline (getRegionalBaseline()) — never bill-to-bill.
 │                             #   Previous reading displayed as informational context only.
 │                             #   Prevents gaming via month-on-month comparison and anchors
