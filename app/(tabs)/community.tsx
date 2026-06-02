@@ -130,18 +130,26 @@ function Podium({
   colors: any;
 }) {
   if (entries.length < 1) return null;
-
-  const order = entries.length === 3 ? [entries[1], entries[0], entries[2]] : [entries[0], entries[1], entries[2]].filter(Boolean);
-  const heights = [96, 72, 56];   // heights for ranks 1,2,3
-
+ 
+  // Build display order: rank-2 left, ALL rank-1 centre, rank-3 right.
+  // Using rank value (not array position) means ties are handled correctly.
+  const rank1 = entries.filter(e => e.rank === 1);
+  const rank2 = entries.filter(e => e.rank === 2);
+  const rank3 = entries.filter(e => e.rank === 3);
+ 
+  // Podium visual order: [2nd, 1st(s), 3rd]
+  const order = [...rank2, ...rank1, ...rank3];
+ 
+  const heights: Record<number, number> = { 1: 96, 2: 72, 3: 56 };
+ 
   return (
     <View style={[podiumStyles.wrapper, { backgroundColor: c.surface }]}>
-      {order.map((entry, idx) => {
-        const medal = MEDAL[entry.rank];
+      {order.map((entry) => {
+        const medal    = MEDAL[entry.rank] ?? MEDAL[3];
         const isCenter = entry.rank === 1;
-        const zoneCol = scoreColor(entry.weeklyEcoScore);
-        const blockH = heights[entry.rank - 1] || 56;
-
+        const zoneCol  = scoreColor(entry.weeklyEcoScore);
+        const blockH   = heights[entry.rank] ?? 56;
+ 
         return (
           <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
             {/* Avatar */}
@@ -156,13 +164,13 @@ function Podium({
                   </View>
               }
             </View>
-
+ 
             {/* Medal icon */}
             <View style={[podiumStyles.medalPill, { backgroundColor: medal.bg }]}>
               <FontAwesome6 name={medal.icon} size={10} color={medal.color} solid />
               <Text style={[podiumStyles.medalLabel, { color: medal.color }]}>{medal.label}</Text>
             </View>
-
+ 
             {/* Name */}
             <Text
               style={[podiumStyles.podiumName, { color: c.text, fontSize: isCenter ? 13 : 11 }]}
@@ -170,12 +178,12 @@ function Podium({
             >
               {displayFor(entry)}
             </Text>
-
+ 
             {/* Score */}
             <Text style={[podiumStyles.podiumScore, { color: zoneCol, fontSize: isCenter ? 17 : 14 }]}>
               {entry.weeklyEcoScore}
             </Text>
-
+ 
             {/* Block */}
             <LinearGradient
               colors={[medal.color + 'CC', medal.color + '66']}
@@ -874,11 +882,15 @@ export default function CommunityScreen() {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tint} />}
               ListHeaderComponent={
                 <>
-                  {/* Podium — only show when at least one user has a score > 0 */}
-                  {leaderboard.length >= 1 && leaderboard.some(e => e.weeklyEcoScore > 0) && (
-                    <Podium entries={leaderboard.slice(0, Math.min(3, leaderboard.length))} displayFor={displayFor} colors={colors} />
+                  {/* Podium — always show when there are leaderboard entries */}
+                  {leaderboard.length >= 1 && (
+                    <Podium
+                      entries={leaderboard.filter(e => e.rank <= 3)}
+                      displayFor={displayFor}
+                      colors={colors}
+                    />
                   )}
-                  {/* No-scores banner — shown when users exist but nobody has logged yet this week */}
+                  {/* "Week just started" note — shown below podium when nobody has scored yet */}
                   {leaderboard.length >= 1 && !leaderboard.some(e => e.weeklyEcoScore > 0) && (
                     <View style={[styles.noScoreBanner, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
                       <FontAwesome6 name="leaf" size={22} color={colors.tint} style={{ opacity: 0.7 }} />
@@ -888,7 +900,7 @@ export default function CommunityScreen() {
                       </View>
                     </View>
                   )}
-                  {leaderboard.length > 3 && (
+                  {leaderboard.some(e => e.rank > 3) && (
                     <Text style={[styles.sectionNote, { color: colors.text }]}>
                       Ranks 4 – {Math.min(leaderboard.length, 50)}
                     </Text>

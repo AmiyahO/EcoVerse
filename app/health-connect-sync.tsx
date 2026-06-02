@@ -24,6 +24,7 @@ import {
   formatSource,
 } from '@/src/services/healthConnect';
 import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
+import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking: 'person-walking',
@@ -40,11 +41,14 @@ const CATEGORY_COLOR: Record<string, string> = {
 export default function HealthConnectSyncScreen() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
-  const activities             = useActivityStore(s => s.activities);
-  const userRegion             = useActivityStore(s => s.userRegion);
+  const activities              = useActivityStore(s => s.activities);
+  const userRegion              = useActivityStore(s => s.userRegion);
   const triggerStreakMilestone  = useActivityStore(s => s.triggerStreakMilestone);
-  const markStreakMilestoneSeen  = useActivityStore(s => s.markStreakMilestoneSeen);
-  const shownStreakMilestones    = useActivityStore(s => s.shownStreakMilestones);
+  const markStreakMilestoneSeen = useActivityStore(s => s.markStreakMilestoneSeen);
+  const shownStreakMilestones   = useActivityStore(s => s.shownStreakMilestones);
+  const triggerAchievement      = useActivityStore(s => s.triggerAchievement);
+  const markAchievementSeen     = useActivityStore(s => s.markAchievementSeen);
+  const unlockedAchievementIds  = useActivityStore(s => s.unlockedAchievementIds);
 
   const [loading,     setLoading]     = useState(true);
   const [syncing,     setSyncing]     = useState(false);
@@ -102,13 +106,10 @@ export default function HealthConnectSyncScreen() {
       setSyncResult(result);
 
       // ── Streak milestone check ────────────────────────────────────────────
-      // Re-read activities from store AFTER import (Firestore listener will
-      // have updated them). Calculate the new streak and fire if it hits a
-      // milestone. Uses getState() to get the freshest snapshot post-commit.
       const freshActivities = useActivityStore.getState().activities;
       const newStreak = calculateStreak(freshActivities);
       const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
-      const oldStreak = calculateStreak(activities); // pre-import streak
+      const oldStreak = calculateStreak(activities);
       const hitMilestone = STREAK_MILESTONES.includes(newStreak)
         && newStreak > oldStreak
         && !shownStreakMilestones.includes(newStreak);
@@ -117,11 +118,94 @@ export default function HealthConnectSyncScreen() {
         setTimeout(() => triggerStreakMilestone(newStreak), 1200);
       }
 
-      // Update leaderboard field — HC imports bypass add.tsx so we write here
-      const userProfile = useActivityStore.getState().userProfile;
-      const allActivities = useActivityStore.getState().activities;
+      // ── Achievement check ─────────────────────────────────────────────────
+      // Read fresh state post-commit so counts reflect newly imported activities
+      const freshState   = useActivityStore.getState();
+      const allActs      = freshState.activities;
+      const userProfile  = freshState.userProfile;
+      const newTotalTokens = (userProfile?.tokens ?? 0);
+      const newTotalCO2    = (userProfile?.totalCarbonSaved ?? 0);
+      const now2 = new Date();
+      const sun2 = new Date(now2);
+      sun2.setDate(now2.getDate() - now2.getDay());
+      sun2.setHours(0, 0, 0, 0);
+
+      const stats = {
+        totalTokens:              newTotalTokens,
+        totalActivities:          allActs.length,
+        currentStreak:            newStreak,
+        totalCO2:                 newTotalCO2,
+        walkingActivities:        allActs.filter((a: any) => a.category === 'walking').length,
+        runningActivities:        allActs.filter((a: any) => a.category === 'running').length,
+        cyclingActivities:        allActs.filter((a: any) => a.category === 'cycling').length,
+        electricityActivities:    allActs.filter((a: any) => a.category === 'electricity').length,
+        waterActivities:          allActs.filter((a: any) => a.category === 'water').length,
+        uniqueCategories:         new Set(allActs.map((a: any) => a.category)).size,
+        uniqueCategoriesThisWeek: new Set(
+          allActs.filter((a: any) => new Date(a.date) >= sun2).map((a: any) => a.category)
+        ).size,
+      };
+
+      const MILESTONE_CHECKS: Record<string, (s: typeof stats) => boolean> = {
+        first_step:        s => s.totalActivities >= 1,
+        all_categories:    s => s.uniqueCategories >= 5,
+        variety_week:      s => s.uniqueCategoriesThisWeek >= 5,
+        streak_3:          s => s.currentStreak >= 3,
+        streak_7:          s => s.currentStreak >= 7,
+        streak_14:         s => s.currentStreak >= 14,
+        streak_30:         s => s.currentStreak >= 30,
+        streak_60:         s => s.currentStreak >= 60,
+        streak_100:        s => s.currentStreak >= 100,
+        token_100:         s => s.totalTokens >= 100,
+        token_500:         s => s.totalTokens >= 500,
+        token_1000:        s => s.totalTokens >= 1000,
+        token_2500:        s => s.totalTokens >= 2500,
+        token_5000:        s => s.totalTokens >= 5000,
+        token_10000:       s => s.totalTokens >= 10000,
+        token_25000:       s => s.totalTokens >= 25000,
+        co2_1:             s => s.totalCO2 >= 1,
+        co2_10:            s => s.totalCO2 >= 10,
+        co2_50:            s => s.totalCO2 >= 50,
+        co2_100:           s => s.totalCO2 >= 100,
+        co2_250:           s => s.totalCO2 >= 250,
+        co2_1000:          s => s.totalCO2 >= 1000,
+        walking_first:     s => s.walkingActivities >= 1,
+        walking_marathon:  s => s.walkingActivities >= 50,
+        running_first:     s => s.runningActivities >= 1,
+        running_50:        s => s.runningActivities >= 50,
+        cycling_first:     s => s.cyclingActivities >= 1,
+        cycling_century:   s => s.cyclingActivities >= 30,
+        electricity_first: s => s.electricityActivities >= 1,
+        electricity_25:    s => s.electricityActivities >= 25,
+        water_first:       s => s.waterActivities >= 1,
+        water_25:          s => s.waterActivities >= 25,
+        activities_10:     s => s.totalActivities >= 10,
+        activities_25:     s => s.totalActivities >= 25,
+        activities_50:     s => s.totalActivities >= 50,
+        activities_100:    s => s.totalActivities >= 100,
+        activities_200:    s => s.totalActivities >= 200,
+        activities_500:    s => s.totalActivities >= 500,
+      };
+
+      // Use freshState's unlockedAchievementIds so we don't re-fire already-seen ones
+      const currentUnlocked = freshState.unlockedAchievementIds;
+      const newlyUnlocked = Object.entries(MILESTONE_CHECKS)
+        .filter(([id, check]) => check(stats) && !currentUnlocked.includes(id))
+        .map(([id]) => id);
+
+      if (newlyUnlocked.length > 0) {
+        const toShow = newlyUnlocked.find(id => ACHIEVEMENT_MAP[id]);
+        const delay  = hitMilestone ? 2200 : 1600; // stagger after streak modal if both fire
+        if (toShow) {
+          markAchievementSeen(toShow);
+          setTimeout(() => triggerAchievement(toShow), delay);
+        }
+        newlyUnlocked.filter(id => id !== toShow).forEach(id => markAchievementSeen(id));
+      }
+
+      // Update leaderboard eco score
       await persistWeeklyEcoScore(
-        allActivities,
+        allActs,
         userProfile?.weeklyTarget ?? 500,
         userRegion,
       );
@@ -339,7 +423,7 @@ export default function HealthConnectSyncScreen() {
                     <ThemedText style={[styles.sessionMeta, { color: colors.text }]}>
                       {[
                         hca.steps    ? `${hca.steps.toLocaleString()} steps` : null,
-                        hca.distance ? `${hca.distance.toPrecision(3)} km`                  : null,
+                        hca.distance ? `${hca.distance.toPrecision(3)} km`   : null,
                         hca.duration ? formatActivityDuration(hca.duration)  : null,
                       ].filter(Boolean).join(' · ')}
                     </ThemedText>

@@ -38,6 +38,7 @@ import {
   StyleSheet, TextInput, View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking',     label: 'Walking',     icon: 'person-walking' },
@@ -94,6 +95,9 @@ export default function AddActivityScreen() {
   const triggerStreakMilestone  = useActivityStore(s => s.triggerStreakMilestone);
   const markStreakMilestoneSeen  = useActivityStore(s => s.markStreakMilestoneSeen);
   const shownStreakMilestones    = useActivityStore(s => s.shownStreakMilestones);
+  const triggerAchievement      = useActivityStore(s => s.triggerAchievement);
+  const markAchievementSeen     = useActivityStore(s => s.markAchievementSeen);
+  const unlockedAchievementIds  = useActivityStore(s => s.unlockedAchievementIds);
   const streak        = calculateStreak(activities);
 
   const [category, setCategory]       = useState<ActivityCategory | null>(null);
@@ -339,6 +343,105 @@ export default function AddActivityScreen() {
     if (hitMilestone) {
       markStreakMilestoneSeen(newStreak);
       setTimeout(() => triggerStreakMilestone(newStreak), shouldCelebrate ? 800 : 420);
+    }
+
+    // ── Achievement check ────────────────────────────────────────────────────
+    // Recalculate stats with the activity we just added so newly unlocked
+    // achievements are detected immediately without waiting for the user to
+    // open the Achievements screen.
+    const updatedActivitiesWithNew = [
+      ...activities,
+      { ...newActivityData, id: 'pending' } as any,
+    ];
+    const newTotalTokens    = (userProfile?.tokens ?? 0) + tokensEarned;
+    const newTotalCO2       = (userProfile?.totalCarbonSaved ?? 0) + carbonSaved;
+    const newStreak2        = alreadyLoggedToday ? streak : streak + 1;
+    const uniqueCats        = new Set(updatedActivitiesWithNew.map((a: any) => a.category)).size;
+    const now2              = new Date();
+    const sun2              = new Date(now2);
+    sun2.setDate(now2.getDate() - now2.getDay());
+    sun2.setHours(0, 0, 0, 0);
+    const uniqueCatsWeek    = new Set(
+      updatedActivitiesWithNew
+        .filter((a: any) => new Date(a.date) >= sun2)
+        .map((a: any) => a.category)
+    ).size;
+ 
+    const stats = {
+      totalTokens:              newTotalTokens,
+      totalActivities:          updatedActivitiesWithNew.length,
+      currentStreak:            newStreak2,
+      totalCO2:                 newTotalCO2,
+      walkingActivities:        updatedActivitiesWithNew.filter((a: any) => a.category === 'walking').length,
+      runningActivities:        updatedActivitiesWithNew.filter((a: any) => a.category === 'running').length,
+      cyclingActivities:        updatedActivitiesWithNew.filter((a: any) => a.category === 'cycling').length,
+      electricityActivities:    updatedActivitiesWithNew.filter((a: any) => a.category === 'electricity').length,
+      waterActivities:          updatedActivitiesWithNew.filter((a: any) => a.category === 'water').length,
+      uniqueCategories:         uniqueCats,
+      uniqueCategoriesThisWeek: uniqueCatsWeek,
+    };
+ 
+    // Milestone check functions — mirrors achievements.tsx MILESTONES logic
+    const MILESTONE_CHECKS: Record<string, (s: typeof stats) => boolean> = {
+      first_step:       s => s.totalActivities >= 1,
+      all_categories:   s => s.uniqueCategories >= 5,
+      variety_week:     s => s.uniqueCategoriesThisWeek >= 5,
+      streak_3:         s => s.currentStreak >= 3,
+      streak_7:         s => s.currentStreak >= 7,
+      streak_14:        s => s.currentStreak >= 14,
+      streak_30:        s => s.currentStreak >= 30,
+      streak_60:        s => s.currentStreak >= 60,
+      streak_100:       s => s.currentStreak >= 100,
+      token_100:        s => s.totalTokens >= 100,
+      token_500:        s => s.totalTokens >= 500,
+      token_1000:       s => s.totalTokens >= 1000,
+      token_2500:       s => s.totalTokens >= 2500,
+      token_5000:       s => s.totalTokens >= 5000,
+      token_10000:      s => s.totalTokens >= 10000,
+      token_25000:      s => s.totalTokens >= 25000,
+      co2_1:            s => s.totalCO2 >= 1,
+      co2_10:           s => s.totalCO2 >= 10,
+      co2_50:           s => s.totalCO2 >= 50,
+      co2_100:          s => s.totalCO2 >= 100,
+      co2_250:          s => s.totalCO2 >= 250,
+      co2_1000:         s => s.totalCO2 >= 1000,
+      walking_first:    s => s.walkingActivities >= 1,
+      walking_marathon: s => s.walkingActivities >= 50,
+      running_first:    s => s.runningActivities >= 1,
+      running_50:       s => s.runningActivities >= 50,
+      cycling_first:    s => s.cyclingActivities >= 1,
+      cycling_century:  s => s.cyclingActivities >= 30,
+      electricity_first:s => s.electricityActivities >= 1,
+      electricity_25:   s => s.electricityActivities >= 25,
+      water_first:      s => s.waterActivities >= 1,
+      water_25:         s => s.waterActivities >= 25,
+      activities_10:    s => s.totalActivities >= 10,
+      activities_25:    s => s.totalActivities >= 25,
+      activities_50:    s => s.totalActivities >= 50,
+      activities_100:   s => s.totalActivities >= 100,
+      activities_200:   s => s.totalActivities >= 200,
+      activities_500:   s => s.totalActivities >= 500,
+    };
+ 
+    // Find IDs that just became unlocked and haven't been seen yet
+    const newlyUnlocked = Object.entries(MILESTONE_CHECKS)
+      .filter(([id, check]) => check(stats) && !unlockedAchievementIds.includes(id))
+      .map(([id]) => id);
+ 
+    if (newlyUnlocked.length > 0) {
+      // Show the first one as a modal; silently mark the rest as seen
+      const toShow = newlyUnlocked.find(id => ACHIEVEMENT_MAP[id]);
+      const delay  = hitMilestone
+        ? (shouldCelebrate ? 1600 : 1200)   // stagger after streak modal
+        : (shouldCelebrate ? 800  : 420);
+ 
+      if (toShow) {
+        markAchievementSeen(toShow);
+        setTimeout(() => triggerAchievement(toShow), delay);
+      }
+      newlyUnlocked
+        .filter(id => id !== toShow)
+        .forEach(id => markAchievementSeen(id));
     }
   };
 

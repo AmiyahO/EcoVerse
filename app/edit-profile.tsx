@@ -344,8 +344,10 @@ const styles = StyleSheet.create({
   avatar: {
     width: 95, height: 95, borderRadius: 48,
     alignItems: 'center', justifyContent: 'center',
+    overflow: 'visible',
   },
-  initial:    { fontSize: 38, fontWeight: '700' },
+  
+  initial:    { fontSize: 32, fontWeight: '700', lineHeight: 38, includeFontPadding: false },
   cameraBadge: {
     position: 'absolute', bottom: 2, right: 2,
     width: 30, height: 30, borderRadius: 15,

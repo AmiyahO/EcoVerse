@@ -140,6 +140,7 @@ export default function ActivityDetailsScreen() {
             <>
               {activity.steps    !== undefined && <DetailRow icon="shoe-prints" label="Steps"    value={`${activity.steps.toLocaleString()} steps`} colors={colors} />}
               {activity.distance !== undefined && <DetailRow icon="route"       label="Distance" value={`${activity.distance} km`}                  colors={colors} />}
+              {activity.duration !== undefined && <DetailRow icon="clock"       label="Duration" value={`${activity.duration} min`}                 colors={colors} />}
             </>
           )}
           {activity.category === 'running' && (
@@ -149,7 +150,10 @@ export default function ActivityDetailsScreen() {
             </>
           )}
           {activity.category === 'cycling' && (
-            <DetailRow icon="route" label="Distance" value={`${activity.distance} km`} colors={colors} />
+            <>
+              <DetailRow icon="route" label="Distance" value={`${activity.distance} km`} colors={colors} />
+              {activity.duration !== undefined && <DetailRow icon="clock" label="Duration" value={`${activity.duration} min`} colors={colors} />}
+            </>
           )}
           {activity.category === 'electricity' && (
             <DetailRow icon="bolt" label="Energy saved" value={`${activity.kwhSaved} kWh`} colors={colors} />
