@@ -136,21 +136,18 @@ function Podium({
   entries,
   displayFor,
   colors: c,
+  lastWeekWinnerUids = [],
 }: {
   entries: LeaderboardEntry[];
   displayFor: (e: LeaderboardEntry) => string;
   colors: any;
+  lastWeekWinnerUids?: string[];
 }) {
   if (entries.length < 1) return null;
  
-  // Build display order: rank-2 left, ALL rank-1 centre, rank-3 right.
-  // Using rank value (not array position) means ties are handled correctly.
-  // Cap rank1 ties at 2 — more than that makes the podium overflow
   const rank1 = entries.filter(e => e.rank === 1).slice(0, 2);
   const rank2 = entries.filter(e => e.rank === 2).slice(0, 1);
   const rank3 = entries.filter(e => e.rank === 3).slice(0, 1);
- 
-  // Podium visual order: [2nd, 1st(s), 3rd]
   const order = [...rank2, ...rank1, ...rank3];
  
   const heights: Record<number, number> = { 1: 96, 2: 72, 3: 56 };
@@ -158,13 +155,22 @@ function Podium({
   return (
     <View style={[podiumStyles.wrapper, { backgroundColor: c.surface }]}>
       {order.map((entry) => {
-        const medal    = MEDAL[entry.rank] ?? MEDAL[3];
-        const isCenter = entry.rank === 1;
-        const zoneCol  = scoreColor(entry.weeklyEcoScore);
-        const blockH   = heights[entry.rank] ?? 56;
+        const medal      = MEDAL[entry.rank] ?? MEDAL[3];
+        const isCenter   = entry.rank === 1;
+        const zoneCol    = scoreColor(entry.weeklyEcoScore);
+        const blockH     = heights[entry.rank] ?? 56;
+        const wasWinner  = lastWeekWinnerUids.includes(entry.uid);
  
         return (
           <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
+            {/* Crown pill — only shown for last week's winner(s) */}
+            {wasWinner && (
+              <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
+                <Text style={podiumStyles.crownEmoji}>👑</Text>
+                <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>Last week</Text>
+              </View>
+            )}
+ 
             {/* Avatar */}
             <View style={[
               podiumStyles.avatarRing,
@@ -222,6 +228,24 @@ const podiumStyles = StyleSheet.create({
   podiumScore:  { fontWeight: '800' },
   block:        { width: '100%', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 6 },
   blockRankNum: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '800' },
+  crownPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 4,
+  },
+  crownEmoji: {
+    fontSize: 10,
+  },
+  crownText: {
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
 });
 
 
@@ -393,6 +417,7 @@ export default function CommunityScreen() {
   const [lifetimeMetric, setLifetimeMetric]   = useState<'co2' | 'tokens'>('co2');
   const [loadingLifetime, setLoadingLifetime] = useState(false);
   const [myLifetimeEntry, setMyLifetimeEntry] = useState<LifetimeEntry | null>(null);
+  const [lastWeekWinnerUids, setLastWeekWinnerUids] = useState<string[]>([]);
   const missedNotifFiredRef = useRef(false); // guard: fire at most once per session
 
   const [liveChallenges, setLiveChallenges] = useState<Challenge[]>([]);
@@ -634,6 +659,20 @@ export default function CommunityScreen() {
     // by the time the user navigates there it'll already be resolved.
     fetchLifetimeLeaderboard();
   }, [currentUid, fetchLeaderboard, fetchChallengeState, fetchLifetimeLeaderboard]);
+
+  // Fetch last week's winner UIDs from the shared meta doc written by the
+  // Cloud Function at reset time. Single read, no per-user queries needed.
+  useEffect(() => {
+    if (!currentUid) return;
+    getDoc(doc(db, 'meta', 'lastWeekWinners'))
+      .then(snap => {
+        if (snap.exists()) {
+          const winners: Array<{ uid: string }> = snap.data().winners ?? [];
+          setLastWeekWinnerUids(winners.map(w => w.uid));
+        }
+      })
+      .catch(() => {}); // non-critical
+  }, [currentUid]);
 
   // Refresh leaderboard every time the user navigates to this tab,
   // so score updates from add.tsx are reflected without a manual pull-to-refresh.
@@ -1115,6 +1154,7 @@ export default function CommunityScreen() {
                       entries={leaderboard.filter(e => e.rank <= 3)}
                       displayFor={displayFor}
                       colors={colors}
+                      lastWeekWinnerUids={lastWeekWinnerUids}
                     />
                   )}
                   {/* "Week just started" note — shown below podium when nobody has scored yet */}

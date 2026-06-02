@@ -1,6 +1,6 @@
 // functions/src/index.ts
 //
-// Contains three Cloud Functions:
+// Contains two scheduled Cloud Functions:
 //
 //   1. rotateChallenges        — scheduled, every Sunday 00:01 Cyprus time
 //      Rotates weekly/monthly challenges with controlled difficulty mix.
@@ -70,6 +70,7 @@ function lastSundayKeyUTC(): string {
 }
 
 // ── 1. Challenge rotation ─────────────────────────────────────────────────────
+
 export const rotateChallenges = onSchedule(
   { schedule: '1 0 * * 0', timeZone: 'Europe/Nicosia' },
   async () => {
@@ -139,6 +140,7 @@ export const rotateChallenges = onSchedule(
 );
 
 // ── 2. Weekly leaderboard reset + top 3 rewards ───────────────────────────────
+
 const TOP3_REWARDS: Record<number, number> = { 1: 100, 2: 50, 3: 25 };
 
 export const weeklyLeaderboardReset = onSchedule(
@@ -195,7 +197,7 @@ export const weeklyLeaderboardReset = onSchedule(
         tokens: admin.firestore.FieldValue.increment(reward),
       });
 
-      // Record the win for potential future "last week's winner" UI
+      // Record the win in the user's weeklyWins subcollection
       batch.set(
         db.collection('users').doc(winner.uid).collection('weeklyWins').doc(weekId),
         {
@@ -214,6 +216,14 @@ export const weeklyLeaderboardReset = onSchedule(
     for (const docSnap of lbSnap.docs) {
       batch.update(docSnap.ref, { weeklyEcoScore: 0 });
     }
+
+    // Write shared meta doc so the community screen can show last week's
+    // winner crown badge without querying every user's weeklyWins subcollection
+    batch.set(db.collection('meta').doc('lastWeekWinners'), {
+      weekId,
+      winners:   top3Winners.map(w => ({ uid: w.uid, rank: w.rank, score: w.score })),
+      updatedAt: new Date().toISOString(),
+    });
 
     await batch.commit();
     console.log(`[weeklyReset] Done — reset ${lbSnap.size} docs, awarded ${top3Winners.length} winners`);
