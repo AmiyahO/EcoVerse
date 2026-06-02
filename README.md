@@ -62,10 +62,14 @@ app/
 │   │                    #   (tap opens bottom-sheet modal), quick stats, recent activity
 │   ├── activity.tsx     # Activity log — category filters, weekly grouping, accent cards,
 │   │                    #   long-press action sheet (duplicate / delete with haptic feedback)
-│   ├── community.tsx    # Community — segmented control: Leaderboard | Challenges
-│   │                    #   Leaderboard: podium for top 3, global ranking by weeklyEcoScore
-│   │                    #     from /leaderboard collection, eco-alias by default (opt-in real
-│   │                    #     name), sticky "You" row at bottom, pull-to-refresh
+│   ├── community.tsx    # Community — segmented control: Weekly | Challenges | Lifetime
+│   │                    #   Weekly: podium for top 3 (tie-safe, max 2 rank-1 slots),
+│   │                    #     global ranking by weeklyEcoScore from /leaderboard collection,
+│   │                    #     eco-alias by default (opt-in real name), sticky "You" row,
+│   │                    #     pull-to-refresh, AppState foreground refetch (5-min threshold),
+│   │                    #     last-week winner crown pill (👑) on podium from meta/lastWeekWinners
+│   │                    #   Lifetime: ranked by totalCarbonSaved or tokens (inline toggle),
+│   │                    #     podium + ranked list + sticky "You" row, prefetched on mount
 │   │                    #   Live/Offline badge: NetInfo.addEventListener drives header badge
 │   │                    #     (green 'Live' when connected, red 'Offline' when not)
 │   │                    #   Challenges: weekly opt-in challenges with progress bars,
@@ -254,6 +258,11 @@ components/
 │                             #   Animated scale-in, floating fire icon, streak number hero,
 │                             #   pulsing glow, haptic. Triggered via activityStore
 │                             #   triggerStreakMilestone(days) + clearStreakMilestone().
+├── WeeklyWinModal.tsx         # Post-submission. Weekly podium win celebration modal.
+│                             #   Fires once on app open if user placed top-3 last week.
+│                             #   Rank-specific medal (gold/silver/bronze), EcoScore, tokens
+│                             #   earned, confetti. Root _layout.tsx reads weeklyWins/{weekId}
+│                             #   (seen:false) — marks seen:true immediately to prevent re-fire.
 ├── streak-calendar-sheet.tsx # Bottom sheet streak calendar. longestStreak prop
 │                             # displays "Best Nd" pill in header. Day circles use
 │                             #   two absolute-positioned layers (dayRing + dayFill) with
@@ -802,6 +811,8 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Community screen shows 11 challenges instead of Firestore count | `useState<Challenge[]>(CHALLENGES)` seeded initial state with full 11-item static array before fetch resolved | Changed to `useState([])` + added `loadingChallenges` spinner; fallback only fires inside `fetchChallengesForWeek()` |
 | Cloud Function writes wrong `weekId` (previous Sunday) | Cloud Run executes in UTC; `new Date().getDay()` returns Saturday (6) when fired at 00:01 Cyprus time (UTC+3 = Saturday 21:01 UTC) | `getSundayDateString()` now extracts Cyprus local date via `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Nicosia' })` before computing Sunday offset |
 | No CO₂ challenge in weekly rotation | Old deployed function pre-dated CO₂ pool logic; `co2Pool` was not yet in the Cloud Function | Redeployed with `co2Pool` filter on `challengeGroup === 'co2'`; guaranteed slot drawn independently of difficulty shuffle |
+| Lifetime leaderboard empty after weekly reset | `persistWeeklyEcoScore()` only mirrored `weeklyEcoScore`; `totalCarbonSaved` and `tokens` never written to `/leaderboard` | `persistWeeklyEcoScore()` updated with optional `lifetimeStats` param; all 4 call sites updated; one-time backfill Cloud Function run |
+| Weekly reset wipes all scores mid-week during testing | `weeklyLeaderboardReset` triggered manually — works as intended, runs automatically Sunday 00:05 UTC | No fix needed; informational only |
 | Dashboard chart tooltip flashing / invisible on tap | `onResponderRelease` cleared `selIdx` immediately on finger lift; Victory Native `useChartPressState` requires drag to activate (static taps silently cancelled) | Replaced `useChartPressState` + `SkiaCircle` with `View` responder overlay; `selIdx` state persists until next tap (no `onResponderRelease` clear) |
 | Dashboard EcoScore modal "This week" pill shows stale score | `ecoScoreSnapshots.at(-1)?.score` returns the most recent snapshot, which may be from a prior session with lower data | Replaced with "vs Last Week" trend pill (`+N`/`-N` delta vs previous snapshot) using IIFE pattern |
 | EcoScore snapshot chart labels showing `May 10` instead of `W20` | `getWeekLabel()` in `_layout.tsx` returned `"May 3"` string | Changed to return `W{n}` ISO week number. Sunday-start adjusted: on Sundays, date advanced +1 day before ISO week computation so Sunday opens the new week number. |
@@ -911,9 +922,16 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 |-------|-----|
 | Modal bottom edge behind phone navigation bar | Added `useSafeAreaInsets().bottom` inside `EcoScoreModal`, `AIModal`, `StreakCalendarSheet`; `paddingBottom: Math.max(36, insets.bottom + 20)` applied inline on each sheet container |
 | Leaderboard rank ties (3+ way) and sticky "You" row inconsistent | Replaced `.map()` with `for`-loop reading already-computed rank from output array; sticky bar rank computed from `usersAbove + 1` instead of hardcoded `999` |
+| Podium tie bug — second tied user missing | Podium used positional array indices; tied rank-1 users shared index 0. Fixed: order built by rank value (`rank1`, `rank2`, `rank3` filters), all tied entries rendered |
+| All users shown on podium when scores reset to 0 | `leaderboard.filter(e => e.rank <= 3)` returned all users when everyone was rank 1 at 0 score. Fixed: users with score 0 get sequential positional ranks; rank-1 capped at 2 entries max |
+| Avatar letter clipping in Edit Profile | `fontSize: 38` clipped tall letters (G, Q) inside `overflow: hidden` circle. Fixed: `fontSize: 32`, `lineHeight: 38`, `includeFontPadding: false`, `overflow: visible` |
+| Duration missing in activity details for Health Connect imports | `details.tsx` had no duration row for walking/cycling. HC stores duration; added conditional `DetailRow` for both categories |
+| Achievement/streak modals only fire on Achievements screen | `triggerAchievement()` was only called inside `achievements.tsx`. Fixed: full milestone check added to `add.tsx` after save and `health-connect-sync.tsx` after commit |
+| Segment control spacing uneven (Weekly wider gap than Lifetime) | `outputRange: [4, TAB_W+4, TAB_W*2+4]` double-counted the `left: 4` anchor. Fixed: `outputRange: [0, TAB_W, TAB_W*2]` |
 
 ## 👩🏽‍💻 Author
 
 **Amirah Yahaya**
-Final Year Computer Science Student
+Final Year Computer Science Student — BSc Computer Science, University of Nicosia
+Thesis submitted May 2026
 © 2026 All rights reserved.
