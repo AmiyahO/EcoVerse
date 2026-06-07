@@ -320,7 +320,11 @@ export default function SettingsScreen() {
 
               // ── Step 4: Delete Firebase Auth account ──
               await deleteUser(user);
-              // Navigation handled by onAuthStateChanged in _layout.tsx
+              // Clear the deletion guard and navigate explicitly —
+              // onAuthStateChanged is blocked by isDeletingAccount so we
+              // must route manually after a successful delete.
+              if (deletingRef) deletingRef.current = false;
+              router.replace('/login');
 
             } catch (e: any) {
               if (deletingRef) deletingRef.current = false;
