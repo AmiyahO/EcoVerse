@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { preloadSounds } from '@/src/utils/sfx';
 import { WeeklyWinModal } from '@/components/WeeklyWinModal';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
+import { AppAlertHost } from '@/components/AppAlert';
 
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
@@ -428,6 +429,8 @@ export default function RootLayout() {
           onFinish={() => setSplashDone(true)}
         />
       )}
+
+      <AppAlertHost />
 
       <WeeklyWinModal
           visible={weeklyWin !== null}

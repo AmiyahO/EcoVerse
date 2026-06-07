@@ -13,6 +13,7 @@ import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEc
 import { FontAwesome6, Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { playSound } from '@/src/utils/sfx';
+import { appAlert } from '@/components/AppAlert';
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -145,12 +146,15 @@ export default function EditActivityScreen() {
       updateActivity(activity.id, updatedData);
       playSound('activity-save').catch(() => {});
 
-      Alert.alert('Updated', 'Activity updated successfully.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      appAlert.show({
+        title: 'Updated',
+        message: 'Activity updated successfully.',
+        icon: 'circle-check',
+        onDismiss: () => router.back(),
+      });
     } catch (e) {
       console.error('Update error:', e);
-      Alert.alert('Error', 'Failed to update activity. Please try again.');
+      appAlert.show({ title: 'Error', message: 'Failed to update activity. Please try again.' });
     } finally {
       setIsSaving(false);
     }

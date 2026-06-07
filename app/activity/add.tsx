@@ -39,6 +39,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
+import { appAlert } from '@/components/AppAlert';
 
 const ACTIVITY_CATEGORIES = [
   { key: 'walking',     label: 'Walking',     icon: 'person-walking' },
@@ -177,12 +178,12 @@ export default function AddActivityScreen() {
         setShowNoResult(true);
         break;
       case 'permission_denied':
-        Alert.alert('Camera permission needed', 'Please allow camera access in Settings to scan bills.');
+        appAlert.show({ title: 'Camera permission needed', message: 'Please allow camera access in Settings to scan bills.', icon: 'camera' });
         break;
       case 'cancelled':
         break;
       case 'error':
-        Alert.alert('Scan failed', 'Could not read the bill. Please try again or enter manually.');
+        appAlert.show({ title: 'Scan failed', message: 'Could not read the bill. Please try again or enter manually.' });
         break;
     }
   };
@@ -209,7 +210,7 @@ export default function AddActivityScreen() {
       if (isBillCategory(category)) {
         const reading = parseFloat(billReading);
         if (isNaN(reading) || reading <= 0) {
-          Alert.alert('Invalid reading', 'Please enter a valid meter reading greater than 0.');
+          appAlert.show({ title: 'Invalid reading', message: 'Please enter a valid meter reading greater than 0.' });
           setSaving(false);
           saveInProgress.current = false;
           return;
@@ -228,14 +229,14 @@ export default function AddActivityScreen() {
         };
 
         if (savedAmount === 0) {
-          Alert.alert(
-            'No saving detected',
-            `Your usage (${reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) is at or above the regional average (${regionalBaseline.toLocaleString()}${category === 'electricity' ? ' kWh/month' : ' L/month'}). Log anyway to track trends?`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => { setSaving(false); saveInProgress.current = false; } },
-              { text: 'Log anyway', onPress: async () => { await doSave(); setSaving(false); saveInProgress.current = false; } },
-            ]
-          );
+          appAlert.show({
+            title: 'No saving detected',
+            message: `Your usage (${reading.toLocaleString()}${category === 'electricity' ? ' kWh' : ' L'}) is at or above the regional average (${regionalBaseline.toLocaleString()}${category === 'electricity' ? ' kWh/month' : ' L/month'}). Log anyway to track trends?`,
+            variant: 'confirm',
+            confirmLabel: 'Log anyway',
+            onConfirm: async () => { await doSave(); setSaving(false); saveInProgress.current = false; },
+            onCancel: () => { setSaving(false); saveInProgress.current = false; },
+          });
           return;
         }
 
@@ -245,7 +246,7 @@ export default function AddActivityScreen() {
       }
     } catch (e) {
       console.error('Save error:', e);
-      Alert.alert('Error', 'Could not save activity. Please try again.');
+      appAlert.show({ title: 'Error', message: 'Could not save activity. Please try again.' });
     } finally {
       setSaving(false);
       saveInProgress.current = false;
@@ -480,10 +481,10 @@ export default function AddActivityScreen() {
       if (alreadyImportedSteps > 0) {
         if (delta <= 200) {
           // Nothing new — don't fill, show alert
-          Alert.alert(
-            'Already imported',
-            `You have already logged these steps (${alreadyImportedSteps.toLocaleString()} steps imported). Walk more to import additional steps.`
-          );
+          appAlert.show({
+            title: 'Already imported',
+            message: `You have already logged these steps (${alreadyImportedSteps.toLocaleString()} steps imported). Walk more to import additional steps.`,
+          });
           return;
         }
         // Fill with delta only

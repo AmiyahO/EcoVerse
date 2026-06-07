@@ -35,6 +35,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { appAlert } from '@/components/AppAlert';
 
 const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
   { key: 'US',         label: 'United States',  flag: '🇺🇸' },
@@ -242,24 +243,25 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = () => {
-    Alert.alert('Sign Out', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out', style: 'destructive',
-        onPress: () => signOut(auth).then(() => router.replace('/login')),
-      },
-    ]);
+    appAlert.show({
+      title: 'Sign Out',
+      message: 'Are you sure?',
+      variant: 'confirm',
+      confirmLabel: 'Sign Out',
+      destructive: true,
+      onConfirm: () => signOut(auth).then(() => router.replace('/login')),
+    });
   };
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This permanently deletes all your data and cannot be undone. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Everything', style: 'destructive',
-          onPress: async () => {
+    appAlert.show({
+      title: 'Delete Account',
+      message: 'This permanently deletes all your data and cannot be undone. Are you sure?',
+      variant: 'confirm',
+      confirmLabel: 'Delete Everything',
+      destructive: true,
+      icon: 'trash',
+      onConfirm: async () => {
             const user = auth.currentUser;
             if (!user) return;
 
@@ -314,12 +316,10 @@ export default function SettingsScreen() {
                   : e.code === 'auth/network-request-failed'
                   ? 'No internet connection. Please try again.'
                   : 'Could not delete account. Please try again.';
-              Alert.alert('Deletion Failed', msg);
+              appAlert.show({ title: 'Deletion Failed', message: msg });
             }
-          },
-        },
-      ]
-    );
+      },
+    });
   };
 
   // ── Notification helpers ───────────────────────────────────────────────────
@@ -344,17 +344,17 @@ export default function SettingsScreen() {
     if (status === 'granted') {
       await applyNotifSettings(notifSettings, 0);
     } else {
-      Alert.alert(
-        'Notifications blocked',
-        'To enable notifications, go to your device Settings → Apps → EcoVerse → Notifications.',
-        [{ text: 'OK' }],
-      );
+      appAlert.show({
+        title: 'Notifications blocked',
+        message: 'To enable notifications, go to your device Settings → Apps → EcoVerse → Notifications.',
+        icon: 'bell-slash',
+      });
     }
   };
 
   const handleFeedback = () => {
     Linking.openURL('mailto:ecoverse.dev.team@gmail.com?subject=EcoVerse%20Feedback').catch(() => {
-      Alert.alert('Could not open feedback form', 'Please try again later.');
+      appAlert.show({ title: 'Could not open your email app', message: 'Please copy our address to send manually: ecoverse.dev.team@gmail.com' });
     });
   };
 

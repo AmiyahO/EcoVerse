@@ -20,6 +20,7 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { Ionicons } from '@expo/vector-icons';
+import { appAlert } from '@/components/AppAlert';
 
 GoogleSignin.configure({
   webClientId: '29515161391-2ammbbfc04029chfhaefsvkbohihs54i.apps.googleusercontent.com',
@@ -85,11 +86,11 @@ export default function LoginScreen() {
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) return;
       if (error.code === statusCodes.IN_PROGRESS)
-        Alert.alert('Sign-in already in progress');
+        appAlert.show({ title: 'Sign-in already in progress' });
       else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE)
-        Alert.alert('Error', 'Google Play Services not available');
+        appAlert.show({ title: 'Error', message: 'Google Play Services not available' });
       else
-        Alert.alert('Sign-In Error', error.message);
+        appAlert.show({ title: 'Sign-In Error', message: error.message });
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,7 @@ export default function LoginScreen() {
 
   const handleEmailAuth = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Missing fields', 'Please enter your email and password.');
+      appAlert.show({ title: 'Missing fields', message: 'Please enter your email and password.' });
       return;
     }
     if (isSignUp && password.length < 6) {

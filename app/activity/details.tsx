@@ -10,6 +10,7 @@ import { doc, updateDoc, increment } from 'firebase/firestore';
 import { calculateTokens, calculateCarbonSaved, CATEGORY_COLORS, persistWeeklyEcoScore  } from '@/src/utils/ecoLogic';
 import { FontAwesome6 } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { appAlert } from '@/components/AppAlert';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -35,15 +36,14 @@ export default function ActivityDetailsScreen() {
   const carbon  = calculateCarbonSaved(activity, userRegion);
 
   const confirmDelete = () => {
-    Alert.alert(
-      'Delete activity?',
-      'This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
+    appAlert.show({
+      title: 'Delete activity?',
+      message: 'This cannot be undone.',
+      variant: 'confirm',
+      confirmLabel: 'Delete',
+      destructive: true,
+      icon: 'trash',
+      onConfirm: async () => {
             if (!auth.currentUser || isDeleting) return;
             setIsDeleting(true);
 
@@ -85,14 +85,12 @@ export default function ActivityDetailsScreen() {
               else router.replace('/(tabs)/activity');
             } catch (e) {
               console.error('Delete error:', e);
-              Alert.alert('Error', 'Could not delete activity. Please try again.');
+              appAlert.show({ title: 'Error', message: 'Could not delete activity. Please try again.' });
             } finally {
               setIsDeleting(false);
             }
-          },
-        },
-      ]
-    );
+      },
+    });
   };
 
   return (

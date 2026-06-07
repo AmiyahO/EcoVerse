@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { playSound } from '@/src/utils/sfx';
+import { appAlert } from '@/components/AppAlert';
 
 const CLOUD_NAME    = 'dn70uuubp';
 const UPLOAD_PRESET = 'ecoverse_default';
@@ -70,7 +71,7 @@ export default function EditProfileScreen() {
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow gallery access in Settings.');
+      appAlert.show({ title: 'Permission needed', message: 'Please allow gallery access in Settings.', icon: 'images' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -99,7 +100,7 @@ export default function EditProfileScreen() {
         throw new Error('Upload failed');
       }
     } catch (e) {
-      Alert.alert('Upload failed', 'Could not upload your photo. Please try again.');
+      appAlert.show({ title: 'Upload failed', message: 'Could not upload your photo. Please try again.' });
     } finally {
       setIsUploading(false);
     }
@@ -108,12 +109,12 @@ export default function EditProfileScreen() {
   const handleSave = async () => {
     if (!auth.currentUser) return;
     if (!displayName.trim()) {
-      Alert.alert('Name required', 'Please enter a display name.');
+      appAlert.show({ title: 'Name required', message: 'Please enter a display name.' });
       return;
     }
     const target = Number(weeklyTarget);
     if (isNaN(target) || target < 1) {
-      Alert.alert('Invalid target', 'Weekly token target must be at least 1.');
+      appAlert.show({ title: 'Invalid target', message: 'Weekly token target must be at least 1.' });
       return;
     }
 
@@ -144,7 +145,7 @@ export default function EditProfileScreen() {
       router.back();
     } catch (e) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Error', 'Could not save changes. Please try again.');
+      appAlert.show({ title: 'Error', message: 'Could not save changes. Please try again.' });
     } finally {
       setIsSaving(false);
     }

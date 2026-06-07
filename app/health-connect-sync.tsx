@@ -25,6 +25,7 @@ import {
 } from '@/src/services/healthConnect';
 import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 import { ACHIEVEMENT_MAP } from '@/src/utils/achievementMap';
+import { appAlert } from '@/components/AppAlert';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking: 'person-walking',
@@ -224,7 +225,7 @@ export default function HealthConnectSyncScreen() {
       ]).start();
     } catch (e) {
       console.error('Sync error:', e);
-      Alert.alert('Sync failed', 'Could not import activities. Please try again.');
+      appAlert.show({ title: 'Sync failed', message: 'Could not import activities. Please try again.' });
     } finally {
       setSyncing(false);
     }
