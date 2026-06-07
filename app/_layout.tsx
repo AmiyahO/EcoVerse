@@ -19,6 +19,7 @@ configureNotificationHandler();
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { preloadSounds } from '@/src/utils/sfx';
 import { WeeklyWinModal } from '@/components/WeeklyWinModal';
+import { AnimatedSplash } from '@/components/AnimatedSplash';
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ export default function RootLayout() {
   const [hasFinishedOnboarding, setHasFinishedOnboarding] = useState<boolean | null>(null);
   const [userDocReady, setUserDocReady] = useState(false);
   const [activitiesReady, setActivitiesReady] = useState(false);
+  const [splashDone, setSplashDone] = useState(false);
   const activitiesForSnapshot = useRef<any[]>([]);
   const snapshotWritten = useRef(false);
   const readyFlags = useRef({ userDoc: false, activities: false });
@@ -386,9 +388,20 @@ export default function RootLayout() {
     const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
     const shimmer  = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
     const shimmer2 = scheme === 'dark' ? '#222'    : '#F3F4F6';
+
     if (!authResolved || !user || freshLogin.current) {
-      return <View style={{ flex: 1, backgroundColor: bg }} />;
+      return (
+        <View style={{ flex: 1, backgroundColor: bg }}>
+          {!splashDone && (
+            <AnimatedSplash
+              isDark={scheme === 'dark'}
+              onFinish={() => setSplashDone(true)}
+            />
+          )}
+        </View>
+      );
     }
+
     return (
       <View style={{ flex: 1, backgroundColor: bg, padding: 20, paddingTop: 60 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 }}>
