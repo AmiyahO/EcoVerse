@@ -2,8 +2,7 @@
 //
 // Reusable text-input modal — replaces Alert.prompt() (iOS-only) throughout EcoVerse.
 //
-// Usage — imperative via the singleton:
-//
+// Usage:
 //   import { appPrompt } from '@/components/AppPrompt';
 //
 //   appPrompt.show({
@@ -14,7 +13,6 @@
 //     confirmLabel: 'Confirm',
 //     destructive: true,
 //     onConfirm: async (value) => { await doSomethingWith(value); },
-//     onCancel: () => {},
 //   });
 //
 // Mount <AppPromptHost /> once in app/_layout.tsx alongside <AppAlertHost />.
@@ -39,20 +37,19 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AppPromptConfig {
-  title:          string;
-  message?:       string;
-  placeholder?:   string;
-  secure?:        boolean;          // secure text entry (passwords)
-  initialValue?:  string;
-  confirmLabel?:  string;           // default: 'Confirm'
-  cancelLabel?:   string;           // default: 'Cancel'
-  destructive?:   boolean;          // confirm button shown in red
-  icon?:          string;           // FontAwesome6 icon name
-  iconColor?:     string;
-  onConfirm?:     (value: string) => void | Promise<void>;
-  onCancel?:      () => void;
-  // Optional validation — return an error string to block confirm, or null to allow
-  validate?:      (value: string) => string | null;
+  title:         string;
+  message?:      string;
+  placeholder?:  string;
+  secure?:       boolean;
+  initialValue?: string;
+  confirmLabel?: string;
+  cancelLabel?:  string;
+  destructive?:  boolean;
+  icon?:         string;
+  iconColor?:    string;
+  onConfirm?:    (value: string) => void | Promise<void>;
+  onCancel?:     () => void;
+  validate?:     (value: string) => string | null;
 }
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
@@ -81,12 +78,14 @@ export function AppPromptHost() {
   const [value,   setValue]   = useState('');
   const [error,   setError]   = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
 
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(24)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
   const inputRef  = useRef<TextInput>(null);
 
@@ -96,6 +95,7 @@ export function AppPromptHost() {
       setValue(cfg.initialValue ?? '');
       setError(null);
       setLoading(false);
+      setFocused(false);
       setVisible(true);
     };
     _listeners.add(show);
@@ -104,17 +104,20 @@ export function AppPromptHost() {
 
   useEffect(() => {
     if (visible) {
-      scaleAnim.setValue(0.88);
+      scaleAnim.setValue(0.92);
       fadeAnim.setValue(0);
+      slideAnim.setValue(20);
       Animated.parallel([
         Animated.spring(scaleAnim, {
-          toValue: 1, friction: 6, tension: 60, useNativeDriver: true,
+          toValue: 1, friction: 7, tension: 65, useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
-          toValue: 1, duration: 160, useNativeDriver: true,
+          toValue: 1, duration: 180, useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0, friction: 7, tension: 65, useNativeDriver: true,
         }),
       ]).start(() => {
-        // Focus input after animation
         setTimeout(() => inputRef.current?.focus(), 50);
       });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -124,10 +127,10 @@ export function AppPromptHost() {
   const shake = () => {
     shakeAnim.setValue(0);
     Animated.sequence([
-      Animated.timing(shakeAnim, { toValue:  8, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue:  5, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue:  0, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  9, duration: 55, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -9, duration: 55, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  5, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue:  0, duration: 45, useNativeDriver: true }),
     ]).start();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
   };
@@ -135,11 +138,11 @@ export function AppPromptHost() {
   const dismiss = (cb?: () => void) => {
     Keyboard.dismiss();
     Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.88, friction: 8, tension: 80, useNativeDriver: true,
+      Animated.timing(scaleAnim, {
+        toValue: 0.94, duration: 120, useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
-        toValue: 0, duration: 130, useNativeDriver: true,
+        toValue: 0, duration: 120, useNativeDriver: true,
       }),
     ]).start(() => {
       setVisible(false);
@@ -161,17 +164,10 @@ export function AppPromptHost() {
     if (!config) return;
     const trimmed = value.trim();
 
-    // Run validation if provided
     if (config.validate) {
       const err = config.validate(trimmed);
-      if (err) {
-        setError(err);
-        shake();
-        return;
-      }
+      if (err) { setError(err); shake(); return; }
     }
-
-    // Basic empty check
     if (!trimmed) {
       setError('This field is required.');
       shake();
@@ -185,7 +181,6 @@ export function AppPromptHost() {
       dismiss();
     } catch (e: any) {
       setLoading(false);
-      // Surface the error inline rather than crashing
       setError(e?.message ?? 'Something went wrong. Please try again.');
       shake();
     }
@@ -194,19 +189,28 @@ export function AppPromptHost() {
   if (!config) return null;
 
   const isDestructive = config.destructive ?? false;
-  const cardBg    = isDark ? '#161616' : '#FFFFFF';
-  const textMain  = isDark ? '#F2F2F2' : '#111111';
-  const textMuted = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
-  const inputBg   = isDark ? '#242424' : '#F5F5F5';
+
+  // Colours
+  const overlay    = isDark ? 'rgba(0,0,0,0.78)' : 'rgba(0,0,0,0.55)';
+  const cardBg     = isDark ? '#1C1C1E' : '#FFFFFF';
+  const textMain   = isDark ? '#F2F2F2' : '#0D0D0D';
+  const textMuted  = isDark ? 'rgba(255,255,255,0.48)' : 'rgba(0,0,0,0.42)';
+  const divider    = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+
+  const inputBg     = isDark ? '#2A2A2C' : '#F4F4F6';
   const inputBorder = error
     ? '#EF5350'
-    : isDark ? '#333333' : '#E0E0E0';
+    : focused
+      ? colors.tint
+      : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   const iconName  = config.icon      ?? (isDestructive ? 'triangle-exclamation' : 'lock');
   const iconColor = config.iconColor ?? (isDestructive ? '#EF5350' : colors.tint);
-  const confirmBg = isDestructive ? '#EF5350' : colors.tint;
-  const cancelBg  = isDark ? '#2A2A2A' : '#F0F0F0';
-  const cancelText = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)';
+  const accentColor = iconColor;
+
+  const confirmBg   = isDestructive ? '#EF5350' : colors.tint;
+  const cancelBg    = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.055)';
+  const cancelColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)';
 
   return (
     <Modal
@@ -217,23 +221,24 @@ export function AppPromptHost() {
       onRequestClose={() => !loading && dismiss(config.onCancel)}
     >
       <KeyboardAvoidingView
-        style={styles.keyboardView}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <Animated.View style={[styles.overlay, { backgroundColor: overlay, opacity: fadeAnim }]}>
           <Animated.View style={[
             styles.card,
             {
               backgroundColor: cardBg,
-              transform: [
-                { scale: scaleAnim },
-                { translateX: shakeAnim },
-              ],
+              transform: [{ scale: scaleAnim }, { translateY: slideAnim }, { translateX: shakeAnim }],
+              borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)',
             },
           ]}>
+            {/* Accent strip */}
+            <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
+
             {/* Icon */}
-            <View style={[styles.iconWrap, { backgroundColor: iconColor + '14' }]}>
-              <FontAwesome6 name={iconName as any} size={26} color={iconColor} />
+            <View style={[styles.iconWrap, { backgroundColor: accentColor + '18' }]}>
+              <FontAwesome6 name={iconName as any} size={24} color={accentColor} />
             </View>
 
             {/* Title */}
@@ -249,7 +254,14 @@ export function AppPromptHost() {
             ) : null}
 
             {/* Input */}
-            <View style={[styles.inputWrap, { backgroundColor: inputBg, borderColor: inputBorder }]}>
+            <View style={[
+              styles.inputWrap,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                borderWidth: focused || error ? 1.5 : 1,
+              },
+            ]}>
               <TextInput
                 ref={inputRef}
                 style={[styles.input, { color: textMain }]}
@@ -261,8 +273,10 @@ export function AppPromptHost() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 editable={!loading}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
                 onSubmitEditing={handleConfirm}
-                returnKeyType={isDestructive ? 'done' : 'go'}
+                returnKeyType="done"
               />
             </View>
 
@@ -274,25 +288,28 @@ export function AppPromptHost() {
               </View>
             ) : null}
 
+            {/* Divider */}
+            <View style={[styles.divider, { backgroundColor: divider }]} />
+
             {/* Buttons */}
             <View style={styles.btnRow}>
               <Pressable
-                style={[styles.btnHalf, { backgroundColor: cancelBg, opacity: loading ? 0.5 : 1 }]}
+                style={[styles.btnHalf, { backgroundColor: cancelBg, opacity: loading ? 0.45 : 1 }]}
                 onPress={() => !loading && dismiss(config.onCancel)}
-                android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+                android_ripple={{ color: 'rgba(0,0,0,0.06)' }}
                 disabled={loading}
               >
-                <Text style={[styles.btnTextDark, { color: cancelText }]}>
+                <Text style={[styles.btnTextSecondary, { color: cancelColor }]}>
                   {config.cancelLabel ?? 'Cancel'}
                 </Text>
               </Pressable>
               <Pressable
-                style={[styles.btnHalf, { backgroundColor: confirmBg, opacity: loading ? 0.7 : 1 }]}
+                style={[styles.btnHalf, { backgroundColor: confirmBg, opacity: loading ? 0.75 : 1 }]}
                 onPress={handleConfirm}
-                android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
+                android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
                 disabled={loading}
               >
-                <Text style={styles.btnTextLight}>
+                <Text style={styles.btnTextPrimary}>
                   {loading ? '…' : (config.confirmLabel ?? 'Confirm')}
                 </Text>
               </Pressable>
@@ -307,45 +324,47 @@ export function AppPromptHost() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-  },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
   },
   card: {
     width: '100%',
     maxWidth: 320,
-    borderRadius: 24,
+    borderRadius: 28,
+    borderWidth: 1,
     alignItems: 'center',
-    paddingTop: 28,
+    overflow: 'hidden',
     paddingBottom: 20,
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: 22,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  accentStrip: {
+    width: '100%',
+    height: 4,
+    marginBottom: 20,
   },
   iconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.2,
-    lineHeight: 23,
+    lineHeight: 22,
   },
   message: {
     fontSize: 13,
@@ -355,7 +374,6 @@ const styles = StyleSheet.create({
   },
   inputWrap: {
     width: '100%',
-    borderWidth: 1.5,
     borderRadius: 14,
     paddingHorizontal: 14,
     height: 50,
@@ -371,30 +389,36 @@ const styles = StyleSheet.create({
     gap: 5,
     alignSelf: 'flex-start',
     paddingHorizontal: 2,
+    marginTop: -4,
   },
   errorText: {
     fontSize: 12,
     color: '#EF5350',
     flex: 1,
   },
+  divider: {
+    width: '100%',
+    height: 1,
+    marginVertical: 4,
+  },
   btnRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     width: '100%',
-    marginTop: 4,
   },
   btnHalf: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
   },
-  btnTextLight: {
+  btnTextPrimary: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
+    letterSpacing: 0.1,
   },
-  btnTextDark: {
+  btnTextSecondary: {
     fontWeight: '600',
     fontSize: 15,
   },

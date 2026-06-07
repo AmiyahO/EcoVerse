@@ -10,10 +10,8 @@
 //
 //   import { appAlert } from '@/components/AppAlert';
 //
-//   // Info
 //   appAlert.show({ title: 'Error', message: 'Something went wrong.' });
 //
-//   // Confirm (destructive)
 //   appAlert.show({
 //     title: 'Delete activity?',
 //     message: 'This cannot be undone.',
@@ -23,18 +21,7 @@
 //     onConfirm: () => doDelete(),
 //   });
 //
-//   // Confirm (non-destructive)
-//   appAlert.show({
-//     title: 'Log anyway?',
-//     message: 'No saving detected. Log to track trends?',
-//     variant: 'confirm',
-//     confirmLabel: 'Log anyway',
-//     onConfirm: () => doSave(),
-//     onCancel: () => setSaving(false),
-//   });
-//
-// Mount <AppAlertHost /> once at the root (app/_layout.tsx) so it's
-// available from anywhere. The imperative API works across all screens.
+// Mount <AppAlertHost /> once at the root (app/_layout.tsx).
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
@@ -52,30 +39,24 @@ import { useAppTheme } from '@/hooks/useAppTheme';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface AppAlertConfig {
-  title:        string;
-  message?:     string;
-  variant?:     'info' | 'confirm';  // default: 'info'
-  // Info variant
-  dismissLabel?: string;             // default: 'OK'
+  title:         string;
+  message?:      string;
+  variant?:      'info' | 'confirm';
+  dismissLabel?: string;
   onDismiss?:    () => void | Promise<void>;
-  // Confirm variant
-  confirmLabel?:  string;            // default: 'Confirm'
-  cancelLabel?:   string;            // default: 'Cancel'
-  destructive?:   boolean;           // confirm button shown in red
-  onConfirm?:     () => void | Promise<void>;
-  onCancel?:      () => void | Promise<void>;
-  // Optional icon override (FontAwesome6 name)
-  icon?:          string;
-  iconColor?:     string;
+  confirmLabel?: string;
+  cancelLabel?:  string;
+  destructive?:  boolean;
+  onConfirm?:    () => void | Promise<void>;
+  onCancel?:     () => void | Promise<void>;
+  icon?:         string;
+  iconColor?:    string;
 }
 
-// ── Singleton imperative API ───────────────────────────────────────────────────
+// ── Singleton ─────────────────────────────────────────────────────────────────
 
 type ShowFn = (config: AppAlertConfig) => void;
-
 const _listeners: Set<ShowFn> = new Set();
-// Queue so a second alert triggered from inside onConfirm/onDismiss
-// fires after the current modal finishes its dismiss animation.
 let _queue: AppAlertConfig[] = [];
 let _isShowing = false;
 
@@ -90,7 +71,7 @@ export const appAlert = {
   },
 };
 
-// ── Host component (mount once in app/_layout.tsx) ────────────────────────────
+// ── Host ──────────────────────────────────────────────────────────────────────
 
 export function AppAlertHost() {
   const [config,  setConfig]  = useState<AppAlertConfig | null>(null);
@@ -98,10 +79,10 @@ export function AppAlertHost() {
   const { colors, scheme } = useAppTheme();
   const isDark = scheme === 'dark';
 
-  const scaleAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const scaleAnim   = useRef(new Animated.Value(0)).current;
+  const fadeAnim    = useRef(new Animated.Value(0)).current;
+  const slideAnim   = useRef(new Animated.Value(24)).current;
 
-  // Register with singleton
   useEffect(() => {
     const show: ShowFn = (cfg) => {
       setConfig(cfg);
@@ -111,22 +92,20 @@ export function AppAlertHost() {
     return () => { _listeners.delete(show); };
   }, []);
 
-  // Animate in when visible
   useEffect(() => {
     if (visible) {
-      scaleAnim.setValue(0.88);
+      scaleAnim.setValue(0.92);
       fadeAnim.setValue(0);
+      slideAnim.setValue(20);
       Animated.parallel([
         Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 6,
-          tension: 60,
-          useNativeDriver: true,
+          toValue: 1, friction: 7, tension: 65, useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 160,
-          useNativeDriver: true,
+          toValue: 1, duration: 180, useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0, friction: 7, tension: 65, useNativeDriver: true,
         }),
       ]).start();
       Haptics.impactAsync(
@@ -139,26 +118,19 @@ export function AppAlertHost() {
 
   const dismiss = (cb?: (() => void) | (() => Promise<void>)) => {
     Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.88,
-        friction: 8,
-        tension: 80,
-        useNativeDriver: true,
+      Animated.timing(scaleAnim, {
+        toValue: 0.94, duration: 120, useNativeDriver: true,
       }),
       Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 130,
-        useNativeDriver: true,
+        toValue: 0, duration: 120, useNativeDriver: true,
       }),
     ]).start(() => {
       setVisible(false);
       setConfig(null);
       _isShowing = false;
-      // Run the callback, then drain queue
       Promise.resolve(cb?.()).finally(() => {
         if (_queue.length > 0) {
           const next = _queue.shift()!;
-          // Small delay so React can settle state before showing next
           setTimeout(() => appAlert.show(next), 80);
         }
       });
@@ -170,17 +142,20 @@ export function AppAlertHost() {
   const variant     = config.variant ?? 'info';
   const isDestructive = config.destructive ?? false;
 
-  const cardBg    = isDark ? '#161616' : '#FFFFFF';
-  const textMain  = isDark ? '#F2F2F2' : '#111111';
-  const textMuted = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
+  // Colours
+  const overlay   = isDark ? 'rgba(0,0,0,0.78)' : 'rgba(0,0,0,0.55)';
+  const cardBg    = isDark ? '#1C1C1E' : '#FFFFFF';
+  const textMain  = isDark ? '#F2F2F2' : '#0D0D0D';
+  const textMuted = isDark ? 'rgba(255,255,255,0.48)' : 'rgba(0,0,0,0.42)';
+  const divider   = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
 
-  // Icon defaults per use case
-  const iconName  = config.icon  ?? (isDestructive ? 'triangle-exclamation' : 'circle-info');
+  const iconName  = config.icon ?? (isDestructive ? 'triangle-exclamation' : 'circle-info');
   const iconColor = config.iconColor ?? (isDestructive ? '#EF5350' : colors.tint);
+  const accentColor = iconColor;
 
-  const confirmBg  = isDestructive ? '#EF5350' : colors.tint;
-  const cancelBg   = isDark ? '#2A2A2A' : '#F0F0F0';
-  const cancelText = isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.55)';
+  const confirmBg   = isDestructive ? '#EF5350' : colors.tint;
+  const cancelBg    = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.055)';
+  const cancelColor = isDark ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.5)';
 
   return (
     <Modal
@@ -188,25 +163,23 @@ export function AppAlertHost() {
       visible={visible}
       animationType="none"
       statusBarTranslucent
-      onRequestClose={() => {
-        if (variant === 'confirm') {
-          dismiss(config.onCancel);
-        } else {
-          dismiss(config.onDismiss);
-        }
-      }}
+      onRequestClose={() => variant === 'confirm' ? dismiss(config.onCancel) : dismiss(config.onDismiss)}
     >
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+      <Animated.View style={[styles.overlay, { backgroundColor: overlay, opacity: fadeAnim }]}>
         <Animated.View style={[
           styles.card,
           {
             backgroundColor: cardBg,
-            transform: [{ scale: scaleAnim }],
+            transform: [{ scale: scaleAnim }, { translateY: slideAnim }],
+            borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)',
           },
         ]}>
+          {/* Accent strip */}
+          <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
+
           {/* Icon */}
-          <View style={[styles.iconWrap, { backgroundColor: iconColor + '14' }]}>
-            <FontAwesome6 name={iconName as any} size={26} color={iconColor} />
+          <View style={[styles.iconWrap, { backgroundColor: accentColor + '18' }]}>
+            <FontAwesome6 name={iconName as any} size={24} color={accentColor} />
           </View>
 
           {/* Title */}
@@ -221,14 +194,17 @@ export function AppAlertHost() {
             </Text>
           ) : null}
 
+          {/* Divider */}
+          <View style={[styles.divider, { backgroundColor: divider }]} />
+
           {/* Buttons */}
           {variant === 'info' ? (
             <Pressable
               style={[styles.btnFull, { backgroundColor: confirmBg }]}
               onPress={() => dismiss(config.onDismiss)}
-              android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
+              android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
             >
-              <Text style={styles.btnTextLight}>
+              <Text style={styles.btnTextPrimary}>
                 {config.dismissLabel ?? 'OK'}
               </Text>
             </Pressable>
@@ -237,18 +213,18 @@ export function AppAlertHost() {
               <Pressable
                 style={[styles.btnHalf, { backgroundColor: cancelBg }]}
                 onPress={() => dismiss(config.onCancel)}
-                android_ripple={{ color: 'rgba(0,0,0,0.08)' }}
+                android_ripple={{ color: 'rgba(0,0,0,0.06)' }}
               >
-                <Text style={[styles.btnTextDark, { color: cancelText }]}>
+                <Text style={[styles.btnTextSecondary, { color: cancelColor }]}>
                   {config.cancelLabel ?? 'Cancel'}
                 </Text>
               </Pressable>
               <Pressable
                 style={[styles.btnHalf, { backgroundColor: confirmBg }]}
                 onPress={() => dismiss(config.onConfirm)}
-                android_ripple={{ color: 'rgba(255,255,255,0.25)' }}
+                android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
               >
-                <Text style={styles.btnTextLight}>
+                <Text style={styles.btnTextPrimary}>
                   {config.confirmLabel ?? 'Confirm'}
                 </Text>
               </Pressable>
@@ -265,74 +241,81 @@ export function AppAlertHost() {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.72)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
   },
   card: {
     width: '100%',
     maxWidth: 320,
-    borderRadius: 24,
+    borderRadius: 28,
+    borderWidth: 1,
     alignItems: 'center',
-    paddingTop: 28,
+    overflow: 'hidden',
     paddingBottom: 20,
-    paddingHorizontal: 20,
-    gap: 12,
-    // Subtle shadow
+    paddingHorizontal: 22,
+    gap: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.22,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  accentStrip: {
+    width: '100%',
+    height: 4,
+    marginBottom: 20,
   },
   iconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   title: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: -0.2,
-    lineHeight: 23,
+    lineHeight: 22,
   },
   message: {
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 19,
     paddingHorizontal: 4,
-    marginBottom: 4,
+  },
+  divider: {
+    width: '100%',
+    height: 1,
+    marginVertical: 4,
   },
   btnFull: {
     width: '100%',
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
-    marginTop: 4,
   },
   btnRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
     width: '100%',
-    marginTop: 4,
   },
   btnHalf: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     alignItems: 'center',
   },
-  btnTextLight: {
+  btnTextPrimary: {
     color: '#fff',
     fontWeight: '700',
     fontSize: 15,
+    letterSpacing: 0.1,
   },
-  btnTextDark: {
+  btnTextSecondary: {
     fontWeight: '600',
     fontSize: 15,
   },
