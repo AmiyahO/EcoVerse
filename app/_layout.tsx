@@ -385,49 +385,45 @@ export default function RootLayout() {
     preloadSounds().catch(() => {}); // preload all SFX silently on boot
   }, []);
 
-  // Show splash until animation completes. While splash is running, also
-  // let data loading happen in the background — but don't render the Stack
-  // until BOTH splash is done AND loading is resolved. This prevents the
-  // blank/logo flash that occurs when the Stack mounts before a screen is ready.
-  if (!splashDone || loading) {
-    const bg = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
-    return (
-      <View style={{ flex: 1, backgroundColor: bg }}>
-        {!splashDone && (
-          <AnimatedSplash
-            isDark={scheme === 'dark'}
-            onFinish={() => setSplashDone(true)}
-          />
-        )}
-      </View>
-    );
-  }
-
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkTheme : DefaultTheme}>
       <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            animation: 'slide_from_right',
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          {!user ? (
-            <Stack.Screen name="login" />
-          ) : hasFinishedOnboarding === false ? (
-            <Stack.Screen name="onboarding/index" />
-          ) : (
-            <Stack.Screen name="(tabs)" />
-          )}
-          <Stack.Screen name="settings" />
-          <Stack.Screen
-            name="edit-profile"
-            options={{ presentation: 'modal', animation: 'fade_from_bottom' }}
-          />
-        </Stack>
+        {/* Only render the Stack once auth + data are ready — navigation
+            useEffect fires immediately once readyToRoute is true */}
+        {!loading && (
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              contentStyle: { backgroundColor: colors.background },
+            }}
+          >
+            {!user ? (
+              <Stack.Screen name="login" />
+            ) : hasFinishedOnboarding === false ? (
+              <Stack.Screen name="onboarding/index" />
+            ) : (
+              <Stack.Screen name="(tabs)" />
+            )}
+            <Stack.Screen name="settings" />
+            <Stack.Screen
+              name="edit-profile"
+              options={{ presentation: 'modal', animation: 'fade_from_bottom' }}
+            />
+          </Stack>
+        )}
       </View>
       <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+
+      {/* Splash overlay — absoluteFill zIndex:999 sits on top of everything.
+          The Stack mounts and navigates underneath while splash fades out.
+          Rendered unconditionally until onFinish fires so no remount mid-animation. */}
+      {!splashDone && (
+        <AnimatedSplash
+          isDark={scheme === 'dark'}
+          onFinish={() => setSplashDone(true)}
+        />
+      )}
 
       <WeeklyWinModal
           visible={weeklyWin !== null}
