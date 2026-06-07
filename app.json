@@ -9,12 +9,9 @@
     "backgroundColor": "#0B0F0C",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-light.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#2E7D32",
+      "backgroundColor": "#2a7828",
       "dark": {
-        "image": "./assets/images/splash-dark.png",
-        "backgroundColor": "#020804"
+        "backgroundColor": "#05220c"
       }
     },
     "android": {

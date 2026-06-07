@@ -161,10 +161,6 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
 </Animated.View>
       </View>
 
-      {/* Sparkle — bottom right, mirrors the app icon */}
-      <Animated.View style={[styles.sparkle, { opacity: tagOpacity }]}>
-        <View style={[styles.sparkleShape, { backgroundColor: isDark ? '#5CDD8B' : '#ffffff' }]} />
-      </Animated.View>
     </Animated.View>
   );
 }
@@ -198,17 +194,5 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     letterSpacing: 0.3,
   },
-  // Simple 4-pointed star shape using two overlapping rectangles
-  sparkle: {
-    position: 'absolute',
-    bottom: 48,
-    right: 36,
-  },
-  sparkleShape: {
-    width: 12,
-    height: 12,
-    borderRadius: 1,
-    opacity: 0.5,
-    transform: [{ rotate: '45deg' }],
-  },
+
 });

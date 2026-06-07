@@ -136,12 +136,12 @@ function Podium({
   entries,
   displayFor,
   colors: c,
-  lastWeekWinnerUids = [],
+  lastWeekWinners = {},
 }: {
   entries: LeaderboardEntry[];
   displayFor: (e: LeaderboardEntry) => string;
   colors: any;
-  lastWeekWinnerUids?: string[];
+  lastWeekWinners?: Record<string, number>;
 }) {
   if (entries.length < 1) return null;
  
@@ -159,15 +159,15 @@ function Podium({
         const isCenter   = entry.rank === 1;
         const zoneCol    = scoreColor(entry.weeklyEcoScore);
         const blockH     = heights[entry.rank] ?? 56;
-        const wasWinner  = lastWeekWinnerUids.includes(entry.uid);
+        const lastRank   = lastWeekWinners[entry.uid];
  
         return (
           <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
             {/* Crown pill — only shown for last week's winner(s) */}
-            {wasWinner && (
+            {lastRank !== undefined && (
               <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
                 <FontAwesome6 name="crown" size={9} color="#F9A825" />
-                <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>Last week</Text>
+                <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>#{lastRank} last week</Text>
               </View>
             )}
  
@@ -416,7 +416,7 @@ export default function CommunityScreen() {
   const [lifetimeMetric, setLifetimeMetric]   = useState<'co2' | 'tokens'>('co2');
   const [loadingLifetime, setLoadingLifetime] = useState(false);
   const [myLifetimeEntry, setMyLifetimeEntry] = useState<LifetimeEntry | null>(null);
-  const [lastWeekWinnerUids, setLastWeekWinnerUids] = useState<string[]>([]);
+  const [lastWeekWinners, setLastWeekWinners] = useState<Record<string, number>>({}); // uid -> rank
   const missedNotifFiredRef = useRef(false); // guard: fire at most once per session
 
   const [liveChallenges, setLiveChallenges] = useState<Challenge[]>([]);
@@ -666,15 +666,17 @@ export default function CommunityScreen() {
     fetchLifetimeLeaderboard();
   }, [currentUid, fetchLeaderboard, fetchChallengeState, fetchLifetimeLeaderboard]);
 
-  // Fetch last week's winner UIDs from the shared meta doc written by the
+  // Fetch last week's winner UIDs+ranks from the shared meta doc written by the
   // Cloud Function at reset time. Single read, no per-user queries needed.
   useEffect(() => {
     if (!currentUid) return;
     getDoc(doc(db, 'meta', 'lastWeekWinners'))
       .then(snap => {
         if (snap.exists()) {
-          const winners: Array<{ uid: string }> = snap.data().winners ?? [];
-          setLastWeekWinnerUids(winners.map(w => w.uid));
+          const winners: Array<{ uid: string; rank: number }> = snap.data().winners ?? [];
+          const map: Record<string, number> = {};
+          winners.forEach(w => { map[w.uid] = w.rank; });
+          setLastWeekWinners(map);
         }
       })
       .catch(() => {}); // non-critical
@@ -876,7 +878,7 @@ export default function CommunityScreen() {
     const zoneCol = scoreColor(item.weeklyEcoScore);
     const isMe = item.isCurrentUser;
     const nameStr = displayFor(item);
-    const wasWinner = lastWeekWinnerUids.includes(item.uid);
+    const lastRank = lastWeekWinners[item.uid];
 
     return (
       <View style={[
@@ -902,7 +904,7 @@ export default function CommunityScreen() {
           {nameStr}
         </Text>
 
-        {wasWinner && (
+        {lastRank !== undefined && (
           <FontAwesome6 name="crown" size={13} color="#F9A825" />
         )}
 
@@ -1054,7 +1056,7 @@ export default function CommunityScreen() {
   const renderStickyMe = () => {
     if (!myEntry || activeTab !== 'leaderboard') return null;
     const zoneCol = scoreColor(myEntry.weeklyEcoScore);
-    const wasWinner = lastWeekWinnerUids.includes(myEntry.uid);
+    const lastRank = lastWeekWinners[myEntry.uid];
     return (
       <View style={[
         styles.stickyMe,
@@ -1066,10 +1068,10 @@ export default function CommunityScreen() {
           </Text>
         </View>
         <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>You</Text>
-        {wasWinner && (
+        {lastRank !== undefined && (
           <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
             <FontAwesome6 name="crown" size={9} color="#F9A825" />
-            <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>Last week</Text>
+            <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>#{lastRank} last week</Text>
           </View>
         )}
         <View style={[styles.scoreBadge, { backgroundColor: zoneCol + '18', borderColor: zoneCol + '40' }]}>
@@ -1170,7 +1172,7 @@ export default function CommunityScreen() {
                       entries={leaderboard.filter(e => e.rank <= 3)}
                       displayFor={displayFor}
                       colors={colors}
-                      lastWeekWinnerUids={lastWeekWinnerUids}
+                      lastWeekWinners={lastWeekWinners}
                     />
                   )}
                   {/* "Week just started" note — shown below podium when nobody has scored yet */}

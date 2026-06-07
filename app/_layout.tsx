@@ -21,6 +21,7 @@ import { preloadSounds } from '@/src/utils/sfx';
 import { WeeklyWinModal } from '@/components/WeeklyWinModal';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 
+
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
 
 function getWeekKey(date: Date): string {
@@ -384,41 +385,20 @@ export default function RootLayout() {
     preloadSounds().catch(() => {}); // preload all SFX silently on boot
   }, []);
 
-  if (loading) {
-    const bg      = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
-    const shimmer  = scheme === 'dark' ? '#1a1a1a' : '#E5E7EB';
-    const shimmer2 = scheme === 'dark' ? '#222'    : '#F3F4F6';
-
-    if (!authResolved || !user || freshLogin.current) {
-      return (
-        <View style={{ flex: 1, backgroundColor: bg }}>
-          {!splashDone && (
-            <AnimatedSplash
-              isDark={scheme === 'dark'}
-              onFinish={() => setSplashDone(true)}
-            />
-          )}
-        </View>
-      );
-    }
-
+  // Show splash until animation completes. While splash is running, also
+  // let data loading happen in the background — but don't render the Stack
+  // until BOTH splash is done AND loading is resolved. This prevents the
+  // blank/logo flash that occurs when the Stack mounts before a screen is ready.
+  if (!splashDone || loading) {
+    const bg = scheme === 'dark' ? '#0B0F0C' : '#F9FAFB';
     return (
-      <View style={{ flex: 1, backgroundColor: bg, padding: 20, paddingTop: 60 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 32 }}>
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shimmer }} />
-          <View style={{ gap: 8 }}>
-            <View style={{ width: 120, height: 14, borderRadius: 7, backgroundColor: shimmer }} />
-            <View style={{ width: 80,  height: 10, borderRadius: 5, backgroundColor: shimmer2 }} />
-          </View>
-        </View>
-        <View style={{ width: '100%', height: 180, borderRadius: 20, backgroundColor: shimmer, marginBottom: 16 }} />
-        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
-          <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
-          <View style={{ flex: 1, height: 90, borderRadius: 14, backgroundColor: shimmer }} />
-        </View>
-        <View style={{ width: '100%', height: 110, borderRadius: 14, backgroundColor: shimmer, marginBottom: 16 }} />
-        <View style={{ width: '70%', height: 14, borderRadius: 7, backgroundColor: shimmer2, marginBottom: 10 }} />
-        <View style={{ width: '50%', height: 14, borderRadius: 7, backgroundColor: shimmer2 }} />
+      <View style={{ flex: 1, backgroundColor: bg }}>
+        {!splashDone && (
+          <AnimatedSplash
+            isDark={scheme === 'dark'}
+            onFinish={() => setSplashDone(true)}
+          />
+        )}
       </View>
     );
   }
