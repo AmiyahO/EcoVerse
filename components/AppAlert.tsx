@@ -57,13 +57,13 @@ export interface AppAlertConfig {
   variant?:     'info' | 'confirm';  // default: 'info'
   // Info variant
   dismissLabel?: string;             // default: 'OK'
-  onDismiss?:    () => void;
+  onDismiss?:    () => void | Promise<void>;
   // Confirm variant
   confirmLabel?:  string;            // default: 'Confirm'
   cancelLabel?:   string;            // default: 'Cancel'
   destructive?:   boolean;           // confirm button shown in red
-  onConfirm?:     () => void;
-  onCancel?:      () => void;
+  onConfirm?:     () => void | Promise<void>;
+  onCancel?:      () => void | Promise<void>;
   // Optional icon override (FontAwesome6 name)
   icon?:          string;
   iconColor?:     string;
@@ -74,10 +74,19 @@ export interface AppAlertConfig {
 type ShowFn = (config: AppAlertConfig) => void;
 
 const _listeners: Set<ShowFn> = new Set();
+// Queue so a second alert triggered from inside onConfirm/onDismiss
+// fires after the current modal finishes its dismiss animation.
+let _queue: AppAlertConfig[] = [];
+let _isShowing = false;
 
 export const appAlert = {
   show(config: AppAlertConfig) {
-    _listeners.forEach(fn => fn(config));
+    if (_isShowing) {
+      _queue.push(config);
+    } else {
+      _isShowing = true;
+      _listeners.forEach(fn => fn(config));
+    }
   },
 };
 
@@ -128,7 +137,7 @@ export function AppAlertHost() {
     }
   }, [visible]);
 
-  const dismiss = (cb?: () => void) => {
+  const dismiss = (cb?: (() => void) | (() => Promise<void>)) => {
     Animated.parallel([
       Animated.spring(scaleAnim, {
         toValue: 0.88,
@@ -144,7 +153,15 @@ export function AppAlertHost() {
     ]).start(() => {
       setVisible(false);
       setConfig(null);
-      cb?.();
+      _isShowing = false;
+      // Run the callback, then drain queue
+      Promise.resolve(cb?.()).finally(() => {
+        if (_queue.length > 0) {
+          const next = _queue.shift()!;
+          // Small delay so React can settle state before showing next
+          setTimeout(() => appAlert.show(next), 80);
+        }
+      });
     });
   };
 
