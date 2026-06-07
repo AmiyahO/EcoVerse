@@ -92,6 +92,15 @@ const MEDAL: Record<number, { color: string; bg: string; icon: string; label: st
   3: { color: '#8B4513', bg: '#FDF3EC', icon: 'medal',   label: '3rd' },
 };
 
+// Crown colours matching leaderboard medal ranks
+const CROWN_COLOR: Record<number, string> = {
+  1: '#FFD700',  // gold
+  2: '#A8A8A8',  // silver
+  3: '#CD7F32',  // bronze
+};
+
+function crownColor(rank: number) { return CROWN_COLOR[rank] ?? '#B8860B'; }
+
 const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
   easy:   { bg: '#E8F5E9', text: '#2E7D32' },
   medium: { bg: '#FFF3E0', text: '#E65100' },
@@ -165,9 +174,9 @@ function Podium({
           <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
             {/* Crown pill — only shown for last week's winner(s) */}
             {lastRank !== undefined && (
-              <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
-                <FontAwesome6 name="crown" size={9} color="#F9A825" />
-                <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>#{lastRank} last week</Text>
+              <View style={[podiumStyles.crownPill, { backgroundColor: medal.color + '22', borderColor: medal.color + '60' }]}>
+                <FontAwesome6 name="crown" size={9} color={medal.color} />
+                <Text style={[podiumStyles.crownText, { color: medal.color }]}>#{lastRank} last week</Text>
               </View>
             )}
  
@@ -905,7 +914,10 @@ export default function CommunityScreen() {
         </Text>
 
         {lastRank !== undefined && (
-          <FontAwesome6 name="crown" size={13} color="#F9A825" />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <FontAwesome6 name="crown" size={11} color={crownColor(lastRank)} />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: crownColor(lastRank) }}>#{lastRank}</Text>
+          </View>
         )}
 
         <View style={[styles.scoreBadge, { backgroundColor: zoneCol + '18', borderColor: zoneCol + '40' }]}>
@@ -1069,9 +1081,9 @@ export default function CommunityScreen() {
         </View>
         <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>You</Text>
         {lastRank !== undefined && (
-          <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
-            <FontAwesome6 name="crown" size={9} color="#F9A825" />
-            <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>#{lastRank} last week</Text>
+          <View style={[podiumStyles.crownPill, { backgroundColor: crownColor(lastRank) + '22', borderColor: crownColor(lastRank) + '60' }]}>
+            <FontAwesome6 name="crown" size={9} color={crownColor(lastRank)} />
+            <Text style={[podiumStyles.crownText, { color: crownColor(lastRank) }]}>#{lastRank} last week</Text>
           </View>
         )}
         <View style={[styles.scoreBadge, { backgroundColor: zoneCol + '18', borderColor: zoneCol + '40' }]}>
@@ -1177,8 +1189,10 @@ export default function CommunityScreen() {
                   )}
                   {/* "Week just started" note — shown below podium when nobody has scored yet */}
                   {leaderboard.length >= 1 && !leaderboard.some(e => e.weeklyEcoScore > 0) && (
-                    <View style={[styles.noScoreBanner, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
-                      <FontAwesome6 name="leaf" size={22} color={colors.tint} style={{ opacity: 0.7 }} />
+                    <View style={[styles.noScoreBanner, { backgroundColor: colors.tint + '12', borderColor: colors.tint + '30' }]}>
+                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.tint + '20', alignItems: 'center', justifyContent: 'center' }}>
+                        <FontAwesome6 name="seedling" size={18} color={colors.tint} />
+                      </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.noScoreTitle, { color: colors.text }]}>Week just started!</Text>
                         <Text style={[styles.noScoreSub, { color: colors.text }]}>No EcoScores yet — log activities to claim the top spot.</Text>

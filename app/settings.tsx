@@ -280,20 +280,22 @@ export default function SettingsScreen() {
               useActivityStore.getState().clearActivities();
               useActivityStore.getState().setUserProfile(null as any);
 
-              // ── Step 3: Delete Firebase Auth account ──
-              // This triggers onAuthStateChanged(null) in _layout.tsx,
-              // which calls router.replace('/login') via the hasNavigated guard.
-              // DO NOT call router.replace() here — that causes the double navigation.
-              await deleteUser(user);
-
-              // ── Step 4: Best-effort Firestore cleanup ──
-              // Auth is already gone; orphaned docs are harmless if this fails.
+              // ── Step 3: Best-effort Firestore cleanup BEFORE auth delete ──
+              // Done first so docs are cleaned up even if auth delete succeeds
+              // but the app crashes immediately after. Leaderboard Cloud Function
+              // also covers this as a fallback when the user doc is deleted.
               try {
                 await Promise.all([
                   deleteDoc(doc(db, 'users', user.uid)),
                   deleteDoc(doc(db, 'leaderboard', user.uid)),
                 ]);
-              } catch { /* best-effort */ }
+              } catch { /* best-effort — orphaned docs are harmless */ }
+
+              // ── Step 4: Delete Firebase Auth account ──
+              // This triggers onAuthStateChanged(null) in _layout.tsx,
+              // which calls router.replace('/login') via the hasNavigated guard.
+              // DO NOT call router.replace() here — that causes the double navigation.
+              await deleteUser(user);
 
               // Navigation is handled entirely by onAuthStateChanged in _layout.tsx
 

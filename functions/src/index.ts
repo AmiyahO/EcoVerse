@@ -8,11 +8,9 @@
 //   2. weeklyLeaderboardReset  — scheduled, every Sunday 00:05 UTC
 //      Awards EcoTokens to top 3, records wins, resets all weeklyEcoScore fields.
 //
-//   3. cleanupLeaderboardOnUserDelete — triggers on user doc deletion, cleans up leaderboard entry.
 import { setGlobalOptions } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
-import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 
 admin.initializeApp();
 
@@ -241,19 +239,5 @@ export const weeklyLeaderboardReset = onSchedule(
 
     await batch.commit();
     console.log(`[weeklyReset] Done — reset ${lbSnap.size} docs, awarded ${top3Winners.length} winners`);
-  },
-);
-
-// ── 3. Clean up leaderboard when a user account / user doc is deleted ──────────
-export const cleanupLeaderboardOnUserDelete = onDocumentDeleted(
-  'users/{uid}',
-  async (event) => {
-    const uid = event.params.uid;
-    try {
-      await db.collection('leaderboard').doc(uid).delete();
-      console.log(`[cleanupLeaderboard] Removed leaderboard entry for uid=${uid}`);
-    } catch (e) {
-      console.error(`[cleanupLeaderboard] Failed for uid=${uid}:`, e);
-    }
   },
 );
