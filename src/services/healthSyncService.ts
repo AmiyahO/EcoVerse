@@ -119,9 +119,10 @@ export async function fetchSyncCandidates(
 ): Promise<{ sessions: SyncSession[]; syncState: SyncState }> {
   const syncState = await getSyncState();
 
-  const daysBack = syncState.lastSyncedAt
-    ? Math.min(30, Math.ceil((Date.now() - new Date(syncState.lastSyncedAt).getTime()) / 86400000) + 1)
-    : 30;
+  // Always look back 30 days — importedSet deduplication handles what's already imported.
+  // Previously this used lastSyncedAt to shrink the window, but that caused activities
+  // outside the narrow window to disappear from the list after the first sync.
+  const daysBack = 30;
 
   // importedSet = IDs from meta/healthSync UNION hcId values on existing activities.
   // This means activities imported via the add screen are also treated as imported,

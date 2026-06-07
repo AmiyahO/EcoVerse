@@ -20,7 +20,7 @@ import {
   HCActivity,
   PermissionStatus,
 } from '@/src/services/healthConnect';
-import { ActivityCategory } from '@/src/store/activityStore';
+import { ActivityCategory, useActivityStore } from '@/src/store/activityStore';
 
 interface HealthConnectBannerProps {
   category: ActivityCategory;
@@ -61,6 +61,7 @@ export default function HealthConnectBanner({
   onAutoFill,
 }: HealthConnectBannerProps) {
   const { colors } = useAppTheme();
+  const activities = useActivityStore(s => s.activities);
 
   const [status, setStatus]           = useState<PermissionStatus>('not_asked');
   const [loading, setLoading]         = useState(true);
@@ -96,6 +97,15 @@ export default function HealthConnectBanner({
             return isSameLocalDay(new Date(s.startTime), selectedDate);
           }
           return true;
+        })
+        .filter(s => {
+          // Hide sessions already imported (matched by hcId or time proximity)
+          const alreadyByHcId = activities.some(a => (a as any).hcId === s.id);
+          const alreadyByTime = activities.some(a => {
+            if (a.category !== s.type) return false;
+            return Math.abs(new Date(a.date).getTime() - new Date(s.startTime).getTime()) < 2 * 3600000;
+          });
+          return !alreadyByHcId && !alreadyByTime;
         })
         .slice(0, 3);
       setRecent(filteredSessions);
@@ -160,7 +170,17 @@ export default function HealthConnectBanner({
   }
 
   // ── Granted: walking with steps for the selected date ─────────────────────
-  if (status === 'granted' && category === 'walking' && todaySteps && todaySteps.steps > 0) {
+  // Calculate how many steps for this date are already imported
+  const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+  const alreadyImportedSteps = activities
+    .filter(a => a.category === 'walking' && (a as any).hcId === `steps-${dateKey}`)
+    .reduce((sum, a) => sum + ((a as any).steps ?? 0), 0);
+  const availableSteps = todaySteps ? Math.max(0, todaySteps.steps - alreadyImportedSteps) : 0;
+  const availableDistance = (todaySteps && todaySteps.steps > 0 && availableSteps > 0)
+    ? Math.round((todaySteps.distance * (availableSteps / todaySteps.steps)) * 100) / 100
+    : 0;
+
+  if (status === 'granted' && category === 'walking' && availableSteps > 200) {
     return (
       <View style={[styles.hcCard, { backgroundColor: colors.surface, borderColor: colors.tint + '25' }]}>
         <View style={styles.hcCardHeader}>
@@ -181,17 +201,19 @@ export default function HealthConnectBanner({
         <View style={styles.hcStats}>
           <View style={styles.hcStat}>
             <ThemedText style={[styles.hcStatValue, { color: colors.tint }]}>
-              {todaySteps.steps.toLocaleString()}
+              {availableSteps.toLocaleString()}
             </ThemedText>
-            <ThemedText style={[styles.hcStatLabel, { color: colors.text }]}>steps</ThemedText>
+            <ThemedText style={[styles.hcStatLabel, { color: colors.text }]}>
+              {alreadyImportedSteps > 0 ? 'steps remaining' : 'steps'}
+            </ThemedText>
           </View>
-          {todaySteps.distance > 0 && (
+          {availableDistance > 0 && (
             <View style={[styles.hcStatDivider, { backgroundColor: colors.surfaceMuted }]} />
           )}
-          {todaySteps.distance > 0 && (
+          {availableDistance > 0 && (
             <View style={styles.hcStat}>
               <ThemedText style={[styles.hcStatValue, { color: colors.tint }]}>
-                {todaySteps.distance}
+                {availableDistance}
               </ThemedText>
               <ThemedText style={[styles.hcStatLabel, { color: colors.text }]}>km</ThemedText>
             </View>
@@ -200,8 +222,7 @@ export default function HealthConnectBanner({
 
         <Pressable
           onPress={() => {
-            const dateKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
-            onAutoFill({ steps: todaySteps.steps, distance: todaySteps.distance || undefined, hcId: `steps-${dateKey}` });
+            onAutoFill({ steps: availableSteps, distance: availableDistance || undefined, hcId: `steps-${dateKey}` });
           }}          style={[styles.importBtn, { backgroundColor: colors.tint }]}
         >
           <FontAwesome6 name="download" size={13} color="#fff" />
