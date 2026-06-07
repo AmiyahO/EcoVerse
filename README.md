@@ -67,7 +67,11 @@ app/
 │   │                    #     global ranking by weeklyEcoScore from /leaderboard collection,
 │   │                    #     eco-alias by default (opt-in real name), sticky "You" row,
 │   │                    #     pull-to-refresh, AppState foreground refetch (5-min threshold),
-│   │                    #     last-week winner crown pill (👑) on podium from meta/lastWeekWinners
+│   │                    #     last-week winner crown pill (FontAwesome6 crown icon) on podium,
+│   │                    #     sticky "You" bar, and rank 4+ list rows from meta/lastWeekWinners.
+│   │                    #     Crown colour matches last week's rank (gold/silver/bronze), NOT current rank.
+│   │                    #     lastWeekWinners stored as Record<uid, rank> map (not array).
+│   │                    #     Medal colours: #E6B800 gold, #909090 silver, #B87333 bronze.
 │   │                    #   Lifetime: ranked by totalCarbonSaved or tokens (inline toggle),
 │   │                    #     podium + ranked list + sticky "You" row, prefetched on mount
 │   │                    #   Live/Offline badge: NetInfo.addEventListener drives header badge
@@ -140,7 +144,12 @@ app/
 │                        #   leaderboard opt-in toggle, Notifications section (permission
 │                        #   request, daily reminder toggle + time picker, weekly recap,
 │                        #   missed-day nudge, streak-at-risk alert), Terms of Service,
-│                        #   Privacy Policy, feedback link
+│                        #   Privacy Policy, feedback link (mailto:ecoverse.dev.team@gmail.com).
+│                        #   Account deletion: Firestore cleanup before deleteUser, store cleared
+│                        #   after Firestore, explicit router.replace('/login') after deleteUser.
+│                        #   isDeletingAccount ref blocks onAuthStateChanged navigation during deletion.
+│                        #   Email re-auth uses AppPrompt password modal. Google re-auth uses GoogleSignin.
+│                        #   All Alert.alert calls replaced with appAlert.show().
 ├── terms-of-service.tsx # Terms of Service modal content screen
 ├── privacy-policy.tsx   # Privacy Policy modal content screen
 ├── edit-profile.tsx     # Edit name, weekly target, avatar
@@ -154,6 +163,10 @@ app/
                          #   adjusted: Sunday advances +1 day before ISO calc so Sunday
                          #   opens a new week). loadEcoScoreSnapshots() orders by
                          #   updatedAt desc to handle mixed YYYY-MM-DD / YYYY-Wnn keys.
+                         #   AppAlertHost + AppPromptHost mounted here (global modal layer).
+                         #   AnimatedSplash rendered as absoluteFill overlay until splashDone.
+                         #   isDeletingAccount ref exposed via global.__ecoverse_isDeletingAccount
+                         #   to block onAuthStateChanged navigation during account deletion.
 
 src/
 ├── store/
@@ -190,6 +203,9 @@ src/
 │   │                         #   Delta entries carry originalDayId so commitSync
 │   │                         #   writes the correct pedometer day ID as hcId on the
 │   │                         #   Firestore activity, enabling cumulative delta tracking.
+│   │                         #   daysBack always 30 — previously derived from lastSyncedAt
+│   │                         #   which shrank the fetch window after first sync, hiding
+│   │                         #   unimported activities. importedSet dedup handles exclusions.
 │   ├── notificationService.ts # Local push notifications — configureNotificationHandler(),
 │   │                          #   requestNotifPermission(), getNotifPermStatus(),
 │   │                          #   applyNotifSettings() (schedules/reschedules all repeating
@@ -248,6 +264,10 @@ components/
 │                             #   onAutoFill includes hcId param (steps-YYYY-MM-DD for
 │                             #   pedometer, session.id for exercise sessions) for
 │                             #   deduplication in add.tsx handleHCAutoFill.
+│                             #   Already-imported sessions filtered out by hcId match or
+│                             #   2-hour time proximity. Steps card shows delta (remaining
+│                             #   steps) after partial import — label changes to "steps remaining".
+│                             #   Card hidden only when delta ≤ 200 (noise threshold).
 ├── AchievementModal.tsx      # Achievement earned modal with badge preview and progress summary.
 ├── LevelUpModal.tsx          # Level-up celebration modal — animated rank icon
 │                             #   (MaterialCommunityIcons), floating icon in rounded tile,
@@ -274,6 +294,22 @@ components/
 ├── parallax-scroll-view.tsx  # Parallax scroll wrapper for long pages.
 ├── themed-text.tsx           # Theme-aware text wrapper for consistent colour styling.
 ├── themed-view.tsx           # Theme-aware view wrapper for background and surface colours.
+├── AppAlert.tsx              # Reusable alert/confirmation modal — replaces Alert.alert() app-wide.
+│                             #   Variants: info (single dismiss button) and confirm (cancel + confirm).
+│                             #   Imperative singleton API: appAlert.show({ title, message, variant, ... }).
+│                             #   Queue system handles alerts triggered from inside onConfirm callbacks.
+│                             #   Async onConfirm support. Spring scale + slide-up animation. Dark/light aware.
+│                             #   AppAlertHost mounted once in app/_layout.tsx.
+├── AppPrompt.tsx             # Reusable text-input modal — replaces Alert.prompt() (iOS-only).
+│                             #   Imperative singleton: appPrompt.show({ title, placeholder, secure, ... }).
+│                             #   Inline error display, shake animation on bad input, loading state,
+│                             #   focus-aware input border, KeyboardAvoidingView. Same queue pattern as AppAlert.
+│                             #   AppPromptHost mounted in app/_layout.tsx. Used for email re-auth on delete.
+├── AnimatedSplash.tsx        # Custom animated splash screen with radial gradient (light/dark variants).
+│                             #   Replaces native splash — decoupled from loading gate so it plays fully
+│                             #   before navigation. useNativeDriver: false (LinearGradient constraint).
+│                             #   Animated.View wrapper for text. Native splash image removed from app.json
+│                             #   and android/app/src/main/res/values/styles.xml to prevent double splash.
 ├── ocr-candidate-picker.tsx  # OCR result picker for bill scanning
 └── ui/                       # Shared UI primitives and smaller helper components.
 
@@ -481,7 +517,7 @@ Login ──▶ Onboarding (7 steps, new users only) ──▶ Tabs
 - **EcoScore snapshot write guarantee:** Three refs (`activitiesForSnapshot`, `snapshotWritten`, `readyFlags`) and a `maybeWriteSnapshot()` helper ensure the snapshot is written exactly once per login, only after both the user doc listener and activities listener have fired, using the correct weeklyTarget and region values. Week keys use **Sunday-based local dates** (not ISO week numbers) to match the boundaries used throughout the app.
 - **Three-flag loading guard** (`authResolved` + `userDocReady` + `activitiesReady`) eliminates skeleton flash before login. A `freshLogin` ref skips the data-loading skeleton for new sign-ins.
 - **Firestore security rules:** `/users/{userId}` and all sub-collections are read/write by owner only. `/leaderboard/{userId}` is readable by any authenticated user, writable only by the document owner. `/challenges/{challengeId}` is publicly readable, write-disabled (Cloud Function uses Admin SDK). `/challengeTemplates/{id}` same pattern.
-- **Account deletion:** Zustand store cleared first (before `deleteUser`) so `onAuthStateChanged` sees clean state. No competing `router.replace` call in `settings.tsx`.
+- **Account deletion:** Firestore docs deleted first (`users/{uid}` + `leaderboard/{uid}`), then Zustand store cleared, then `deleteUser`. `isDeletingAccount` ref blocks `onAuthStateChanged` navigation during the deletion sequence. After `deleteUser` succeeds, `router.replace('/login')` called explicitly. Email accounts use `AppPrompt` for password re-auth. Google accounts use `GoogleSignin.signIn()` for re-auth (account picker bug deferred — see Known Issues).
 
 ---
 
@@ -750,7 +786,7 @@ Redesigned with a gradient hero banner and a featured full-width 8-week CO₂ ch
 ## 🔐 Auth & Security
 
 - **Inline errors** — Firebase error codes mapped to user-friendly messages
-- **Delete account** — Zustand store cleared first (before `deleteUser`) so `onAuthStateChanged` sees clean state. No competing `router.replace` in `settings.tsx`
+- **Delete account** — Firestore cleanup → store clear → `deleteUser` → `router.replace('/login')`. `isDeletingAccount` ref blocks `onAuthStateChanged` during deletion. Email re-auth via `AppPrompt`. Google re-auth via `GoogleSignin` (account picker not always showing — known issue, deferred)
 - **Gemini API key** — currently in `.env`. For production: move to Firebase Cloud Function
 - **Notifications** — local only; no server-side data access
 
@@ -798,6 +834,15 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Notification handler type error (TS2322) | Newer `expo-notifications` requires `shouldShowBanner` + `shouldShowList` | Added both fields to `handleNotification` return |
 | Missed-day nudge `await` at top level of component | Nudge lines pasted outside any function in `_layout.tsx` | Moved inside activities `onSnapshot` callback |
 | `setNotifModal(true) \|\| setTimePickerFor()` void error | `setNotifModal` returns `void`; `\|\|` on void is TS error | Split into `{ setTimePickerFor(...); setNotifModal(true); }` |
+| HC sync shows only 2 activities after first import | `daysBack` calculated from `lastSyncedAt` (just-updated timestamp); next sync window was only minutes wide | Always use `daysBack = 30`; `importedSet` dedup handles exclusions |
+| HC banner shows already-imported sessions | Banner had no check against existing activities | Sessions filtered by `hcId` match or ±2h proximity; steps card hidden if `steps-YYYY-MM-DD` already imported |
+| HC banner hides steps card entirely after partial import | `stepsAlreadyImported` check hid card even when delta remained | Banner shows delta steps only, labelled "steps remaining"; card hidden only when delta ≤ 200 |
+| AppAlert freezes when async onConfirm triggers second alert | `dismiss(cb)` ran callback via `Promise.resolve()` while `_isShowing` was still true | Queue system: second `appAlert.show()` inside `onConfirm` is queued; drained 80ms after dismiss animation |
+| Account deletion — nothing happens after Google re-auth | `isDeletingAccount` blocked `onAuthStateChanged` navigation but `settings.tsx` relied on it to navigate | Explicit `router.replace('/login')` added after `deleteUser` succeeds; guard cleared first |
+| edit.tsx — empty fields accepted on save | No validation before `handleUpdate` | Validates all metric fields: blocks if all empty or any non-positive value |
+| Community podium crown shows wrong colour | Podium crown pill used `medal.color` (current rank colour) instead of `crownColor(lastRank)` | All crown pill usages now use `crownColor(lastRank)` |
+| `Alert.alert` used throughout (Android-inconsistent) | Native `Alert.alert` styling varies across Android OEMs | `AppAlert` component replaces all `Alert.alert` calls app-wide |
+| `Alert.prompt` used for password re-auth (iOS-only) | `Alert.prompt` not available on Android | `AppPrompt` component with secure text input replaces `Alert.prompt` |
 | Stats hero EcoTokens differs from Profile | `calculateTokens()` omits streak multiplier baked in at save time; sum of recalculated values is lower | `totalTokens` reads `userProfile.tokens` (Firestore) — identical source to Profile tab |
 | Stats 8-week chart invisible (height) | `CartesianChart` (Skia canvas) cannot infer height from flex; renders into 0px | Explicit `<View style={{ height: CHART_HEIGHT }}>` wrapper required |
 | Stats 8-week chart bars all invisible (Bar API) | `Bar` in Victory Native v41 requires full `points` array — per-point loop produces nothing | One `<Bar points={points.co2} />` for all bars; second overlay `Bar` for current-week highlight |
@@ -910,6 +955,7 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 - [ ] Test on 360dp-wide emulator (Pixel 3a size) — tested on Samsung Galaxy A55 5G; Pixel 3a emulator not run due to memory constraints (documented as limitation in thesis)
 - [ ] Play Store listing — icon, screenshots, description, Privacy Policy URL
 - [ ] © 2026 Amirah Yahaya. All rights reserved. to About section in Settings
+- [ ] Google account delete — Google sign-in account picker not showing during re-auth before deletion (deferred)
 
 ---
 
@@ -924,6 +970,11 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 | Leaderboard rank ties (3+ way) and sticky "You" row inconsistent | Replaced `.map()` with `for`-loop reading already-computed rank from output array; sticky bar rank computed from `usersAbove + 1` instead of hardcoded `999` |
 | Podium tie bug — second tied user missing | Podium used positional array indices; tied rank-1 users shared index 0. Fixed: order built by rank value (`rank1`, `rank2`, `rank3` filters), all tied entries rendered |
 | All users shown on podium when scores reset to 0 | `leaderboard.filter(e => e.rank <= 3)` returned all users when everyone was rank 1 at 0 score. Fixed: users with score 0 get sequential positional ranks; rank-1 capped at 2 entries max |
+| Crown on podium shows current-rank colour not last-week colour | Podium crown pill used `medal.color` (current week's rank) | All crown usages use `crownColor(lastRank)` — last week's rank colour |
+| Sync screen hides all unimported activities after first partial sync | `daysBack` shrank to minutes after `lastSyncedAt` updated | `daysBack` always 30; `importedSet` handles dedup |
+| HC banner doesn't offer remaining steps after partial import | Hid the card entirely once any steps-YYYY-MM-DD hcId found | Shows delta steps with "steps remaining" label; hides only when delta ≤ 200 |
+| AppAlert freezes on async confirm that triggers second alert | No queue — second `appAlert.show()` inside `onConfirm` conflicted | Queue + async `Promise.resolve(cb?.())` in dismiss |
+| Account deletion succeeds but app stays on Settings screen | `isDeletingAccount` blocked `onAuthStateChanged`; no explicit nav after delete | `router.replace('/login')` called explicitly after `deleteUser` |
 | Avatar letter clipping in Edit Profile | `fontSize: 38` clipped tall letters (G, Q) inside `overflow: hidden` circle. Fixed: `fontSize: 32`, `lineHeight: 38`, `includeFontPadding: false`, `overflow: visible` |
 | Duration missing in activity details for Health Connect imports | `details.tsx` had no duration row for walking/cycling. HC stores duration; added conditional `DetailRow` for both categories |
 | Achievement/streak modals only fire on Achievements screen | `triggerAchievement()` was only called inside `achievements.tsx`. Fixed: full milestone check added to `add.tsx` after save and `health-connect-sync.tsx` after commit |
