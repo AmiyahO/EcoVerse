@@ -1,6 +1,6 @@
 // activity/edit.tsx
 import {
-  View, StyleSheet, Pressable, TextInput, Alert, ScrollView, ActivityIndicator, Platform,
+  View, StyleSheet, Pressable, TextInput, ScrollView, ActivityIndicator, Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useState, useEffect } from 'react';
@@ -98,6 +98,31 @@ export default function EditActivityScreen() {
 
   const handleUpdate = async () => {
     if (!auth.currentUser || isSaving) return;
+
+    // Validate — at least one metric field must be filled
+    const hasValue = [steps, distance, duration, kwhSaved, litersSaved].some(v => v.trim() !== '');
+    if (!hasValue) {
+      appAlert.show({ title: 'Nothing to save', message: 'Please enter a value before updating.' });
+      return;
+    }
+
+    // Validate numeric fields aren't zero or negative
+    const numFields = [
+      { label: 'Steps',        val: steps },
+      { label: 'Distance',     val: distance },
+      { label: 'Duration',     val: duration },
+      { label: 'kWh saved',    val: kwhSaved },
+      { label: 'Litres saved', val: litersSaved },
+    ];
+    for (const f of numFields) {
+      if (f.val.trim() === '') continue;
+      const n = Number(f.val);
+      if (isNaN(n) || n <= 0) {
+        appAlert.show({ title: 'Invalid value', message: `${f.label} must be a number greater than 0.` });
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const userRef     = doc(db, 'users', auth.currentUser.uid);

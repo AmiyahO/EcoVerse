@@ -14,6 +14,7 @@ import { doc, deleteDoc, setDoc, updateDoc, increment } from 'firebase/firestore
 import { db, auth } from '@/src/firebase/config';
 import { persistWeeklyEcoScore } from '@/src/utils/ecoLogic';
 import { deleteBillForActivity } from '@/src/services/billService';
+import { appAlert } from '@/components/AppAlert';
 
 const CATEGORY_ICON: Record<string, string> = {
   walking:     'person-walking',
@@ -146,14 +147,15 @@ function ActivityActionSheet({ activity, onDuplicate, onDelete, onClose }: Actio
           <Pressable
             style={({ pressed }) => [styles.asAction, pressed && { opacity: 0.6 }]}
             onPress={() => dismiss(() => {
-              Alert.alert(
-                'Delete Activity',
-                'This cannot be undone.',
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Delete', style: 'destructive', onPress: onDelete },
-                ]
-              );
+              appAlert.show({
+                title: 'Delete Activity',
+                message: 'This cannot be undone.',
+                variant: 'confirm',
+                confirmLabel: 'Delete',
+                destructive: true,
+                icon: 'trash',
+                onConfirm: onDelete,
+              });
             })}
           >
             <View style={[styles.asActionIcon, { backgroundColor: '#EF535018' }]}>
