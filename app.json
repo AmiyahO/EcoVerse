@@ -12,7 +12,7 @@
       "backgroundColor": "#2a7828",
       "dark": {
         "backgroundColor": "#05220c"
-      },
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -43,9 +43,7 @@
           "backgroundColor": "#2a7828",
           "dark": {
             "backgroundColor": "#05220c"
-          },
-          "image": null
-        }
+          }        }
       ],
       "expo-router",
       "@react-native-google-signin/google-signin",
