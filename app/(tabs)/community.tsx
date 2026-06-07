@@ -166,7 +166,7 @@ function Podium({
             {/* Crown pill — only shown for last week's winner(s) */}
             {wasWinner && (
               <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
-                <Text style={podiumStyles.crownEmoji}>👑</Text>
+                <FontAwesome6 name="crown" size={9} color="#F9A825" />
                 <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>Last week</Text>
               </View>
             )}
@@ -238,9 +238,6 @@ const podiumStyles = StyleSheet.create({
     borderWidth: 1,
     marginBottom: 4,
   },
-  crownEmoji: {
-    fontSize: 10,
-  },
   crownText: {
     fontSize: 9,
     fontWeight: '700',
@@ -256,7 +253,8 @@ interface ChallengeCompleteModalProps {
 }
 
 function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalProps) {
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
+  const isDark = scheme === 'dark';
   const scaleAnim  = useRef(new Animated.Value(0)).current;
   const glowAnim   = useRef(new Animated.Value(0)).current;
 
@@ -277,7 +275,7 @@ function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalPr
   return (
     <Modal transparent visible animationType="fade" onRequestClose={onClose}>
       <View style={modalStyles.backdrop}>
-        <Animated.View style={[modalStyles.card, { backgroundColor: colors.surface, transform: [{ scale: scaleAnim }] }]}>
+        <Animated.View style={[modalStyles.card, { backgroundColor: isDark ? '#101F10' : '#FFFFFF', transform: [{ scale: scaleAnim }] }]}>
           {/* Faint background icon for depth */}
           <Animated.View style={[modalStyles.bgIcon, { opacity: glowAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.06] }) }]}>
             <FontAwesome6 name={challenge.icon} size={140} color={challenge.color} solid />
@@ -319,8 +317,9 @@ function ChallengeCompleteModal({ challenge, onClose }: ChallengeCompleteModalPr
 }
 
 const modalStyles = StyleSheet.create({
-  backdrop:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  card:          { width: '82%', borderRadius: 28, padding: 28, alignItems: 'center', gap: 12, overflow: 'hidden' },
+  backdrop:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center' },
+  card:          { width: '82%', borderRadius: 28, padding: 28, alignItems: 'center', gap: 12, overflow: 'hidden',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 12, elevation: 8 },
   bgIcon:        { position: 'absolute', top: -20, right: -20 },
   badgePill:     { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20 },
   badgePillText: { fontSize: 10, fontWeight: '800', letterSpacing: 1 },
@@ -406,7 +405,7 @@ export default function CommunityScreen() {
   const isDark = scheme === 'dark';
   const { activities, userProfile } = useActivityStore();
   const auth = getAuth();
-  const currentUid = auth.currentUser?.uid ?? '';
+  const [currentUid, setCurrentUid] = useState<string>(getAuth().currentUser?.uid ?? '');
 
   const [activeTab, setActiveTab] = useState<'leaderboard' | 'challenges' | 'lifetime'>('leaderboard');
   const [leaderboard, setLeaderboard]         = useState<LeaderboardEntry[]>([]);
@@ -428,6 +427,13 @@ export default function CommunityScreen() {
   const [joiningId, setJoiningId]         = useState<string | null>(null);
   const [leavingId, setLeavingId]         = useState<string | null>(null);
 
+  useEffect(() => {
+    const unsub = getAuth().onAuthStateChanged(u => {
+      setCurrentUid(u?.uid ?? '');
+    });
+    return unsub;
+  }, []);
+  
   // ── Online/offline indicator ──────────────────────────────────────────
   const [isOnline, setIsOnline] = useState(true);
   useEffect(() => {
@@ -870,6 +876,7 @@ export default function CommunityScreen() {
     const zoneCol = scoreColor(item.weeklyEcoScore);
     const isMe = item.isCurrentUser;
     const nameStr = displayFor(item);
+    const wasWinner = lastWeekWinnerUids.includes(item.uid);
 
     return (
       <View style={[
@@ -894,6 +901,10 @@ export default function CommunityScreen() {
         >
           {nameStr}
         </Text>
+
+        {wasWinner && (
+          <FontAwesome6 name="crown" size={13} color="#F9A825" />
+        )}
 
         <View style={[styles.scoreBadge, { backgroundColor: zoneCol + '18', borderColor: zoneCol + '40' }]}>
           <View style={[styles.scoreDot, { backgroundColor: zoneCol }]} />
@@ -1043,6 +1054,7 @@ export default function CommunityScreen() {
   const renderStickyMe = () => {
     if (!myEntry || activeTab !== 'leaderboard') return null;
     const zoneCol = scoreColor(myEntry.weeklyEcoScore);
+    const wasWinner = lastWeekWinnerUids.includes(myEntry.uid);
     return (
       <View style={[
         styles.stickyMe,
@@ -1053,9 +1065,13 @@ export default function CommunityScreen() {
             #{myEntry.rank > 50 ? '50+' : myEntry.rank}
           </Text>
         </View>
-        <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>
-          You
-        </Text>
+        <Text style={[styles.stickyName, { color: colors.tint }]} numberOfLines={1}>You</Text>
+        {wasWinner && (
+          <View style={[podiumStyles.crownPill, { backgroundColor: '#F9A825' + '22', borderColor: '#F9A825' + '60' }]}>
+            <FontAwesome6 name="crown" size={9} color="#F9A825" />
+            <Text style={[podiumStyles.crownText, { color: '#F9A825' }]}>Last week</Text>
+          </View>
+        )}
         <View style={[styles.scoreBadge, { backgroundColor: zoneCol + '18', borderColor: zoneCol + '40' }]}>
           <View style={[styles.scoreDot, { backgroundColor: zoneCol }]} />
           <Text style={[styles.scoreVal, { color: zoneCol }]}>{myEntry.weeklyEcoScore}</Text>

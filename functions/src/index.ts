@@ -7,9 +7,12 @@
 //
 //   2. weeklyLeaderboardReset  — scheduled, every Sunday 00:05 UTC
 //      Awards EcoTokens to top 3, records wins, resets all weeklyEcoScore fields.
+//
+//   3. cleanupLeaderboardOnUserDelete — triggers on user doc deletion, cleans up leaderboard entry.
 import { setGlobalOptions } from 'firebase-functions';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as admin from 'firebase-admin';
+import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 
 admin.initializeApp();
 
@@ -113,9 +116,19 @@ export const rotateChallenges = onSchedule(
       const monthlySnap = await db.collection('challengeTemplates')
         .where('challengeType', '==', 'monthly')
         .get();
-      monthlyTemplates = monthlySnap.docs.map(
+      const allMonthly = monthlySnap.docs.map(
         d => ({ id: d.id, ...d.data() } as ChallengeTemplate)
       );
+      const electricityMonthly = allMonthly.filter(c =>
+        c.goal?.categories?.includes('electricity') || c.challengeGroup === 'electricity'
+      );
+      const waterMonthly = allMonthly.filter(c =>
+        c.goal?.categories?.includes('water') || c.challengeGroup === 'water'
+      );
+      monthlyTemplates = [
+        ...randomPick(electricityMonthly, Math.min(1, electricityMonthly.length)),
+        ...randomPick(waterMonthly,       Math.min(1, waterMonthly.length)),
+      ];
     }
 
     const oldSnap = await db.collection('challenges')
@@ -206,6 +219,7 @@ export const weeklyLeaderboardReset = onSchedule(
           score:        winner.score,
           tokensEarned: reward,
           awardedAt:    new Date().toISOString(),
+          seen:         false,
         },
       );
 
@@ -227,5 +241,19 @@ export const weeklyLeaderboardReset = onSchedule(
 
     await batch.commit();
     console.log(`[weeklyReset] Done — reset ${lbSnap.size} docs, awarded ${top3Winners.length} winners`);
+  },
+);
+
+// ── 3. Clean up leaderboard when a user account / user doc is deleted ──────────
+export const cleanupLeaderboardOnUserDelete = onDocumentDeleted(
+  'users/{uid}',
+  async (event) => {
+    const uid = event.params.uid;
+    try {
+      await db.collection('leaderboard').doc(uid).delete();
+      console.log(`[cleanupLeaderboard] Removed leaderboard entry for uid=${uid}`);
+    } catch (e) {
+      console.error(`[cleanupLeaderboard] Failed for uid=${uid}:`, e);
+    }
   },
 );

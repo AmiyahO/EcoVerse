@@ -19,6 +19,7 @@ import {
   Dimensions,
   Image,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -56,12 +57,12 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
           toValue: 1,
           friction: 5,
           tension: 60,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(iconOpacity, {
           toValue: 1,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
 
@@ -70,12 +71,12 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
         Animated.timing(nameOpacity, {
           toValue: 1,
           duration: 320,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(nameY, {
           toValue: 0,
           duration: 320,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
 
@@ -84,23 +85,23 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
         Animated.timing(tagOpacity, {
           toValue: 1,
           duration: 280,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(tagY, {
           toValue: 0,
           duration: 280,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ]),
 
       // 4. Hold
-      Animated.delay(600),
+      Animated.delay(1200),
 
       // 5. Fade everything out
       Animated.timing(exitOpacity, {
         toValue: 0,
         duration: 340,
-        useNativeDriver: true,
+        useNativeDriver: false,
       }),
     ]).start(() => onFinish());
   }, []);
@@ -140,28 +141,24 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
         </Animated.View>
 
         {/* App name */}
-        <Animated.Text style={[
-          styles.appName,
-          {
-            color:   textColor,
-            opacity: nameOpacity,
-            transform: [{ translateY: nameY }],
-          },
-        ]}>
-          EcoVerse
-        </Animated.Text>
+<Animated.View style={{
+  opacity: nameOpacity,
+  transform: [{ translateY: nameY }],
+}}>
+  <Text style={[styles.appName, { color: textColor }]}>
+    EcoVerse
+  </Text>
+</Animated.View>
 
-        {/* Tagline */}
-        <Animated.Text style={[
-          styles.tagline,
-          {
-            color:   tagColor,
-            opacity: tagOpacity,
-            transform: [{ translateY: tagY }],
-          },
-        ]}>
-          Track YOUR IMPACT.
-        </Animated.Text>
+{/* Tagline */}
+<Animated.View style={{
+  opacity: tagOpacity,
+  transform: [{ translateY: tagY }],
+}}>
+  <Text style={[styles.tagline, { color: tagColor }]}>
+    Track your impact.
+  </Text>
+</Animated.View>
       </View>
 
       {/* Sparkle — bottom right, mirrors the app icon */}
@@ -187,8 +184,8 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   icon: {
-    width: 160,
-    height: 160,
+    width: 250,
+    height: 250,
   },
   appName: {
     fontSize: 36,

@@ -33,7 +33,7 @@ const RANK_META: Record<number, {
     color:   '#B8860B',
     bg:      '#FFF8DC',
     label:   '1st Place',
-    flavour: 'You topped the leaderboard this week. The EcoVerse bows to you. 🌍',
+    flavour: 'You topped the leaderboard last week. The EcoVerse bows to you. 🌍',
   },
   2: {
     medal:   '🥈',
@@ -47,7 +47,7 @@ const RANK_META: Record<number, {
     color:   '#8B4513',
     bg:      '#FDF3EC',
     label:   '3rd Place',
-    flavour: "You made the podium! Every action you took this week mattered.",
+    flavour: "You made the podium! Every action you took last week mattered.",
   },
 };
 

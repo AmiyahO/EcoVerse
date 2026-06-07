@@ -456,7 +456,7 @@ function ChallengeBadgeCard({
 
 const cardStyles = StyleSheet.create({
   tile: {
-    flex: 1,
+    width: (SCREEN_W - 52) / 2,
     borderRadius: 18,
     alignItems: 'center',
     paddingVertical: 18,
@@ -833,7 +833,7 @@ export default function AchievementsScreen() {
               />
             ))}
             {/* Pad to even columns */}
-            {completedChallenges.length % 2 !== 0 && <View style={{ flex: 1 }} />}
+            {completedChallenges.length % 2 !== 0 && <View style={{ width: (SCREEN_W - 52) / 2 }} />}
           </View>
         )}
 
