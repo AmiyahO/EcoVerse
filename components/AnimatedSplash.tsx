@@ -156,7 +156,7 @@ export function AnimatedSplash({ onFinish, isDark }: Props) {
   transform: [{ translateY: tagY }],
 }}>
   <Text style={[styles.tagline, { color: tagColor }]}>
-    Track your impact.
+    TRACK YOUR IMPACT
   </Text>
 </Animated.View>
       </View>
@@ -187,12 +187,12 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: '800',
     letterSpacing: -0.5,
-    marginBottom: 10,
+    marginBottom: 5,
   },
   tagline: {
-    fontSize: 15,
-    fontWeight: '400',
-    letterSpacing: 0.3,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 3,
   },
 
 });

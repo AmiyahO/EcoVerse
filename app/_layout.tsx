@@ -127,7 +127,10 @@ export default function RootLayout() {
   //    null callback both call router.replace('/login'), causing the login screen
   //    to animate in twice after account deletion.
   const hasNavigated = useRef(false);
-
+  // Blocks navigation during account deletion so Google re-auth's onAuthStateChanged
+  // doesn't trigger spurious onboarding flash mid-deletion.
+  const isDeletingAccount = useRef(false);
+  (global as any).__ecoverse_isDeletingAccount = isDeletingAccount;
   const loading = !authResolved || (!!user && (!userDocReady || !activitiesReady) && !freshLogin.current);
 
   const [weeklyWin, setWeeklyWin] = useState<{
@@ -358,6 +361,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (!authResolved) return;
     if (hasNavigated.current) return; // ← guard: only route once per auth state
+    if (isDeletingAccount.current) return; // ← skip nav during account deletion
 
     const readyToRoute = freshLogin.current
       ? (userDocReady && hasFinishedOnboarding !== null)

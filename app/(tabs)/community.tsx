@@ -87,19 +87,15 @@ interface LifetimeEntry {
 
 // ── Medals ────────────────────────────────────────────────────────────────────
 const MEDAL: Record<number, { color: string; bg: string; icon: string; label: string }> = {
-  1: { color: '#B8860B', bg: '#FFF8DC', icon: 'trophy',  label: '1st' },
-  2: { color: '#708090', bg: '#F0F4F8', icon: 'medal',   label: '2nd' },
-  3: { color: '#8B4513', bg: '#FDF3EC', icon: 'medal',   label: '3rd' },
+  1: { color: '#E6B800', bg: '#FFF8DC', icon: 'trophy', label: '1st' },
+  2: { color: '#909090', bg: '#F0F4F8', icon: 'medal',  label: '2nd' },
+  3: { color: '#B87333', bg: '#FDF3EC', icon: 'medal',  label: '3rd' },
 };
 
-// Crown colours matching leaderboard medal ranks
-const CROWN_COLOR: Record<number, string> = {
-  1: '#FFD700',  // gold
-  2: '#A8A8A8',  // silver
-  3: '#CD7F32',  // bronze
-};
-
-function crownColor(rank: number) { return CROWN_COLOR[rank] ?? '#B8860B'; }
+// Crown colours — same as MEDAL colours for consistency
+function crownColor(rank: number): string {
+  return MEDAL[rank]?.color ?? MEDAL[1].color;
+}
 
 const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
   easy:   { bg: '#E8F5E9', text: '#2E7D32' },
@@ -174,9 +170,9 @@ function Podium({
           <View key={entry.uid} style={[podiumStyles.column, isCenter && { marginBottom: 0 }]}>
             {/* Crown pill — only shown for last week's winner(s) */}
             {lastRank !== undefined && (
-              <View style={[podiumStyles.crownPill, { backgroundColor: medal.color + '22', borderColor: medal.color + '60' }]}>
-                <FontAwesome6 name="crown" size={9} color={medal.color} />
-                <Text style={[podiumStyles.crownText, { color: medal.color }]}>#{lastRank} last week</Text>
+              <View style={[podiumStyles.crownPill, { backgroundColor: crownColor(lastRank) + '22', borderColor: crownColor(lastRank) + '60' }]}>
+                <FontAwesome6 name="crown" size={9} color={crownColor(lastRank)} />
+                <Text style={[podiumStyles.crownText, { color: crownColor(lastRank) }]}>#{lastRank} last week</Text>
               </View>
             )}
  
@@ -1178,6 +1174,13 @@ export default function CommunityScreen() {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.tint} />}
               ListHeaderComponent={
                 <>
+                  {/* "Week just started" banner — shown above podium when no scores yet */}
+                  {leaderboard.length >= 1 && !leaderboard.some(e => e.weeklyEcoScore > 0) && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 16, marginHorizontal: 16, marginBottom: 8, borderRadius: 20, backgroundColor: colors.tint + '12' }}>
+                      <FontAwesome6 name="seedling" size={11} color={colors.tint} />
+                      <Text style={{ fontSize: 12, color: colors.tint, fontWeight: '600' }}>New week — be the first to log!</Text>
+                    </View>
+                  )}
                   {/* Podium — always show when there are leaderboard entries */}
                   {leaderboard.length >= 1 && (
                     <Podium
@@ -1186,18 +1189,6 @@ export default function CommunityScreen() {
                       colors={colors}
                       lastWeekWinners={lastWeekWinners}
                     />
-                  )}
-                  {/* "Week just started" note — shown below podium when nobody has scored yet */}
-                  {leaderboard.length >= 1 && !leaderboard.some(e => e.weeklyEcoScore > 0) && (
-                    <View style={[styles.noScoreBanner, { backgroundColor: colors.tint + '12', borderColor: colors.tint + '30' }]}>
-                      <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: colors.tint + '20', alignItems: 'center', justifyContent: 'center' }}>
-                        <FontAwesome6 name="seedling" size={18} color={colors.tint} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.noScoreTitle, { color: colors.text }]}>Week just started!</Text>
-                        <Text style={[styles.noScoreSub, { color: colors.text }]}>No EcoScores yet — log activities to claim the top spot.</Text>
-                      </View>
-                    </View>
                   )}
                   {leaderboard.some(e => e.rank > 3) && (
                     <Text style={[styles.sectionNote, { color: colors.text }]}>

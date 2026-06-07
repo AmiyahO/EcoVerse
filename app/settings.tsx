@@ -263,51 +263,57 @@ export default function SettingsScreen() {
             const user = auth.currentUser;
             if (!user) return;
 
+            // Signal _layout.tsx to ignore onAuthStateChanged during deletion
+            const deletingRef = (global as any).__ecoverse_isDeletingAccount;
+            if (deletingRef) deletingRef.current = true;
+
+            const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+            const isEmail  = user.providerData.some(p => p.providerId === 'password');
+
             try {
-              // ── Step 1: Re-authenticate (required for sensitive operations) ──
-              const isGoogle = user.providerData.some(p => p.providerId === 'google.com');
+              // ── Step 1: Re-authenticate ──
               if (isGoogle) {
                 await GoogleSignin.hasPlayServices();
                 const info  = await GoogleSignin.signIn();
                 const token = info.data?.idToken;
                 if (!token) throw new Error('No ID token');
                 await reauthenticateWithCredential(user, GoogleAuthProvider.credential(token));
+              } else if (isEmail) {
+                // Re-auth modal for email accounts coming in app-wide modal redesign.
+                // For now, instruct user to sign out and back in.
+                throw Object.assign(new Error('requires-recent-login'), { code: 'auth/requires-recent-login' });
               }
 
-              // ── Step 2: Clear Zustand store BEFORE deleting Auth ──
-              // Do this first so the auth listener in _layout sees a clean store
-              // when it fires and routes to /login.
-              useActivityStore.getState().clearActivities();
-              useActivityStore.getState().setUserProfile(null as any);
-
-              // ── Step 3: Best-effort Firestore cleanup BEFORE auth delete ──
-              // Done first so docs are cleaned up even if auth delete succeeds
-              // but the app crashes immediately after. Leaderboard Cloud Function
-              // also covers this as a fallback when the user doc is deleted.
+              // ── Step 2: Firestore cleanup BEFORE auth delete ──
+              // Done first so docs are cleaned up even if app crashes after auth delete.
               try {
                 await Promise.all([
                   deleteDoc(doc(db, 'users', user.uid)),
                   deleteDoc(doc(db, 'leaderboard', user.uid)),
                 ]);
-              } catch { /* best-effort — orphaned docs are harmless */ }
+              } catch { /* best-effort */ }
+
+              // ── Step 3: Clear Zustand store ──
+              // Done after Firestore cleanup so re-auth (which triggers onAuthStateChanged)
+              // doesn't flash the app with a blank profile before deletion completes.
+              useActivityStore.getState().clearActivities();
+              useActivityStore.getState().setUserProfile(null as any);
 
               // ── Step 4: Delete Firebase Auth account ──
-              // This triggers onAuthStateChanged(null) in _layout.tsx,
-              // which calls router.replace('/login') via the hasNavigated guard.
-              // DO NOT call router.replace() here — that causes the double navigation.
               await deleteUser(user);
-
-              // Navigation is handled entirely by onAuthStateChanged in _layout.tsx
+              // Navigation handled by onAuthStateChanged in _layout.tsx
 
             } catch (e: any) {
-              // Auth deletion failed — user is still signed in. Show error only.
+              if (deletingRef) deletingRef.current = false;
+              if (e.message === 'cancelled') return;
               const msg =
                 e.code === 'auth/requires-recent-login'
                   ? 'Please sign out and sign back in, then try deleting your account again.'
+                  : e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'
+                  ? 'Incorrect password. Please try again.'
                   : e.code === 'auth/network-request-failed'
                   ? 'No internet connection. Please try again.'
                   : 'Could not delete account. Please try again.';
-
               Alert.alert('Deletion Failed', msg);
             }
           },
