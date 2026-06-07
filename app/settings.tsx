@@ -20,7 +20,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { router } from 'expo-router';
 import {
   deleteUser,
-  GoogleAuthProvider, reauthenticateWithCredential,
+  EmailAuthProvider, GoogleAuthProvider, reauthenticateWithCredential,
   signOut,
 } from 'firebase/auth';
 import { deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -36,6 +36,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { appAlert } from '@/components/AppAlert';
+import { appPrompt } from '@/components/AppPrompt';
 
 const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
   { key: 'US',         label: 'United States',  flag: '🇺🇸' },
@@ -281,9 +282,25 @@ export default function SettingsScreen() {
                 if (!token) throw new Error('No ID token');
                 await reauthenticateWithCredential(user, GoogleAuthProvider.credential(token));
               } else if (isEmail) {
-                // Re-auth modal for email accounts coming in app-wide modal redesign.
-                // For now, instruct user to sign out and back in.
-                throw Object.assign(new Error('requires-recent-login'), { code: 'auth/requires-recent-login' });
+                // Show password prompt for email re-auth
+                await new Promise<void>((resolve, reject) => {
+                  appPrompt.show({
+                    title: 'Confirm Password',
+                    message: 'Enter your password to permanently delete your account.',
+                    placeholder: 'Password',
+                    secure: true,
+                    confirmLabel: 'Confirm',
+                    cancelLabel: 'Cancel',
+                    destructive: true,
+                    icon: 'lock',
+                    onConfirm: async (password) => {
+                      const credential = EmailAuthProvider.credential(user.email!, password);
+                      await reauthenticateWithCredential(user, credential);
+                      resolve();
+                    },
+                    onCancel: () => reject(new Error('cancelled')),
+                  });
+                });
               }
 
               // ── Step 2: Firestore cleanup BEFORE auth delete ──

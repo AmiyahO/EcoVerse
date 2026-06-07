@@ -21,6 +21,7 @@ import { preloadSounds } from '@/src/utils/sfx';
 import { WeeklyWinModal } from '@/components/WeeklyWinModal';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 import { AppAlertHost } from '@/components/AppAlert';
+import { AppPromptHost } from '@/components/AppPrompt';
 
 
 // ── EcoScore snapshot helpers ─────────────────────────────────────────────────
@@ -431,6 +432,7 @@ export default function RootLayout() {
       )}
 
       <AppAlertHost />
+      <AppPromptHost />
 
       <WeeklyWinModal
           visible={weeklyWin !== null}
