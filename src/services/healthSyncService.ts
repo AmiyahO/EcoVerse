@@ -107,8 +107,11 @@ function toLocalISOString(date: Date): string {
 }
 
 function localDateKey(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // Strip trailing Z (or +00:00) before parsing so that activity dates stored
+  // without timezone offset are not reinterpreted as UTC on UTC+ devices.
+  // e.g. "2026-06-06T21:30:00" on Cyprus (UTC+3) must stay Jun 6, not become Jun 7.
+  const local = new Date(iso.endsWith('Z') ? iso.slice(0, -1) : iso);
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`;
 }
 
 // ── Fetch sessions ready to sync ─────────────────────────────────────────────
