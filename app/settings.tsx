@@ -276,6 +276,10 @@ export default function SettingsScreen() {
             try {
               // ── Step 1: Re-authenticate ──
               if (isGoogle) {
+                // Wait for AppAlert dismiss animation to fully complete before
+                // presenting the Google account picker — on some devices the
+                // picker conflicts with the modal layer still animating out.
+                await new Promise(resolve => setTimeout(resolve, 350));
                 await GoogleSignin.hasPlayServices();
                 const info  = await GoogleSignin.signIn();
                 const token = info.data?.idToken;
