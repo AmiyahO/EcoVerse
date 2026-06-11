@@ -296,6 +296,7 @@ export function getWeekCarbonComparison(
   const previousTotal = sum(previous);
 
   if (previousTotal === 0 && currentTotal === 0) return { percentage: '0', direction: 'neutral' };
+  if (currentTotal  === 0)                        return { percentage: '0', direction: 'neutral' };
   if (previousTotal === 0)                        return { percentage: '100', direction: 'up' };
 
   const diff = ((currentTotal - previousTotal) / previousTotal) * 100;

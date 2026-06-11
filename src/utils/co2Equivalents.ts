@@ -50,10 +50,21 @@ export interface EquivalentResult {
   phrase: string;
 }
 
-export function getCO2Equivalent(kgSaved: number): EquivalentResult | null {
+// Icons that are only meaningful when the user has electricity/water activities.
+// Penalise these for transport-only users so a walker sees "km not driven" not "kWh saved".
+const UTILITY_ICONS = new Set(['bolt', 'shower']);
+
+export function getCO2Equivalent(
+  kgSaved: number,
+  dominantCategory?: string,
+): EquivalentResult | null {
   if (!kgSaved || kgSaved <= 0) return null;
 
   const SWEET_SPOT = 50;
+
+  const isTransportUser = dominantCategory === 'walking' ||
+                           dominantCategory === 'running'  ||
+                           dominantCategory === 'cycling';
 
   const scored = EQUIVALENTS.map(eq => {
     const quantity = kgSaved / eq.kgPerUnit;
@@ -64,6 +75,9 @@ export function getCO2Equivalent(kgSaved: number): EquivalentResult | null {
     else if (quantity >= 1   && quantity < 2)     score = 40;
     else if (quantity >= 2000)                    score = 20;
     else                                          score = 10;
+    // Penalise utility-themed equivalents for transport-dominant users
+    // so walkers/cyclists see "km not driven" rather than "kWh saved".
+    if (isTransportUser && UTILITY_ICONS.has(eq.icon)) score = Math.max(0, score - 40);
     const distFromSweet = Math.abs(quantity - SWEET_SPOT);
     return { eq, quantity, score, distFromSweet };
   });

@@ -38,6 +38,11 @@ export default function AISuggestionsCard({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   // Track whether we've done the initial real load (with actual activity data)
   const hasLoadedWithData = useRef(false);
+  // Cooldown: timestamp (ms) of last manual force-refresh; 0 = never
+  const lastManualRefresh = useRef(0);
+  const REFRESH_COOLDOWN_MS = 60_000; // 60 seconds
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fadeIn = () => {
     fadeAnim.setValue(0);
@@ -49,6 +54,28 @@ export default function AISuggestionsCard({
   );
 
   const load = async (force = false) => {
+    if (force) {
+      const now = Date.now();
+      const elapsed = now - lastManualRefresh.current;
+      if (elapsed < REFRESH_COOLDOWN_MS) {
+        // Still in cooldown — do nothing (button is already disabled via cooldownRemaining)
+        return;
+      }
+      lastManualRefresh.current = now;
+      // Start countdown ticker
+      if (cooldownTimer.current) clearInterval(cooldownTimer.current);
+      setCooldownRemaining(REFRESH_COOLDOWN_MS / 1000);
+      cooldownTimer.current = setInterval(() => {
+        setCooldownRemaining(prev => {
+          if (prev <= 1) {
+            clearInterval(cooldownTimer.current!);
+            cooldownTimer.current = null;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
     try {
       if (force) { setRefreshing(true); setUserTriedRefresh(true); }
       else setLoading(true);
@@ -66,6 +93,11 @@ export default function AISuggestionsCard({
       setRefreshing(false);
     }
   };
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); };
+  }, []);
 
   // ── Initial load ──────────────────────────────────────────────────────────
   // Run on mount (activities may still be []).
@@ -109,15 +141,17 @@ export default function AISuggestionsCard({
 
           <Pressable
             onPress={() => load(true)}
-            disabled={refreshing || loading}
+            disabled={refreshing || loading || cooldownRemaining > 0}
             hitSlop={8}
             style={({ pressed }) => [
               styles.refreshBtn,
-              { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
+              { backgroundColor: colors.surfaceMuted, opacity: (pressed || cooldownRemaining > 0) ? 0.5 : 1 },
             ]}
           >
             {refreshing
               ? <ActivityIndicator size={12} color={colors.tint} />
+              : cooldownRemaining > 0
+              ? <ThemedText style={{ fontSize: 10, fontWeight: '600', color: colors.text, opacity: 0.5 }}>{cooldownRemaining}s</ThemedText>
               : <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
             }
           </Pressable>
@@ -174,15 +208,17 @@ export default function AISuggestionsCard({
           {inModal && (
             <Pressable
               onPress={() => load(true)}
-              disabled={refreshing || loading}
+              disabled={refreshing || loading || cooldownRemaining > 0}
               hitSlop={8}
               style={({ pressed }) => [
                 styles.refreshBtn,
-                { backgroundColor: colors.surfaceMuted, opacity: pressed ? 0.5 : 1 },
+                { backgroundColor: colors.surfaceMuted, opacity: (pressed || cooldownRemaining > 0) ? 0.5 : 1 },
               ]}
             >
               {refreshing
                 ? <ActivityIndicator size={12} color={colors.tint} />
+                : cooldownRemaining > 0
+                ? <ThemedText style={{ fontSize: 10, fontWeight: '600', color: colors.text, opacity: 0.5 }}>{cooldownRemaining}s</ThemedText>
                 : <FontAwesome6 name="rotate-right" size={12} color={colors.text} style={{ opacity: 0.5 }} />
               }
             </Pressable>

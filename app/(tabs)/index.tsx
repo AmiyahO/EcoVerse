@@ -550,13 +550,21 @@ export default function HomeScreen() {
     const thisWeekCO2 = activities.filter(a => { const t = new Date(a.date).getTime(); return t >= thisSun.getTime(); }).reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
     const lastWeekCO2 = activities.filter(a => { const t = new Date(a.date).getTime(); return t >= lastSun.getTime() && t <= lastSat.getTime(); }).reduce((s, a) => s + calculateCarbonSaved(a, userRegion), 0);
     if (lastWeekCO2 === 0) return { direction: 'neutral' as const, percentage: 0 };
+    if (thisWeekCO2 === 0) return { direction: 'neutral' as const, percentage: 0 };
     const pct = Math.round(Math.abs((thisWeekCO2 - lastWeekCO2) / lastWeekCO2) * 100);
     return { direction: (thisWeekCO2 >= lastWeekCO2 ? 'up' : 'down') as 'up' | 'down' | 'neutral', percentage: pct };
   })();
   const comparison = comparisonTransport.direction !== 'neutral' ? comparisonTransport : comparisonAll;
 
   const totalCarbonSaved = activities.reduce((sum, a) => sum + calculateCarbonSaved(a, userRegion), 0);
-  const co2Equivalent    = getCO2Equivalent(totalCarbonSaved);
+  // Dominant category = the one with the most activities (for picking a relatable CO₂ equivalent)
+  const dominantCategory = (() => {
+    if (activities.length === 0) return undefined;
+    const counts: Record<string, number> = {};
+    for (const a of activities) counts[a.category] = (counts[a.category] ?? 0) + 1;
+    return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+  })();
+  const co2Equivalent = getCO2Equivalent(totalCarbonSaved, dominantCategory);
 
   const comparisonColor =
     comparison.direction === 'up'   ? '#4CAF50' :
