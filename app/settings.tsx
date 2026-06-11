@@ -250,7 +250,13 @@ export default function SettingsScreen() {
       variant: 'confirm',
       confirmLabel: 'Sign Out',
       destructive: true,
-      onConfirm: () => signOut(auth).then(() => router.replace('/login')),
+      onConfirm: async () => {
+        // Sign out of Google session too — otherwise GoogleSignin remembers
+        // the account and skips the picker on next sign-in.
+        try { await GoogleSignin.signOut(); } catch { /* not a Google user */ }
+        await signOut(auth);
+        router.replace('/login');
+      },
     });
   };
 
