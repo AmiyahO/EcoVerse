@@ -37,6 +37,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { appAlert } from '@/components/AppAlert';
 import { appPrompt } from '@/components/AppPrompt';
+import { ACCENT_PRESETS } from '@/constants/theme';
 
 const REGION_OPTIONS: { key: string; label: string; flag: string }[] = [
   { key: 'US',         label: 'United States',  flag: '🇺🇸' },
@@ -149,6 +150,7 @@ export default function SettingsScreen() {
   const isDark = scheme === 'dark';
   const mode    = useThemeStore(s => s.mode);
   const setMode = useThemeStore(s => s.setMode);
+  const accentKey = useThemeStore(s => s.accentKey);
   const userProfile = useActivityStore(s => s.userProfile);
 
   const [region, setRegion]           = useState('GLOBAL_AVG');
@@ -450,7 +452,10 @@ export default function SettingsScreen() {
 
         <Section title="Appearance">
           <Row icon={currentTheme.icon} iconColor={currentTheme.color} label="Theme"
-            value={currentTheme.label} onPress={() => setThemeModal(true)} separator={false} />
+            value={currentTheme.label} onPress={() => setThemeModal(true)} separator={true} />
+          <Row icon="color-palette-outline" iconColor="#AB47BC" label="App colour"
+            value={ACCENT_PRESETS[accentKey].label}
+            onPress={() => router.push('/appearance')} separator={false} />
         </Section>
 
         <Section title="Notifications">
