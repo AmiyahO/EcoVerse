@@ -326,41 +326,54 @@ export async function fetchDailyStepSummaries(daysBack = 30): Promise<HCDailySte
   if (Platform.OS !== 'android') return [];
 
   try {
-    const { startTime, endTime } = getDateRange(daysBack);
-
-    const [stepsResult, distanceResult] = await Promise.all([
-      readRecords('Steps',    { timeRangeFilter: { operator: 'between', startTime, endTime } }),
-      readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
-    ]);
-
-    // ── Steps: bucket by (dayKey, dataOrigin), then take max per day ─────────
-    //
-    // stepsByOrigin[dayKey][origin] = total steps from that origin on that day
+    // Query in 7-day chunks from most-recent to oldest.
+    // A single 30-day bulk query can silently truncate results on some devices
+    // (Samsung Health writes one Steps record per ~30 min, so 30 days = ~1440
+    // records which may exceed HC's internal page limit). Chunking ensures
+    // recent days are always included even if older days get cut off.
+    const CHUNK_DAYS = 7;
     const stepsByOrigin: Record<string, Record<string, number>> = {};
+    const distByOrigin:  Record<string, Record<string, number>> = {};
 
-    for (const r of stepsResult.records as any[]) {
-      const dayKey = toLocalISODate(new Date(r.startTime));
-      const origin = r.metadata?.dataOrigin ?? 'unknown';
-      if (!stepsByOrigin[dayKey]) stepsByOrigin[dayKey] = {};
-      stepsByOrigin[dayKey][origin] = (stepsByOrigin[dayKey][origin] ?? 0) + (r.count ?? 0);
+    const now = new Date();
+    for (let offset = 0; offset < daysBack; offset += CHUNK_DAYS) {
+      const chunkEnd = new Date(now);
+      chunkEnd.setDate(now.getDate() - offset);
+
+      const chunkStart = new Date(now);
+      chunkStart.setDate(now.getDate() - Math.min(offset + CHUNK_DAYS, daysBack));
+      chunkStart.setHours(0, 0, 0, 0);
+
+      const startTime = chunkStart.toISOString();
+      const endTime   = chunkEnd.toISOString();
+
+      const [stepsResult, distanceResult] = await Promise.all([
+        readRecords('Steps',    { timeRangeFilter: { operator: 'between', startTime, endTime } }),
+        readRecords('Distance', { timeRangeFilter: { operator: 'between', startTime, endTime } }),
+      ]);
+
+      for (const r of stepsResult.records as any[]) {
+        const dayKey = toLocalISODate(new Date(r.startTime));
+        const origin = r.metadata?.dataOrigin ?? 'unknown';
+        if (!stepsByOrigin[dayKey]) stepsByOrigin[dayKey] = {};
+        stepsByOrigin[dayKey][origin] = (stepsByOrigin[dayKey][origin] ?? 0) + (r.count ?? 0);
+      }
+
+      for (const r of distanceResult.records as any[]) {
+        const dayKey = toLocalISODate(new Date(r.startTime));
+        const origin = r.metadata?.dataOrigin ?? 'unknown';
+        if (!distByOrigin[dayKey]) distByOrigin[dayKey] = {};
+        distByOrigin[dayKey][origin] = (distByOrigin[dayKey][origin] ?? 0) + (r.distance?.inMeters ?? 0);
+      }
     }
 
-    // For each day, the best step count is the maximum across all origins
+    // ── Steps: take max per day across origins ────────────────────────────────────────
     const stepsByDay: Record<string, number> = {};
     for (const [dayKey, origins] of Object.entries(stepsByOrigin)) {
       stepsByDay[dayKey] = Math.max(...Object.values(origins));
     }
 
-    // ── Distance: same deduplication ─────────────────────────────────────────
-    const distByOrigin: Record<string, Record<string, number>> = {};
-
-    for (const r of distanceResult.records as any[]) {
-      const dayKey = toLocalISODate(new Date(r.startTime));
-      const origin = r.metadata?.dataOrigin ?? 'unknown';
-      if (!distByOrigin[dayKey]) distByOrigin[dayKey] = {};
-      distByOrigin[dayKey][origin] = (distByOrigin[dayKey][origin] ?? 0) + (r.distance?.inMeters ?? 0);
-    }
-
+    // ── Distance: same deduplication ─────────────────────────────────────────────────
     const distByDay: Record<string, number> = {};
     for (const [dayKey, origins] of Object.entries(distByOrigin)) {
       distByDay[dayKey] = Math.max(...Object.values(origins));
