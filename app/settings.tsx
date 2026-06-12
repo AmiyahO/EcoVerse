@@ -352,6 +352,8 @@ export default function SettingsScreen() {
                   ? 'Incorrect password. Please try again.'
                   : e.code === 'auth/network-request-failed'
                   ? 'No internet connection. Please try again.'
+                  : e.code === 'auth/user-mismatch'
+                  ? 'Wrong Google account selected. Please sign in with the account you want to delete.'
                   : 'Could not delete account. Please try again.';
               appAlert.show({ title: 'Deletion Failed', message: msg });
             }
