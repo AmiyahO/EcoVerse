@@ -286,6 +286,9 @@ export default function SettingsScreen() {
                 // presenting the Google account picker — on some devices the
                 // picker conflicts with the modal layer still animating out.
                 await new Promise(resolve => setTimeout(resolve, 350));
+                // Sign out first to force the account picker to appear —
+                // otherwise the cached session auto-selects silently.
+                try { await GoogleSignin.signOut(); } catch { /* ignore */ }
                 await GoogleSignin.hasPlayServices();
                 const info  = await GoogleSignin.signIn();
                 const token = info.data?.idToken;
