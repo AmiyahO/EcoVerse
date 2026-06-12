@@ -939,6 +939,14 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Water OCR misses kL / kilolitre readings | No kL-adjacent or kilolitres word-form pattern; range check ran before unit conversion so 77 kL (raw value 77) failed the 200 L floor | Added kL and `kilolitr(?:es?|ers?)` patterns; moved range validation after conversion; confidence 0–2 = high |
 | Login screen shows wrong password requirement message | Message mentioned symbols after "Require special character" was unchecked in Firebase Console | Updated `auth/password-does-not-meet-requirements` mapping to reflect actual policy (uppercase + lowercase + number, min 6 chars) |
 
+| AC CO₂ equivalent phrasing broken | Template `'like switching off AC for {n} {label}'` with label `'hours of AC'` produced "switching off AC for 40 hours of AC" | AC singular/plural changed to `'hour'`/`'hours'`; template unchanged |
+| Car CO₂ equivalent no verb | Template `'{n} {label}'` produced bare "3 km of driving avoided" | Changed to `'avoids {n} {label}'` |
+| Bolt CO₂ equivalent awkward phrasing | `'equals {n} {label} saved'` — "saved" redundant | Changed to `'equal to {n} {label}'` |
+| Edit profile token target badge text misaligned | `targetBadgeText` had no `textAlign` set | Added `textAlign: 'center'` |
+| Sheet backgrounds transparent after accent colour work | `colors.tint + '18'` (9% opacity) used as sheet bg — sheets became see-through | Reverted to solid `#1C1C1E` dark / `#FFFFFF` light for all bottom sheets and modals |
+| White text unreadable on Moss/Gold accents in light mode | Moss `#558B2F` and Gold `#F57F17` fail WCAG AA (4.5:1) with white text | `getOnTintColor()` returns `#111111` for these two in light mode; all solid-tint-background text/icons use `onTint` from `useAppTheme` |
+| Dashboard hero gradient not following accent colour | index.tsx gradient reverted to hardcoded `#1a2e1a`/`#0d1f1f` | Gradient uses `colors.tint` with opacity suffixes |
+
 ---
 
 ## 🚀 Future Vision Screen
@@ -951,7 +959,7 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Friend Accountability | 3 | Opt-in friend circles with EcoScore sharing, shared weekly challenges, gentle nudges |
 | More Regions & Countries | 3 | 50+ countries with localised grid emission factors, country-specific benchmarks, regional leaderboards |
 | Offline Mode | 3 | Local-first activity logging, queue-and-sync on reconnect, offline leaderboard cache |
-| Accessibility & Personalisation | 3 | Reduce Motion toggle, custom app tint, high contrast mode, larger text scaling |
+| Accessibility & Personalisation | 3 | ~~Custom app tint — implemented~~ · Reduce Motion toggle, high contrast mode, larger text scaling |
 | Municipal & Civic Integration | 4 | Smart meter auto-sync, city-wide EcoScore dashboards, Green Deal community challenges |
 | Predictive AI Coach | 4 | Behaviour-pattern ML model, proactive nudges, smart goal calibration, carbon forecasting |
 
@@ -997,6 +1005,39 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 | Duration missing in activity details for Health Connect imports | `details.tsx` had no duration row for walking/cycling. HC stores duration; added conditional `DetailRow` for both categories |
 | Achievement/streak modals only fire on Achievements screen | `triggerAchievement()` was only called inside `achievements.tsx`. Fixed: full milestone check added to `add.tsx` after save and `health-connect-sync.tsx` after commit |
 | Segment control spacing uneven (Weekly wider gap than Lifetime) | `outputRange: [4, TAB_W+4, TAB_W*2+4]` double-counted the `left: 4` anchor. Fixed: `outputRange: [0, TAB_W, TAB_W*2]` |
+
+
+
+---
+
+## 🎨 Custom Accent Colours
+
+Users can choose from 10 preset accent colour pairs in **Settings → Appearance → App colour**. The selected accent persists across sessions and updates all tints, gradients, buttons, and active icons instantly.
+
+**Architecture:**
+- `constants/theme.ts` — `ACCENT_PRESETS` (inferred type, no circular `Record` annotation), `getTint(accent, scheme)`, `getOnTintColor(accent, scheme)` (returns `#111` for Moss/Gold in light mode where white text fails WCAG AA, `#fff` everywhere else)
+- `src/store/themeStore.ts` — `accentKey` persisted alongside `mode`
+- `hooks/useAppTheme.ts` — returns `onTint` in addition to `colors` and `scheme`
+- `app/appearance.tsx` — new screen with overlapping light/dark swatch circles, live "Aa" preview pill, left border on selected row
+
+**Presets:**
+
+| Name | Light | Dark |
+|------|-------|------|
+| Forest (Default) | `#2E7D32` | `#34C9C9` |
+| Ocean | `#1565C0` | `#64B5F6` |
+| Ember | `#BF360C` | `#FF8A65` |
+| Violet | `#6A1B9A` | `#CE93D8` |
+| Rose | `#AD1457` | `#F48FB1` |
+| Moss | `#558B2F` | `#AED581` |
+| Teal | `#00695C` | `#4DB6AC` |
+| Gold | `#F57F17` | `#FFD54F` |
+| Indigo | `#283593` | `#7986CB` |
+| Slate | `#37474F` | `#90A4AE` |
+
+**Contrast safety:** Moss and Gold fail WCAG AA (4.5:1) with white text in light mode. `getOnTintColor()` returns `#111111` for these two in light mode so buttons, labels, and icons on solid tint backgrounds remain readable. All other combinations pass with white text.
+
+**Intentionally unchanged (semantic fixed colours, not tint):** EcoScore zone colours (red/amber/green), diff indicators in stats, achievement badge colours, rank colours, category colours, cloud sync green icon.
 
 ## 👩🏽‍💻 Author
 
