@@ -279,7 +279,7 @@ function EcoScoreModal({
   const sparkData     = useMemo(() => buildSparklineData(activities), [activities]);
   const hasSparkData  = sparkData.some(d => d.tokens > 0);
   const hasHistory    = ecoScoreSnapshots.length >= 2;
-  const bgSheet       = scheme === 'dark' ? '#121F16' : '#FFFFFF';
+  const bgSheet       = scheme === 'dark' ? colors.tint + '18' : '#FFFFFF';
   const tabBg         = scheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F0F0F0';
 
   // Peak + streak for sparkline summary
@@ -463,7 +463,7 @@ function AIModal({
     ]).start(() => onClose());
   };
 
-  const bgSheet = scheme === 'dark' ? '#121F16' : '#FFFFFF';
+  const bgSheet = scheme === 'dark' ? colors.tint + '18' : '#FFFFFF';
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={dismiss}>
@@ -637,7 +637,7 @@ export default function HomeScreen() {
 
         {/* ── Hero: EcoScore ── */}
         <LinearGradient
-          colors={scheme === 'dark' ? [colors.tint + '22', colors.tint + '0A'] : [colors.tint + '18', colors.tint + '08']}
+          colors={scheme === 'dark' ? ['#1a2e1a', '#0d1f1f'] : ['#f0fdf4', '#e0f7fa']}
           style={styles.heroCard}
         >
           <View style={styles.scoreWrapper}>
@@ -692,7 +692,7 @@ export default function HomeScreen() {
                 <View style={[styles.progressBg, { backgroundColor: colors.tint + '22' }]}>
                   <View style={[styles.progressFill, {
                     width: `${progress * 100}%`,
-                    backgroundColor: colors.tint,
+                    backgroundColor: progress >= 1 ? '#4CAF50' : colors.tint,
                   }]} />
                 </View>
                 <ThemedText style={[styles.progressLabel, { color: colors.text }]}>

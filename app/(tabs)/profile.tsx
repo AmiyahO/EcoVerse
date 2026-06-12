@@ -127,8 +127,8 @@ export default function ProfileScreen() {
   }
 
   const gradientColors: [string, string, string] = scheme === 'dark'
-    ? [colors.tint + 'CC', '#00897B', '#004D40']
-    : [colors.tint, '#00897B', '#006064'];
+    ? [colors.tint + 'CC', colors.tint + '88', colors.tint + '44']
+    : [colors.tint + 'EE', colors.tint + 'BB', colors.tint + '88'];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
