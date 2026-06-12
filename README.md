@@ -644,15 +644,16 @@ Two data sources merged:
 
 **1. Exercise Sessions** — structured workout records from Strava, Samsung Health, Google Fit etc. `hcSource` field stores originating app package name for "via Strava" display in details.tsx.
 
-**2. Daily Step Summaries** — `Steps` records aggregated per local calendar day. `fetchDailyStepSummaries()` buckets by `(localDate, dataOrigin)` and takes the **maximum single-origin total** to prevent cross-app double-counting (Samsung Health + Google Fit both write the same steps to HC).
+**2. Daily Step Summaries** — `Steps` records aggregated per local calendar day. `fetchDailyStepSummaries()` queries in **7-day chunks** (not a single 30-day bulk query) to prevent silent truncation on Samsung Health devices (∼1,440 step records over 30 days exceeds HC’s internal page limit, causing recent days to disappear). Each chunk is merged into the same `stepsByOrigin` map; deduplication then buckets by `(localDate, dataOrigin)` and takes the **maximum single-origin total** to prevent cross-app double-counting (Samsung Health + Google Fit both write the same steps to HC).
 
 **Deduplication logic:**
 - Exercise sessions: filtered by `importedIds` + ±2h temporal cross-check
 - Step summary days: **delta calculation** — `pedometerTotal − importedSessionSteps`; only remainder offered if >200-step noise threshold. Distance scaled proportionally. Fixes silent loss of post-session steps (e.g. Samsung Health morning session imported, afternoon steps lost under old suppression logic).
 - Manual walking entries on the same date fully suppress the pedometer day
-- `importedIds` stores both session IDs and `steps-YYYY-MM-DD` keys
+- `importedIds` stores both session IDs and `steps-YYYY-MM-DD` keys. `commitSync` writes the canonical `steps-YYYY-MM-DD` ID (via `originalDayId ?? hca.id`) — not the timestamped delta ID — so future syncs correctly suppress already-imported days
+- `load()` and `handleSync` read activities via `useActivityStore.getState().activities` at call time (not the closed-over render value) to prevent stale closure causing duplicate delta imports before Firestore propagates
 
-**Date/Time Display Fix:** `commitSync()` converts HC UTC start times via `toLocalISOString()` — formats as `YYYY-MM-DDTHH:MM:SS` without trailing `Z` so JS treats it as local time.
+**Date/Time Display Fix:** `commitSync()` converts HC UTC start times via `toLocalISOString()` — formats as `YYYY-MM-DDTHH:MM:SS` without trailing `Z` so JS treats it as local time. `deltaDistance` is rounded to 2dp before storing (prevents raw floats like `0.8151919280543979` appearing in activity details).
 
 ---
 
@@ -913,6 +914,17 @@ npx expo run:android   # required for Victory Native v41, Health Connect, dateti
 | Gemini API 400 / 404 errors | Model name `gemini-2.5-flash-preview-05-20` invalid; `maxOutputTokens: 8192` exceeded free tier; `responseMimeType: "application/json"` unsupported on preview models | Model → `gemini-2.5-flash`; `maxOutputTokens` stays at `8192`; only `responseMimeType` removed; error body logging added |
 | `streak-calendar-sheet.tsx` summary row invisible in dark mode | `colors.surfaceMuted + '80'` is string concatenation producing invalid hex | Replaced with explicit `rgba(255,255,255,0.08)` dark / `rgba(27,67,50,0.07)` light |
 | Health Connect setup ✅ emoji in alert title | `Alert.alert('✅ Connected!')` — emoji renders inconsistently across Android OEMs | Removed emoji: `Alert.alert('Connected!')` |
+| HC sync screen missing recent days | Single 30-day `readRecords('Steps')` bulk query silently truncated on Samsung Health devices (∼1,440 records/30 days); recent days cut off | `fetchDailyStepSummaries` queries in 7-day chunks from most-recent to oldest; results merged before dedup |
+| HC sync duplicate delta imports (two pedometer entries same day) | `load()` and `handleSync` used stale `activities` closure from render time; second sync ran before Firestore propagated first import | Both now call `useActivityStore.getState().activities` at invocation time |
+| Delta days keep reappearing on sync screen after import | `commitSync` wrote timestamped delta ID (`steps-YYYY-MM-DD-delta-...`) to `importedIds`; future `day.id` lookups never matched | `commitSync` now writes `originalDayId ?? hca.id` to `importedIds` |
+| Chunk boundary day double-counted (e.g. 1,540 steps instead of 770) | 7-day chunk `chunkEnd` for offset>0 was current time, overlapping previous chunk’s `chunkStart` (midnight); boundary day included in two chunks | For offset>0, `chunkEnd` set to local midnight of boundary day |
+| `deltaDistance` stored as raw float (e.g. `0.8151919280543979`) | No rounding before writing to Firestore | `deltaDistance` rounded to 2dp before use |
+| Google sign-out didn’t clear Google SDK session | `handleSignOut` only called Firebase `signOut(auth)`; Google SDK remembered account, skipped picker on next sign-in | Added `GoogleSignin.signOut()` before `signOut(auth)` in `handleSignOut` |
+| Google re-auth picker not showing during account deletion | `GoogleSignin.signIn()` called while AppAlert dismiss animation still running; cached session silently auto-selected | Added `GoogleSignin.signOut()` + 350ms delay before `signIn()` in delete re-auth block |
+| Deleted Google account auto-selected on next sign-in | `deleteUser()` didn’t clear Google SDK session | Added `GoogleSignin.signOut()` after `deleteUser()` |
+| Wrong Google account during delete re-auth shows generic error | `auth/user-mismatch` fell through to generic message | Added specific case: “Wrong Google account selected. Please sign in with the account you want to delete.” |
+| Dashboard shows ↑30% when user has no activity this week | `getWeekCarbonComparison` returned ↓100% when `currentTotal === 0` and `lastWeek > 0` | Returns neutral when `currentTotal === 0`; same guard on inline `comparisonAll` fallback |
+| CO₂ equivalent misleading for walkers (e.g. “42 kWh saved”) | `getCO2Equivalent` scored by quantity range only; `bolt`/`shower` equivalents won for typical totals | Added optional `dominantCategory` param; penalises utility equivalents −40 score for walking/running/cycling-dominant users |
 | Challenge privacy note misleading | "Only completions are visible to others" — completions are not visible either | Corrected to "Challenge progress and completions are private — only you can see them" |
 | Confetti renders behind level-up and achievement modals | `ConfettiCannon` mounted as sibling of overlay `View`; Android `elevation` z-ordering places it behind the card | Moved `ConfettiCannon` inside overlay `View`, after card, with `elevation: 10` and `zIndex: 10` |
 | Achievement screen dark overlay / touch blocked | `achievementPending` stuck at `true` when `pendingAchievementId` not in `ACHIEVEMENT_MAP`; `Modal` open with null content blocks all touch | Auto-clear `achievementPending` in `(tabs)/_layout.tsx` when ID not in map; guard `visible` prop to require `pendingAchievement !== null` |
@@ -955,7 +967,7 @@ See Haptic Feedback + Sound Effects section under Gamification System above for 
 - [ ] Test on 360dp-wide emulator (Pixel 3a size) — tested on Samsung Galaxy A55 5G; Pixel 3a emulator not run due to memory constraints (documented as limitation in thesis)
 - [ ] Play Store listing — icon, screenshots, description, Privacy Policy URL
 - [ ] © 2026 Amirah Yahaya. All rights reserved. to About section in Settings
-- [ ] Google account delete — Google sign-in account picker not showing during re-auth before deletion (deferred)
+- [x] Google account delete — fixed: `GoogleSignin.signOut()` before `signIn()` in re-auth forces picker; 350ms delay after AppAlert dismiss; `GoogleSignin.signOut()` after `deleteUser()`; `auth/user-mismatch` error message added
 
 ---
 
