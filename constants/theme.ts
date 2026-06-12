@@ -67,3 +67,12 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+
+// Returns the best text colour (#fff or #111) to place ON a solid tint background.
+// Moss (#558B2F) and Gold (#F57F17) fail WCAG AA with white text in light mode.
+const DARK_TEXT_ON_LIGHT_TINT = new Set<AccentKey>(['moss', 'gold']);
+
+export function getOnTintColor(accent: AccentKey, scheme: 'light' | 'dark'): string {
+  if (scheme === 'light' && DARK_TEXT_ON_LIGHT_TINT.has(accent)) return '#111111';
+  return '#ffffff';
+}

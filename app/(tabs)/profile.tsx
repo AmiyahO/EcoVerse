@@ -62,7 +62,7 @@ function getWeeklyActivityDots(activities: any[]) {
 }
 
 export default function ProfileScreen() {
-  const { colors, scheme } = useAppTheme();
+  const { colors, scheme, onTint } = useAppTheme();
   const userRegion = useActivityStore(s => s.userRegion);
   const activities = useActivityStore(s => s.activities);
   const streak = calculateStreak(activities);
@@ -304,7 +304,7 @@ export default function ProfileScreen() {
                       ? { backgroundColor: colors.tint }
                       : { backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.tint + '30' }
                   ]}>
-                    {weeklyDots[idx] && <FontAwesome6 name="check" size={8} color="#fff" />}
+                    {weeklyDots[idx] && <FontAwesome6 name="check" size={8} color={onTint} />}
                   </View>
                   <ThemedText style={[styles.dotLabel, { color: colors.text }]}>{day}</ThemedText>
                 </View>

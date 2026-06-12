@@ -60,7 +60,7 @@ export default function StreakCalendarSheet({ visible, onClose, activities, stre
   const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
   const isToday = (day: number) => isCurrentMonth && day === today.getDate();
 
-  const sheetBg = scheme === 'dark' ? colors.tint + '18' : '#FFFFFF';
+  const sheetBg = scheme === 'dark' ? '#1C1C1E' : '#FFFFFF';
 
   const goBack = () => {
     if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); }

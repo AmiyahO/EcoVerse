@@ -1,5 +1,5 @@
 // hooks/useAppTheme.ts
-import { Colors, getTint } from '@/constants/theme';
+import { Colors, getTint, getOnTintColor } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeStore } from '@/src/store/themeStore';
 
@@ -11,7 +11,8 @@ export function useAppTheme() {
   const resolvedScheme = mode === 'system' ? systemScheme : mode;
   const isDark = resolvedScheme === 'dark';
 
-  const tint = getTint(accentKey, resolvedScheme);
+  const tint    = getTint(accentKey, resolvedScheme);
+  const onTint  = getOnTintColor(accentKey, resolvedScheme);
 
   return {
     scheme: resolvedScheme,
@@ -20,6 +21,7 @@ export function useAppTheme() {
       tint,
       tabIconSelected: tint,
     },
+    onTint,   // text/icon colour to use ON solid tint backgrounds
     isDark,
   };
 }

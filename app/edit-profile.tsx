@@ -28,7 +28,7 @@ const UPLOAD_PRESET = 'ecoverse_default';
 const WEEKLY_TARGET_PRESETS = [250, 500, 750, 1000, 1500];
 
 export default function EditProfileScreen() {
-  const { colors, scheme } = useAppTheme();
+  const { colors, scheme, onTint } = useAppTheme();
   const isDark = scheme === 'dark';
   const setUserProfile = useActivityStore(s => s.setUserProfile);
   const userProfile = useActivityStore(s => s.userProfile);
@@ -173,7 +173,7 @@ export default function EditProfileScreen() {
         >
           {isSaving
             ? <ActivityIndicator size="small" color="#fff" />
-            : <ThemedText style={styles.headerSaveBtnText}>Save</ThemedText>
+            : <ThemedText style={[styles.headerSaveBtnText, { color: onTint }]}>Save</ThemedText>
           }
         </Pressable>
       </View>
@@ -206,7 +206,7 @@ export default function EditProfileScreen() {
             <View style={[styles.cameraBadge, { backgroundColor: colors.tint, borderColor: colors.background }]}>
               {isUploading
                 ? <ActivityIndicator size="small" color="#fff" />
-                : <FontAwesome6 name="camera" size={11} color="#fff" />
+                : <FontAwesome6 name="camera" size={11} color={onTint} />
               }
             </View>
           </Pressable>
@@ -268,7 +268,7 @@ export default function EditProfileScreen() {
                       },
                     ]}
                   >
-                    <ThemedText style={[styles.presetChipText, { color: selected ? '#fff' : colors.text }]}>
+                    <ThemedText style={[styles.presetChipText, { color: selected ? onTint : colors.text }]}>
                       {p}
                     </ThemedText>
                   </Pressable>
@@ -307,8 +307,8 @@ export default function EditProfileScreen() {
             <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Ionicons name="checkmark" size={18} color="#fff" />
-              <ThemedText style={styles.saveBtnText}>Save Changes</ThemedText>
+              <Ionicons name="checkmark" size={18} color={onTint} />
+              <ThemedText style={[styles.saveBtnText, { color: onTint }]}>Save Changes</ThemedText>
             </>
           )}
         </Pressable>
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
   },
   headerTitle:       { flex: 1, fontSize: 20, fontWeight: '700' },
   headerSaveBtn:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10 },
-  headerSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  headerSaveBtnText: { fontWeight: '700', fontSize: 14 },
 
   scroll: { paddingHorizontal: 20, paddingBottom: 48, gap: 24 },
 
@@ -385,5 +385,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, height: 54, borderRadius: 14, marginTop: 4,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  saveBtnText: { fontSize: 16, fontWeight: '700' },
 });

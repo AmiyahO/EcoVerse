@@ -248,12 +248,12 @@ function buildSparklineData(activities: any[]) {
 
 // ── EcoScore history modal ────────────────────────────────────────────────────
 function EcoScoreModal({
-  visible, onClose, ecoScore, zoneColor, activities, ecoScoreSnapshots, colors, scheme,
+  visible, onClose, ecoScore, zoneColor, activities, ecoScoreSnapshots, colors, scheme, onTint,
 }: {
   visible: boolean; onClose: () => void;
   ecoScore: number; zoneColor: string;
   activities: any[]; ecoScoreSnapshots: any[];
-  colors: any; scheme: string;
+  colors: any; scheme: string; onTint: string;
 }) {
   const [tab, setTab] = useState<'sparkline' | 'history'>('sparkline');
   const slideY  = useRef(new Animated.Value(600)).current;
@@ -279,7 +279,7 @@ function EcoScoreModal({
   const sparkData     = useMemo(() => buildSparklineData(activities), [activities]);
   const hasSparkData  = sparkData.some(d => d.tokens > 0);
   const hasHistory    = ecoScoreSnapshots.length >= 2;
-  const bgSheet       = scheme === 'dark' ? colors.tint + '18' : '#FFFFFF';
+  const bgSheet       = scheme === 'dark' ? '#1C1C1E' : '#FFFFFF';
   const tabBg         = scheme === 'dark' ? 'rgba(255,255,255,0.08)' : '#F0F0F0';
 
   // Peak + streak for sparkline summary
@@ -321,8 +321,8 @@ function EcoScoreModal({
               style={[styles.tab, tab === t.key && { backgroundColor: colors.tint }]}
               onPress={() => setTab(t.key)}
             >
-              <FontAwesome6 name={t.icon as any} size={12} color={tab === t.key ? '#fff' : colors.text} style={{ opacity: tab === t.key ? 1 : 0.5 }} />
-              <ThemedText style={[styles.tabText, { color: tab === t.key ? '#fff' : colors.text, opacity: tab === t.key ? 1 : 0.5 }]}>
+              <FontAwesome6 name={t.icon as any} size={12} color={tab === t.key ? onTint : colors.text} style={{ opacity: tab === t.key ? 1 : 0.5 }} />
+              <ThemedText style={[styles.tabText, { color: tab === t.key ? onTint : colors.text, opacity: tab === t.key ? 1 : 0.5 }]}>
                 {t.label}
               </ThemedText>
             </Pressable>
@@ -463,7 +463,7 @@ function AIModal({
     ]).start(() => onClose());
   };
 
-  const bgSheet = scheme === 'dark' ? colors.tint + '18' : '#FFFFFF';
+  const bgSheet = scheme === 'dark' ? '#1C1C1E' : '#FFFFFF';
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={dismiss}>
@@ -500,7 +500,7 @@ function AIModal({
 }
 
 export default function HomeScreen() {
-  const { colors, scheme } = useAppTheme();
+  const { colors, scheme, onTint } = useAppTheme();
   const userRegion        = useActivityStore(s => s.userRegion);
   const activities        = useActivityStore(s => s.activities);
   const userProfile       = useActivityStore(s => s.userProfile);
@@ -585,6 +585,7 @@ export default function HomeScreen() {
         ecoScoreSnapshots={ecoScoreSnapshots}
         colors={colors}
         scheme={scheme}
+        onTint={onTint}
       />
       <AIModal
         visible={showAIModal}
@@ -630,14 +631,14 @@ export default function HomeScreen() {
             style={({ pressed }) => [styles.addBtn, { backgroundColor: colors.tint, opacity: pressed ? 0.75 : 1 }]}
             onPress={() => router.push('/activity/add')}
           >
-            <FontAwesome6 name="plus" size={13} color="#fff" />
-            <ThemedText style={styles.addBtnText}>Log</ThemedText>
+            <FontAwesome6 name="plus" size={13} color={onTint} />
+            <ThemedText style={[styles.addBtnText, { color: onTint }]}>Log</ThemedText>
           </Pressable>
         </View>
 
         {/* ── Hero: EcoScore ── */}
         <LinearGradient
-          colors={scheme === 'dark' ? ['#1a2e1a', '#0d1f1f'] : ['#f0fdf4', '#e0f7fa']}
+          colors={scheme === 'dark' ? [colors.tint + '22', colors.tint + '0A'] : [colors.tint + '18', colors.tint + '08']}
           style={styles.heroCard}
         >
           <View style={styles.scoreWrapper}>
@@ -692,7 +693,7 @@ export default function HomeScreen() {
                 <View style={[styles.progressBg, { backgroundColor: colors.tint + '22' }]}>
                   <View style={[styles.progressFill, {
                     width: `${progress * 100}%`,
-                    backgroundColor: progress >= 1 ? '#4CAF50' : colors.tint,
+                    backgroundColor: colors.tint,
                   }]} />
                 </View>
                 <ThemedText style={[styles.progressLabel, { color: colors.text }]}>
@@ -839,7 +840,7 @@ const styles = StyleSheet.create({
   greetingIcon: { marginTop: 1 },
   greetingName: { fontSize: 22, fontWeight: '700', lineHeight: 28 },
   addBtn:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
-  addBtnText:   { color: '#fff', fontWeight: '700', fontSize: 14 },
+  addBtnText:   { fontWeight: '700', fontSize: 14 },
 
   // ── Hero ──
   heroCard:     { borderRadius: 20, padding: 20 },
