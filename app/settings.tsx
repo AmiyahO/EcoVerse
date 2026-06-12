@@ -330,6 +330,9 @@ export default function SettingsScreen() {
 
               // ── Step 4: Delete Firebase Auth account ──
               await deleteUser(user);
+              // Clear Google session so the deleted account isn't auto-selected
+              // on the next sign-in attempt.
+              try { await GoogleSignin.signOut(); } catch { /* not a Google user */ }
               // Clear the deletion guard and navigate explicitly —
               // onAuthStateChanged is blocked by isDeletingAccount so we
               // must route manually after a successful delete.
