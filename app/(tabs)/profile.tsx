@@ -127,8 +127,8 @@ export default function ProfileScreen() {
   }
 
   const gradientColors: [string, string, string] = scheme === 'dark'
-    ? ['#1B5E20', '#00897B', '#004D40']
-    : ['#2E7D32', '#00897B', '#006064'];
+    ? [colors.tint + 'CC', '#00897B', '#004D40']
+    : [colors.tint, '#00897B', '#006064'];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -144,7 +144,7 @@ export default function ProfileScreen() {
 
         {/* ── Hero Card ── */}
         <LinearGradient
-          colors={scheme === 'dark' ? ['#1B5E20', '#00897B', '#004D40'] : ['#2E7D32', '#00897B', '#006064']}
+          colors={gradientColors}
           start={{ x: 0, y: 0 }}
           end={{ x: 0.8, y: 1 }}
           style={styles.heroCard}

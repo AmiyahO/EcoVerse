@@ -637,7 +637,7 @@ export default function HomeScreen() {
 
         {/* ── Hero: EcoScore ── */}
         <LinearGradient
-          colors={scheme === 'dark' ? ['#1a2e1a', '#0d1f1f'] : ['#f0fdf4', '#e0f7fa']}
+          colors={scheme === 'dark' ? [colors.tint + '22', colors.tint + '0A'] : [colors.tint + '18', colors.tint + '08']}
           style={styles.heroCard}
         >
           <View style={styles.scoreWrapper}>
@@ -692,7 +692,7 @@ export default function HomeScreen() {
                 <View style={[styles.progressBg, { backgroundColor: colors.tint + '22' }]}>
                   <View style={[styles.progressFill, {
                     width: `${progress * 100}%`,
-                    backgroundColor: progress >= 1 ? '#4CAF50' : colors.tint,
+                    backgroundColor: colors.tint,
                   }]} />
                 </View>
                 <ThemedText style={[styles.progressLabel, { color: colors.text }]}>

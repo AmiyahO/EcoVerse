@@ -2,7 +2,7 @@
 import { Platform } from 'react-native';
 
 export const ACCENT_PRESETS = {
-  forest: { light: '#2E7D32', dark: '#34C9C9', label: 'Forest' },
+  forest: { light: '#2E7D32', dark: '#34C9C9', label: 'Forest (Default)' },
   ocean:  { light: '#1565C0', dark: '#64B5F6', label: 'Ocean'  },
   ember:  { light: '#BF360C', dark: '#FF8A65', label: 'Ember'  },
   violet: { light: '#6A1B9A', dark: '#CE93D8', label: 'Violet' },

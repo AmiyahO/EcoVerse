@@ -210,7 +210,7 @@ export default function TabLayout() {
           pointerEvents="box-none"
         >
           <LinearGradient
-            colors={['#2E7D32', '#34C9C9']}
+            colors={[colors.tint, colors.tint + '99']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.celebrationBannerInner}

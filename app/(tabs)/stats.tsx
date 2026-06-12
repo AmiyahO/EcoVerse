@@ -521,7 +521,7 @@ export default function StatsScreen() {
           HERO — sticky, sits above the scroll view
       ═══════════════════════════════════════════════════ */}
       <LinearGradient
-        colors={isDark ? ['#1B4332', '#0E2318'] : ['#2D6A4F', '#1B4332']}
+        colors={isDark ? [colors.tint + 'CC', colors.tint + '88'] : [colors.tint + 'EE', colors.tint + 'AA']}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         style={styles.hero}
       >
