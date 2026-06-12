@@ -168,7 +168,7 @@ export default function SettingsScreen() {
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
   const unsubCloudSync = useRef<(() => void) | null>(null);
 
-  const modalBg   = isDark ? '#1C2820' : '#FFFFFF';
+  const modalBg   = isDark ? colors.tint + '18' : '#FFFFFF';
   const overlayBg = isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)';
 
   useEffect(() => {

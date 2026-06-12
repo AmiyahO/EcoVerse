@@ -31,14 +31,14 @@ const EQUIVALENTS: CO2Equivalent[] = [
   { icon: 'mobile-screen-button', kgPerUnit: 0.008,  singular: 'phone charge',                  plural: 'phone charges',                   template: 'powers {n} {label}' },
   { icon: 'mug-hot',              kgPerUnit: 0.020,  singular: 'kettle boil',                   plural: 'kettle boils',                    template: 'saves the same as {n} {label}' },
   { icon: 'shirt',                kgPerUnit: 0.185,  singular: 'laundry load',                  plural: 'laundry loads',                   template: 'like skipping {n} {label}' },
-  { icon: 'car',                  kgPerUnit: 0.16725,  singular: 'km of driving avoided',         plural: 'km of driving avoided',           template: '{n} {label}' },
+  { icon: 'car',                  kgPerUnit: 0.16725,  singular: 'km of driving avoided',         plural: 'km of driving avoided',           template: 'avoids {n} {label}' },
   { icon: 'bottle-water',         kgPerUnit: 0.083,  singular: 'plastic bottle',                plural: 'plastic bottles',                 template: 'offsets {n} {label}' },
   { icon: 'lightbulb',            kgPerUnit: 0.012,  singular: 'hour of incandescent lighting',  plural: 'hours of incandescent lighting',   template: 'like leaving {n} {label} on' },
   { icon: 'tv',                   kgPerUnit: 0.036,  singular: 'hour of streaming',             plural: 'hours of streaming',              template: 'offsets {n} {label}' },
   { icon: 'shower',               kgPerUnit: 0.250,  singular: 'hot shower',                    plural: 'hot showers',                     template: 'like skipping {n} {label}' },
   { icon: 'plane',                kgPerUnit: 0.255,  singular: 'km of flying',                  plural: 'km of flying',                    template: 'avoids {n} {label}' },
-  { icon: 'temperature-high',     kgPerUnit: 0.553,  singular: 'hour of AC',                    plural: 'hours of AC',                     template: 'like switching off AC for {n} {label}' },
-  { icon: 'bolt',                 kgPerUnit: 0.473,  singular: 'kWh of grid electricity',        plural: 'kWh of grid electricity',          template: 'equals {n} {label} saved' },
+  { icon: 'temperature-high',     kgPerUnit: 0.553,  singular: 'hour',                          plural: 'hours',                           template: 'like switching off AC for {n} {label}' },
+  { icon: 'bolt',                 kgPerUnit: 0.473,  singular: 'kWh of grid electricity',        plural: 'kWh of grid electricity',          template: 'equal to {n} {label}' },
   { icon: 'tree',                 kgPerUnit: 0.060,  singular: 'tree absorbing CO₂ for a day',  plural: 'trees absorbing CO₂ for a day',   template: 'like {n} {label}' },
 ];
 

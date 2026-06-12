@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   fieldHint:  { fontSize: 12, opacity: 0.4, lineHeight: 17, paddingHorizontal: 2 },
 
   targetBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  targetBadgeText: { fontSize: 11, fontWeight: '600' },
+  targetBadgeText: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 
   presetRow:      { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   presetChip:     { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
