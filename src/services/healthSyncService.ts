@@ -214,7 +214,7 @@ export async function fetchSyncCandidates(
     if (deltaSteps <= STEP_NOISE_THRESHOLD) continue;
 
     const deltaDistance = day.distance > 0 && day.steps > 0
-      ? day.distance * (deltaSteps / day.steps)
+      ? Math.round((day.distance * (deltaSteps / day.steps)) * 100) / 100
       : undefined;
 
     const isPartial = totalAlreadyAccountedSteps > 0;
