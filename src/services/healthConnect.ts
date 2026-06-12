@@ -337,8 +337,13 @@ export async function fetchDailyStepSummaries(daysBack = 30): Promise<HCDailySte
 
     const now = new Date();
     for (let offset = 0; offset < daysBack; offset += CHUNK_DAYS) {
+      // chunkEnd: for offset=0 use now (partial today), otherwise use
+      // local midnight of the boundary day so chunks don't overlap.
       const chunkEnd = new Date(now);
-      chunkEnd.setDate(now.getDate() - offset);
+      if (offset > 0) {
+        chunkEnd.setDate(now.getDate() - offset);
+        chunkEnd.setHours(0, 0, 0, 0);
+      }
 
       const chunkStart = new Date(now);
       chunkStart.setDate(now.getDate() - Math.min(offset + CHUNK_DAYS, daysBack));

@@ -299,8 +299,11 @@ export async function commitSync(
     const activityRef = doc(collection(db, 'users', uid, 'activities'));
     batch.set(activityRef, activityData);
 
-    if (!newImportedIds.includes(hca.id)) {
-      newImportedIds.push(hca.id);
+    // Use originalDayId for delta entries so importedIds stores the canonical
+    // 'steps-YYYY-MM-DD' ID, not a timestamped delta ID that never matches day.id.
+    const idToRecord = (hca as any).originalDayId ?? hca.id;
+    if (!newImportedIds.includes(idToRecord)) {
+      newImportedIds.push(idToRecord);
     }
   }
 
