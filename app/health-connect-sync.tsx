@@ -78,7 +78,12 @@ export default function HealthConnectSyncScreen() {
       setLoading(false);
       return;
     }
-    const { sessions: s, syncState } = await fetchSyncCandidates(activities, userRegion);
+    // Read fresh activities from store at call time — not the closed-over
+    // value from render, which may be stale if the user synced and re-opened
+    // the screen without a full Firestore listener refresh.
+    const freshActivities = useActivityStore.getState().activities;
+    const { sessions: s, syncState } = await fetchSyncCandidates(freshActivities, userRegion);
+
     setSessions(s);
     setLastSynced(syncState.lastSyncedAt);
     setImportedIds(syncState.importedIds);
@@ -103,11 +108,11 @@ export default function HealthConnectSyncScreen() {
     if (selectedCount === 0) return;
     setSyncing(true);
     try {
-      const result = await commitSync(sessions, userRegion, activities, importedIds);
+      const freshActivities = useActivityStore.getState().activities;
+      const result = await commitSync(sessions, userRegion, freshActivities, importedIds);
       setSyncResult(result);
 
       // ── Streak milestone check ────────────────────────────────────────────
-      const freshActivities = useActivityStore.getState().activities;
       const newStreak = calculateStreak(freshActivities);
       const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
       const oldStreak = calculateStreak(activities);
