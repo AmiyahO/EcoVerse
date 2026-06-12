@@ -310,6 +310,12 @@ components/
 │                             #   before navigation. useNativeDriver: false (LinearGradient constraint).
 │                             #   Animated.View wrapper for text. Native splash image removed from app.json
 │                             #   and android/app/src/main/res/values/styles.xml to prevent double splash.
+│                             #   EAS Build runs a fresh prebuild (expo-dev-client forces this) which
+│                             #   regenerates styles.xml and re-adds the splashscreen_logo drawable ref.
+│                             #   Fix: assets/images/splash-icon.png (1×1 transparent PNG) passed to the
+│                             #   expo-splash-screen plugin with imageWidth:1 so EAS generates a valid
+│                             #   splashscreen_logo drawable — invisible at runtime since AnimatedSplash
+│                             #   takes over immediately.
 ├── ocr-candidate-picker.tsx  # OCR result picker for bill scanning
 └── ui/                       # Shared UI primitives and smaller helper components.
 
